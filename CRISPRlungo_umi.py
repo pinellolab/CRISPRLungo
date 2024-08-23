@@ -474,64 +474,64 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 
 
 def extract_mutation(info): 
-	cigar, is_reverse, ref_pos, align_end, seq, read_name, ref_seq, window_st, window_ed, large_ins_cut, large_del_cut, SA_tag = info
-	if SA_tag != False:
-		SA_tag = SA_tag.split(',')
-		SA_read_strand = SA_tag[2]
-		if [is_reverse, SA_read_strand] in [[False, '-'], [True, '+']]:
-			return False
-		SA_read_st = int(SA_tag[1]) - 1
-		SA_read_cigar = SA_tag[3]
-		SA_read_ed = SA_read_st
-		p = '' 
-		for i in SA_read_cigar:
-			if i in '0123456789':
-				p += i
-			else:
-				p = int(p)
-				if i in 'MD':
-					SA_read_ed += p
-				p = ''
-		if ref_pos < SA_read_st:
-			LD_st = align_end
-			LD_ed = SA_read_st - 1
-		else:
-			LD_st = SA_read_ed
-			LD_ed = ref_pos
-		if LD_ed < window_st or LD_st > window_ed:
-			return False
-		else:
-			return [f'{LD_st}_{LD_ed}:Large_Del_{LD_ed - LD_st + 1}']
-	seq_pos = 0
-	mut_info = [read_name]
-	for i in cigar:
-		if i[0] == 0:
-			if ref_pos <= window_st <= ref_pos + i[1] or ref_pos <= window_ed <= ref_pos + i[1]:
-				for x in range(i[1]):
-					if window_st <= ref_pos + x <= window_ed:
-						if ref_seq[ref_pos + x] != seq[seq_pos + x]:
-							mut_info.append(f'{ref_pos}:Sub_{ref_seq[ref_pos+x]}>{seq[seq_pos+x]}')							  
-			ref_pos += i[1]
-			seq_pos += i[1]
-		elif i[0] == 1:
-			if window_st <= ref_pos <= window_ed:
-				if i[1] > large_ins_cut:
-					mut_info.append(f'{ref_pos+1}_{ref_pos+2}:Large_Ins_{i[1]}')
-				else:
-					mut_info.append(f'{ref_pos+1}_{ref_pos+2}:Ins_{i[1]}')
-			seq_pos += i[1]
-		elif i[0] == 2:
-			if ref_pos + i[1] < window_st or ref_pos > window_ed:
-				pass
-			else:
-				if i[1] > large_del_cut:
-					mut_info.append(f'{ref_pos+1}_{ref_pos+i[1]}:Large_Del_{i[1]}')
-				else:
-					mut_info.append(f'{ref_pos+1}_{ref_pos+i[1]}:Del_{i[1]}')
-			ref_pos += i[1]
-		elif i[0] == 4:
-			seq_pos += i[1]
-	return mut_info
+    cigar, is_reverse, ref_pos, align_end, seq, read_name, ref_seq, window_st, window_ed, large_ins_cut, large_del_cut, SA_tag = info
+    if SA_tag != False:
+        SA_tag = SA_tag.split(',')
+        SA_read_strand = SA_tag[2]
+        if [is_reverse, SA_read_strand] in [[False, '-'], [True, '+']]:
+            return False
+        SA_read_st = int(SA_tag[1]) - 1
+        SA_read_cigar = SA_tag[3]
+        SA_read_ed = SA_read_st
+        p = '' 
+        for i in SA_read_cigar:
+            if i in '0123456789':
+                p += i
+            else:
+                p = int(p)
+                if i in 'MD':
+                    SA_read_ed += p
+                p = ''
+        if ref_pos < SA_read_st:
+            LD_st = align_end
+            LD_ed = SA_read_st - 1
+        else:
+            LD_st = SA_read_ed
+            LD_ed = ref_pos
+        if LD_ed < window_st or LD_st > window_ed:
+            return False
+        else:
+            return [f'{LD_st}_{LD_ed}:Large_Del_{LD_ed - LD_st + 1}']
+    seq_pos = 0
+    mut_info = [read_name]
+    for i in cigar:
+        if i[0] == 0:
+            if ref_pos <= window_st <= ref_pos + i[1] or ref_pos <= window_ed <= ref_pos + i[1]:
+                for x in range(i[1]):
+                    if window_st <= ref_pos + x <= window_ed:
+                        if ref_seq[ref_pos + x] != seq[seq_pos + x]:
+                            mut_info.append(f'{ref_pos}:Sub_{ref_seq[ref_pos+x]}>{seq[seq_pos+x]}')                           
+            ref_pos += i[1]
+            seq_pos += i[1]
+        elif i[0] == 1:
+            if window_st <= ref_pos <= window_ed:
+                if i[1] > large_ins_cut:
+                    mut_info.append(f'{ref_pos+1}_{ref_pos+2}:Large_Ins_{i[1]}')
+                else:
+                    mut_info.append(f'{ref_pos+1}_{ref_pos+2}:Ins_{i[1]}')
+            seq_pos += i[1]
+        elif i[0] == 2:
+            if ref_pos + i[1] < window_st or ref_pos > window_ed:
+                pass
+            else:
+                if i[1] > large_del_cut:
+                    mut_info.append(f'{ref_pos+1}_{ref_pos+i[1]}:Large_Del_{i[1]}')
+                else:
+                    mut_info.append(f'{ref_pos+1}_{ref_pos+i[1]}:Del_{i[1]}')
+            ref_pos += i[1]
+        elif i[0] == 4:
+            seq_pos += i[1]
+    return mut_info
 
 
 def mutation_analysis(ref_seq, target_seq, cleavage_pos, window_r, input_file, output_dir, threads=1, large_ins_cut=20, large_del_cut=100):
@@ -542,9 +542,11 @@ def mutation_analysis(ref_seq, target_seq, cleavage_pos, window_r, input_file, o
     if ref_seq.find(target_seq) != -1:
         st_pos = ref_seq.find(target_seq)
         cv_pos = st_pos + cleavage_pos
+        strand = 1
     elif ref_seq.find(rc(target_seq)) != -1:
         st_pos = ref_seq.find(rc(target_seq))
         cv_pos = st_pos + (len(target_seq) - cleavage_pos)
+        strand = -1
     else:
         print('ERROR: Can not find target seuqence in reference sequence')
         sys.exit()
@@ -609,6 +611,6 @@ def mutation_analysis(ref_seq, target_seq, cleavage_pos, window_r, input_file, o
     for i in ['wt', 'sub', 'ins', 'large_ins', 'del', 'large_del', 'complex']:
         print(f"{i} : {cnt_dict[i]}  {round(cnt_dict[i]*100/cnt_dict['all'], 2)} %")
 
-    return cv_pos
+    return cv_pos, strand
 
 

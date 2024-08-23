@@ -12,8 +12,8 @@ from subprocess import Popen, PIPE
 # In[23]:
 
 
-import statistical_integration_clean as regular_py
-import Post_process_final as visual
+import CRISPRlungo_regular as regular_py
+import CRISPRlungo_visualization as visual
 import CRISPRlungo_umi
 
 
@@ -73,6 +73,9 @@ def main():
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
     
+    def rev_comp(s):
+        return s.translate(s.maketrans('ATGC','TACG'))[::-1]
+
     if args.command == 'regular':
         
         print('Start to analysis using REGULAR mode ...')
@@ -91,8 +94,11 @@ def main():
             target = args.target.upper()
             if ref_seq.find(target) != -1:
                 cv_pos = ref_seq.find(target) + 16
+                strand = 1
             elif ref_seq.find(target.translate(target.maketrans('ATGC','TACG'))[::-1]) != -1:
                 cv_pos = ref_seq.find(target.translate(target.maketrans('ATGC','TACG'))[::-1]) + 3
+                strand = -1
+
         longjoin_bandwidth = int(ref_len * 0.3)
         if longjoin_bandwidth < 500:
             chaining_bandwidth = longjoin_bandwidth
@@ -132,7 +138,7 @@ def main():
         create_dir(ref_dir)
         
         with open(ref_dir + '/ref.fasta', 'w') as f:
-        	f.write(f'>{ref_name}\n{ref_seq}')
+            f.write(f'>{ref_name}\n{ref_seq}')
         
         create_dir(output_dir + '/align')
 
@@ -183,7 +189,7 @@ def main():
             # Mutation Analysis
             print('Mutation analysis...')
             create_dir(f'{output_dir}/results/{fn}')
-            cv_pos = CRISPRlungo_umi.mutation_analysis(ref_seq, args.target.upper(), args.cleavage_pos, args.window, f'{output_dir}/align/consensus_{fn}.sam', f'{output_dir}/results/{fn}', threads=threads)
+            cv_pos, strand = CRISPRlungo_umi.mutation_analysis(ref_seq, args.target.upper(), args.cleavage_pos, args.window, f'{output_dir}/align/consensus_{fn}.sam', f'{output_dir}/results/{fn}', threads=threads)
 
     #visualization
 
@@ -196,7 +202,7 @@ def main():
     else:
         tsv_file = output_dir + '/results/result/read_classification.txt'
         read_per_position = visual.visualization_preprocess(output_dir + '/align/consensus_result.sam', ref_file)
-
+    
     visual.base_proportion(read_per_position, output_dir, ref_seq)
     visual.mutation_pie_chart(tsv_file, output_dir)
     visual.indel_per_position(tsv_file, ref_seq, output_dir)
@@ -205,7 +211,7 @@ def main():
     visual.Deletion_count_length(tsv_file, output_dir)
     if args.target != None:
         visual.allele_plot(ref_seq, cv_pos, tsv_file, output_dir)
-    #LD_tornado()
+    visual.LD_tornado(tsv_file, cv_pos, ref_len, strand)
       
 
         
