@@ -187,15 +187,15 @@ def main():
 
     #visualization
 
-    read_per_position = visual.visualization_preprocess(output_dir + '/Treated_alignment.sam', ref_file)
     if args.command == 'regular':
         visual.regular_statistic_plot(args.output + '.tsv', args.treated, output_dir)
         visual.regular_accuracy_plot(ref_seq, read_per_position, output_dir)
-
+        read_per_position = visual.visualization_preprocess(output_dir + '/Treated_alignment.sam', ref_file)
         tsv_file = args.output + '.tsv'
 
     else:
         tsv_file = output_dir + '/results/result/read_classification.txt'
+        read_per_position = visual.visualization_preprocess(output_dir + '/align/consensus_result.sam', ref_file)
 
     visual.base_proportion(read_per_position, output_dir, ref_seq)
     visual.mutation_pie_chart(tsv_file, output_dir)

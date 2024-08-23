@@ -154,6 +154,8 @@ def base_proportion(result, output_dir, reference):
     
     poscounter =0 
     for nt in str(reference):
+        if nt not in 'ATGC':
+            continue
         ref_seq_dictionary[nt].append(poscounter)
         poscounter +=1
     
