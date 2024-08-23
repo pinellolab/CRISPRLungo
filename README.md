@@ -1,6 +1,10 @@
 # CRISPR-LongReads
 
 
+![image](https://github.com/user-attachments/assets/842d4741-c261-4bce-8e36-709f7ae3c76f)
+
+
+
 ### Requirements
 
 - biopython
@@ -31,5 +35,4 @@
 ```
 
 
-![CRISPRlungo_image](https://github.com/user-attachments/assets/1b9a03b2-21d6-4450-b8c3-b7ac8afe57e6)
 
