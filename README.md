@@ -7,6 +7,7 @@
 
 ### Requirements
 
+- Minimap2
 - biopython
 - pysam
 - scipy
