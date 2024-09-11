@@ -211,7 +211,7 @@ def main():
     visual.Deletion_count_length(tsv_file, output_dir)
     if args.target != None:
         visual.allele_plot(ref_seq, cv_pos, tsv_file, output_dir)
-    visual.LD_tornado(tsv_file, cv_pos, ref_len, strand)
+    visual.LD_tornado(tsv_file, cv_pos, ref_len, strand, output_dir)
       
 
         
