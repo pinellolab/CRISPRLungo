@@ -15,7 +15,7 @@ import collections
 from Bio import SeqIO
 import sys
 
-def analysis_function(control,edited,refernce, p_limit_value = 0.002,allowance_value = 0.05, pooling = True, title = "90"):
+def analysis_function(control,edited,refernce, p_limit_value = 0.002,allowance_value = 0.05, pooling = True, Filter1 = False):
 	# Path to SAM files
 	samfile_path1 = edited
 	samfile_path2 = control
@@ -138,11 +138,9 @@ def analysis_function(control,edited,refernce, p_limit_value = 0.002,allowance_v
 
 
 
-	def custom_round(num,margin):
-		if math.floor(num*margin)  == 0: return(num)
-		rond = round(num * margin)/margin
-		fit = round(num * margin)
-		closest_value =  rond + round((num-rond)/fit)*fit
+	def custom_round(num,margin,length):
+		if math.floor(num*length)  == 0: return(num)
+		closest_value = round(num/math.floor(num*length))*math.floor(num*length)
 		return int(closest_value)
 
 	def pool(mut_dict, allowance = allowance_value):
@@ -150,8 +148,8 @@ def analysis_function(control,edited,refernce, p_limit_value = 0.002,allowance_v
 		for key in mut_dict.keys():
 			if math.floor(list(key)[2]*allowance)  == 0: outputdict[key] = mut_dict[key]
 			else: 
-				newlength = custom_round(list(key)[2],allowance)
-				newpos = custom_round(list(key)[1],allowance)
+				newlength = custom_round(list(key)[2],allowance,list(key)[2])
+				newpos = custom_round(list(key)[1],allowance,list(key)[2])
 				type = list(key)[0]
 				mutation = (type,newpos,newlength)
 				outputdict[mutation] = outputdict.get(mutation, 0) + mut_dict[key]
@@ -186,14 +184,13 @@ def analysis_function(control,edited,refernce, p_limit_value = 0.002,allowance_v
 			length = list(key)[2]
 			if control_count/control_reads > edited_count/edited_reads:
 				continue
-		
+
 			# Create the contingency table for this mutation
 			table = [
 				[control_count, control_reads - control_count],  # Control counts
 				[edited_count, edited_reads - edited_count]		 # Edited counts
 			]
-			
-			
+
 			# Perform Fisher's Exact Test if control count is less than  or equal to 5 or chi2 if control_count >5
 			if control_count <= 5:
 				_, p_value = fisher_exact(table, alternative='two-sided')
@@ -230,6 +227,7 @@ def analysis_function(control,edited,refernce, p_limit_value = 0.002,allowance_v
 		set_sig_mut = set(significant_keys)
 		# Iterate over reads in the SAM file
 		reads_that_passed = []
+		count_printed = 0
 		for read in samfile.fetch():
 			mutations_in_read = []
 			# Skip unmapped reads
@@ -272,23 +270,36 @@ def analysis_function(control,edited,refernce, p_limit_value = 0.002,allowance_v
 			#combined_mutations_in_read = combine_deletions(mutations_in_read)
 			#if len(combined_mutations_in_read) != mutations_in_read: 
 				#combined_mutations_in_read = combine_deletions(combined_mutations_in_read)
-			for mut in mutations_in_read:
-				allowance = allowance_value
-				length1 = list(mut)[2]
-				pos = list(mut)[1]
-				type = list(mut)[0]
-				if pooling:
-					if (math.floor(length1*allowance)  == 0 or math.floor(list(mut)[1]*allowance)==0) :
+			if Filter1:
+				if count_printed ==0:
+					print("Proceeding With Statistical Tests")
+					count_printed+=1
+				for mut in mutations_in_read:
+					
+						allowance = allowance_value
+						length1 = list(mut)[2]
 						pos = list(mut)[1]
 						type = list(mut)[0]
-					else:
-						length1 = custom_round(length1,allowance)
-						pos = custom_round(list(mut)[1],allowance)
-						type = list(mut)[0]
-				
-				mutation = (type,pos,length1)
+						if pooling:
+							if (math.floor(length1*allowance)  == 0 or math.floor(list(mut)[1]*allowance)==0) :
+								pos = list(mut)[1]
+								type = list(mut)[0]
+							else:
+								length1 = custom_round(length1,allowance,list(mut)[2])
+								pos = custom_round(list(mut)[1],allowance,list(mut)[2])
+								type = list(mut)[0]
+					
+						mutation = (type,pos,length1)
 
-				if mutation in set_sig_mut: dict_of_reads[total_reads].append(mut)
+						if mutation in set_sig_mut: dict_of_reads[total_reads].append(mut)
+			else: 
+				if count_printed ==0:
+					print("Reporting All Mutations")
+					count_printed+=1
+				for mut in mutations_in_read:
+					
+
+					dict_of_reads[total_reads].append(mut)
 				# Update ref_pos based on operation
 			
 				
@@ -307,6 +318,15 @@ def analysis_function(control,edited,refernce, p_limit_value = 0.002,allowance_v
 	
 	edited_dict_reads, reads_that_passed = creat_dict_analysis(samfile_path1,significant_keys)
 	edited_dict_reads2, _ = creat_dict_analysis(samfile_path2,significant_keys)
+	sub_count_edited = 0
+	sub_count_control = 0
+	for value in edited_dict_reads.values():
+		for mutation in value:
+			if mutation[0][0:3] == "Sub": sub_count_edited+=1
+	for value in edited_dict_reads2.values():
+		for mutation in value:
+			if mutation[0][0:3] == "Sub": sub_count_control+=1
+	print(sub_count_edited,sub_count_control)
 	return(edited_dict_reads,edited_dict_reads2,reads_that_passed)
 	
 	
@@ -363,4 +383,3 @@ def process_mutations(mutations_dict, output_file,ids):
 			
 			classification, mutation_info = classify_mutations(mutations)
 			writer.writerow([read_id, classification, mutation_info])
-
