@@ -3,6 +3,20 @@ import os, sys, time, pysam, editdistance
 from subprocess import Popen, PIPE
 from spoa import poa
 from multiprocessing import Pool
+import CRISPRlungo_insert_analysis 
+import CRISPRlungo_regular as regular_py
+import csv
+
+def rc(s): return s.translate(s.maketrans('ATGC','TACG'))[::-1]
+
+def check_in_quality(read):
+	
+	if read.mapping_quality > 30:
+		return True
+	if read.has_tag('SA'):
+		if read.get_tag('NM') < read.query_alignment_length * 0.05:
+			return True
+	return False
 
 def input_organize(ref_fn, output_dir, input_fn):
 
@@ -118,6 +132,7 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 			return ''
 		return ''.join(align_seq[cut_st: cut_ed]).replace('-', '')
 
+	
 	ref_seq = ''.join(open(ref_file).readlines()[1:]).replace('\n','')
 	ref_seq_len = len(ref_seq)
 	
@@ -148,7 +163,7 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 	for i in range(int(len(idx_info)/2)):
 		idx_dict[idx_info[2*i]] = idx_info[2*i+1]
 
-	cnt_dict = {'all': 0, 'secondary': 0, 'unmap': 0,'filted_short': 0, 'filted_idx_len': 0, 'pass': 0, 'split_pass': 0} # "All" means the whole number of Aligned reads
+	cnt_dict = {'all': 0, 'unmapped': 0, 'filted_align_short': 0, 'filted_umi_len': 0, 'used': 0, 'used_with_supple': 0} 
 
 	with pysam.AlignmentFile(sam_file) as f:
 
@@ -182,46 +197,59 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 		
 		demulti_fw_dict = {}
 		demulti_umi_dict = {}
-
+		
 		for idx_i in idx_dict.keys():
 			demulti_fw_dict[idx_i] = open(f'{output_dir}/demultiplexing/{idx_i}.fastq', 'w')
 			demulti_umi_dict[idx_i] = open(f'{output_dir}/demultiplexing/umi_{idx_i}.fasta', 'w')
+			fid = idx_i
 		
 		idx_len = [i[1] - i[0] + 1 for i in idx_pos]
 		umi_len = [i[1] - i[0] + 1 for i in umi_pos]
 
 		for line in f:
+
+			cnt_dict['all'] += 1
+
+			if line.is_unmapped:	
+				cnt_dict['unmapped'] += 1
+				continue
+
+			if line.is_secondary:
+				continue
 			
 			lines = [line]
+
 			if line.has_tag('SA') == True:
-				for i in range(len(line.get_tag('SA').split(';')) - 1):
-					lines.append(next(f))
-			
-			seq = line.query_sequence
-			qual = line.query_qualities
+				SA_n = len(line.get_tag('SA').split(';'))
+				while len(lines) < SA_n:
+					next_read = next(f)
+					if next_read.is_supplementary:
+						lines.append(next_read)
+
+			#for i in range(len(line.get_tag('SA').split(';')) - 1):
+			#		lines.append(next(f))
+
+			seq = lines[0].query_sequence
+			qual = lines[0].query_qualities
 
 			partial_lines = []
 
 			line_id = 0
+			counted_check = False
+
+			"""if 'UMI1267' in lines[0].query_name:
+				print(lines)
+				input()"""
+
 			for line in lines:
-				
-				cnt_dict['all'] += 1
 
-				if line.is_secondary:
-					cnt_dict['secondary'] += 1
-					continue
-
-				if line.is_unmapped:
-					cnt_dict['unmap'] += 1
-					continue
-		
 				pos_refst = line.reference_start
 				pos_refed = line.reference_end
-			
-				if pos_refst > front_indi_pos and pos_refed < back_indi_pos:
-					cnt_dict['filted_short'] += 1
-					continue
 
+				if pos_refst > front_indi_pos and pos_refed < back_indi_pos:
+					#cnt_dict['filted_align_short'] += 1
+					continue
+				
 				elif pos_refst > front_indi_pos or pos_refed < back_indi_pos:
 					partial_lines.append(line)
 					continue
@@ -240,9 +268,10 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 				
 				idx_seq[1] = extract_seq(back_align, ref_seq_len - idx_pos[1][1] - 1, ref_seq_len - idx_pos[1][0])
 				umi_seq[1] = extract_seq(back_align, ref_seq_len - umi_pos[1][1] - 1, ref_seq_len - umi_pos[1][0])
-			
+
 				check_len = False
 
+				
 				for i in range(2):
 					if len(idx_seq[i]) - idx_len[i] > umi_idx_r*2:
 						check_len = True
@@ -251,11 +280,10 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 						check_len = True
 						break
 			
-			
 				if check_len == True:
-					cnt_dict['filted_idx_len'] += 1
+					cnt_dict['filted_umi_len'] += 1
 					continue
-				
+
 				cut_seq, cut_seq_qual = cut_align(line.seq, line.query_qualities, cigar)
 				mean_qual = sum(cut_seq_qual)/len(cut_seq_qual)
 				qual_string = "".join(chr(q + 33) for q in cut_seq_qual)
@@ -264,28 +292,21 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 					strand = '+'
 				else:
 					strand = '-'
-			
-				if idx_dict != {'result': 'NNNNNNNNNN'}:
-					fid = demultiplex_idx(''.join(idx_seq), idx_dict)
-					if fid == False:
-						cnt_dict['filted_idx_len'] += 1
-						continue
 
-				else:
-					fid = 'result'
-			
 				demulti_fw_dict[fid].write(f'@{line.query_name}_{line_id}\n{cut_seq}\n+\n{qual_string}\n')
 				demulti_umi_dict[fid].write(f'>{line.query_name}_{line_id};{strand};{cut_seq};{mean_qual}\n{"".join(umi_seq)}\n')
 				line_id += 1
-				cnt_dict['pass'] += 1	
+				cnt_dict['used'] += 1	
+				counted_check = True
 			
 			# for not fully aligned reads
-			
-			if len(partial_lines) == 1:
-				cnt_dict['filted_short'] += 1
+
+			if len(partial_lines) == 1 and counted_check == False:
+				cnt_dict['filted_align_short'] += 1
 				continue
 
 			partial_line_info = []
+
 
 			for line in partial_lines:
 
@@ -299,7 +320,7 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 				cigar = line.cigar
 				align_len = cigar_len(cigar)
 
-				if cigar[0][0] == 4:
+				if line.is_supplementary == False:
 					pos_in_seq = cigar[0][1]
 					pos_in_seq_ed = pos_in_seq + len(partial_seq)
 					align_strand_to_seq = 1
@@ -314,7 +335,7 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 					pos_in_seq_ed = pos_in_seq + len(partial_seq)
 	
 				if pos_in_seq == -1:
-					cnt_dict['filted_short'] += 1
+					#cnt_dict['filted_align_short'] += 1
 					continue
 
 
@@ -323,7 +344,7 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 				elif line.is_reverse == True:
 					align_strand_in_refseq = -1
 				else:
-					cnt_dict['filted_short'] += 1
+					#cnt_dict['filted_align_short'] += 1
 					continue
 
 				if pos_refst < front_indi_pos and align_len > front_align_cut + 25:
@@ -338,19 +359,27 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 					adaptive_umi = extract_seq(back_align, ref_seq_len - umi_pos[1][1] - 1, ref_seq_len - umi_pos[1][0])
 				
 				else:
-					cnt_dict['filted_short'] += 1
+					#cnt_dict['filted_align_short'] += 1
 					continue
 				
 				partial_line_info.append([pos_in_ref, pos_in_seq, pos_in_seq_ed, adaptive_idx, adaptive_umi, align_strand_in_refseq, align_strand_to_seq])
 			
+			"""if 'UMI1267' in lines[0].query_name:
+				print('---')
+				for i in partial_line_info:
+					print(i)
+				input()"""
+
 			partial_line_info = sorted(partial_line_info, key=lambda x: x[1])
+
+			counted_check_2 = False
 
 			for i in range(len(partial_line_info) - 1):
 				info = partial_line_info[i: i+2]
 				if info[0][5] != info[1][5]:
 					continue
-				if info[0][5] * info[0][0] == -1:
-					continue
+				#if info[0][5] * info[0][0] == -1:
+				#	continue
 				if info[0][6] != info[1][6]:
 					continue
 				if info[0][6] == 1:
@@ -363,26 +392,40 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 					cut_seq = rc(seq[info[0][1]:info[1][2]])
 					idx_seq = [info[1][3], info[0][3]]
 					umi_seq = [info[1][4], info[0][4]]
-				print(line.query_name)
-				print(info)
+
 				qual_string = "".join(chr(q + 33) for q in cut_seq_qual)
 				mean_qual = sum(cut_seq_qual)/len(cut_seq_qual)
-				if idx_dict != {'result': 'NNNNNNNNNN'}:
-					fid = demultiplex_idx(''.join(idx_seq), idx_dict)
-					if fid == False:
-						cnt_dict['filted_idx_len'] += 1
-						continue
-				else:
-					fid = 'result'
+
 				demulti_fw_dict[fid].write(f'@{line.query_name}_{line_id}_Splited\n{cut_seq}\n+\n{qual_string}\n')
 				demulti_umi_dict[fid].write(f'>{line.query_name}_{line_id};+;{cut_seq};{mean_qual};Splited\n{"".join(umi_seq)}\n')
 				line_id += 1
-				cnt_dict['split_pass'] += 1
+				cnt_dict['used_with_supple'] += 1
+				counted_check = True
+			if counted_check_2 == False and counted_check == False:
+				cnt_dict['filted_align_short'] += 1
+
+			"""if 'UMI1267' in lines[0].query_name:
+				print(counted_check)
+				print(counted_check_2)
+				input()"""
+
+
+	with open(output_dir + '/results/preprocess_count.txt', 'w') as fw:
+		for i in cnt_dict.keys():
+			fw.write(i + '\t')
+		fw.write('\n')
+		for i in cnt_dict.values():
+			fw.write(f'{i}\t')
 			
 	print(cnt_dict)
 
-def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads, clust_cutoff, umi_r=1):
 
+def run_spoa(info):
+	consensus, msa =  poa(info[0], min_coverage=info[1], genmsa=info[2])
+	return consensus, info[3]
+
+def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads, clust_cutoff, umi_r=1):
+	
 	print('Running 1st vsearch ...\r', end='')
 	os.system(' '.join(['vsearch',
 			'--clusterout_id',
@@ -403,6 +446,25 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 			'-id', '0.9']))
 	print('Running 1st vsearch ... completed')
 
+	with open(f'{output_clust}/1st_consensus.fasta') as f, open(f'{output_clust}/confirmed_1st_consensus.fasta', 'w') as fw:
+		for sid in f:
+			umi = next(f).strip()
+			if abs(len(umi) - umi_len) > umi_r:
+				for i in sid.split(';'):
+					if i.split('=')[0] == 'clusterid':
+						cluster_file_n = i.split('=')[1].strip()
+						f_clust = open(f'{output_clust}/1st_clusters/{cluster_file_n}').readlines()
+						cluster_d = {}
+						for x in range(int(len(f_clust)/2)):
+							u = f_clust[2*x+1].strip()
+							if u not in cluster_d:
+								cluster_d[u] = [1, abs(len(u) - umi_len)]
+							else:
+								cluster_d[u][0] += 1
+						umi = min(cluster_d, key=lambda k: (cluster_d[k][1], -cluster_d[k][0]))
+			fw.write(f'>{sid.strip()}\n{umi}\n')
+					
+
 	print('Running 2nd vsearch ...\r', end='')	 
 	os.system(' '.join(['vsearch',
 			'--clusterout_id',
@@ -411,7 +473,7 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 			'--maxseqlength', str(umi_len + umi_r),
 			'--qmask', 'none',
 			'--threads', str(threads), 
-			'--cluster_fast', f'{output_clust}/1st_consensus.fasta',
+			'--cluster_fast', f'{output_clust}/confirmed_1st_consensus.fasta',
 			'--clusterout_sort',
 			'--gapopen', '0E/5I',
 			'--gapext', '0E/2I',
@@ -450,6 +512,8 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 	print('Reorganinzing clustering files ... completed')
 	print(f'The number of clustering : {cluster_cnt} (filted cluster : {filted_cnt}')
 
+	
+		
 	print('Generating consensus sequence ...\r', end='') 
 	medaka_input_list = []
 	for i in os.listdir(f'{output_clust}/medaka_input/'):
@@ -457,160 +521,560 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 			medaka_input_list.append(f'{output_clust}/medaka_input/{i}')
 	fw = open(output_consensus + '/consensus.fasta', 'w')
 	t = time.time()
-	for fn_n, fn in enumerate(medaka_input_list):
-		print(f'Generating consensus sequence [{fn_n} / {len(medaka_input_list)}] {round(time.time() - t,2)} s\r', end='') 
-		t = time.time()
-		reads = []
-		with open(fn) as f:
-			for line in f:
-				reads.append(next(f).strip())
-		min_cutoff = int(len(reads)*0.1)
-		if min_cutoff < 3:
-			min_cutoff = 3
-		consensus, msa = poa(reads[:30], min_coverage=min_cutoff, genmsa=False)
-		fw.write(f'>{fn[:fn.find(".")]}\n{consensus}\n')
+	with Pool(threads) as pool:
+		pool_input = []
+		print(f'Generating consensus sequence [0 / {len(medaka_input_list)}] {round(time.time() - t,2)} s\r', end='') 
+		for fn_n, fn in enumerate(medaka_input_list):
+
+			t = time.time()
+			reads = []
+			with open(fn) as f:
+				for line in f:
+					reads.append(next(f).strip())
+			min_cutoff = int(len(reads)*0.1)
+			if min_cutoff < 3:
+				min_cutoff = 3
+			pool_input.append([reads[:30], min_cutoff, False, fn])
+			if fn_n % 100 == 0:
+				for spoa_res in pool.map(run_spoa, pool_input):
+					fn = spoa_res[1]
+					fw.write(f'>{fn[fn.rfind("/")+1:fn.rfind(".")]}\n{spoa_res[0]}\n')
+					print(f'Generating consensus sequence [{fn_n} / {len(medaka_input_list)}]                       \r', end='') 
+				pool_input = []
+		for spoa_res in pool.map(run_spoa, pool_input):
+			fn = spoa_res[1]
+			fw.write(f'>{fn[fn.rfind("/")+1:fn.rfind(".")]}\n{spoa_res[0]}\n')
+			
 	fw.close()
 	print('Generating consensus sequence ... completed')
 
 
-def extract_mutation(info): 
-	cigar, is_reverse, ref_pos, align_end, seq, read_name, ref_seq, window_st, window_ed, large_ins_cut, large_del_cut, SA_tag = info
-	if SA_tag != False:
-		SA_tag = SA_tag.split(',')
-		SA_read_strand = SA_tag[2]
-		if [is_reverse, SA_read_strand] in [[False, '-'], [True, '+']]:
-			return False
-		SA_read_st = int(SA_tag[1]) - 1
-		SA_read_cigar = SA_tag[3]
-		SA_read_ed = SA_read_st
-		p = '' 
-		for i in SA_read_cigar:
-			if i in '0123456789':
-				p += i
-			else:
-				p = int(p)
-				if i in 'MD':
-					SA_read_ed += p
-				p = ''
-		if ref_pos < SA_read_st:
-			LD_st = align_end
-			LD_ed = SA_read_st - 1
+def classify_mix(info):
+	muts = ','.join([m[m.find(':')+1:m.rfind('_')] for m in info[1:]])
+	if 'Large' in muts:
+		if 'LargeDel' in muts and 'LargeIns' in muts:
+			return 'ComplexWithLargeMut'
+		elif 'LargeDel' in muts:
+			return 'LargeDel'
+		elif 'LargeIns' in muts:
+			return 'LargeIns'
+	elif 'Del' in muts and 'Ins' in muts:
+		return 'Complex'
+	elif 'Del' in muts:
+		return 'Del'
+	elif 'Ins' in muts:
+		return 'Ins'
+	else:
+		sub_c = True
+		for x in info[1:]:
+			if 'Sub' not in x:
+				sub_c = False
+		if sub_c == True:
+			return 'Sub'
 		else:
-			LD_st = SA_read_ed
-			LD_ed = ref_pos
-		if LD_ed < window_st or LD_st > window_ed:
-			return False
-		else:
-			return [f'{LD_st}_{LD_ed}:Large_Del_{LD_ed - LD_st + 1}']
-	seq_pos = 0
-	mut_info = [read_name]
+			return 'Complex'
+
+def cigar_len(cigar):
+	length = 0
 	for i in cigar:
-		if i[0] == 0:
-			if ref_pos <= window_st <= ref_pos + i[1] or ref_pos <= window_ed <= ref_pos + i[1]:
-				for x in range(i[1]):
-					if window_st <= ref_pos + x <= window_ed:
-						if ref_seq[ref_pos + x] != seq[seq_pos + x]:
-							mut_info.append(f'{ref_pos}:Sub_{ref_seq[ref_pos+x]}>{seq[seq_pos+x]}')							  
-			ref_pos += i[1]
-			seq_pos += i[1]
-		elif i[0] == 1:
-			if window_st <= ref_pos <= window_ed:
-				if i[1] > large_ins_cut:
-					mut_info.append(f'{ref_pos+1}_{ref_pos+2}:Large_Ins_{i[1]}')
+		if i[0] in [0, 2]:
+			length += i[1]
+	return length
+
+def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_length, query_name, range_align_end=100):
+
+	# Initialize an empty list to store information about partial reads
+	
+	partial_read_info = []
+	
+
+	for read in partial_reads:
+
+		pos_refst = read.reference_start
+		pos_refed = read.reference_end
+		
+		pos_in_ref = False
+		partial_seq = read.query_sequence
+		query_seq_len = len(query_seq)
+		align_strand_in_refseq = 2 # 2 = not aligned, -1 = reverse, 1 = forward, 3 = full intact read
+		align_strand_to_seq = 2 # 2 = not aligned, -1 = reverse, 1 = forward
+		
+
+		cigar = read.cigar
+		align_len = cigar_len(cigar)
+
+		pos_in_seq = -1
+		
+		align_strand_info = read.query_name.split('alignStrandInfo_')[1].split('_')
+		align_strand_to_seq = 1
+		for i in align_strand_info[1:]:
+			align_strand_to_seq *= int(i)
+	
+		if query_seq.find(partial_seq) != -1:
+			if cigar[0][0] in [4, 5]:
+				pos_in_seq = cigar[0][1]
+			else:
+				pos_in_seq = 0
+			if cigar[-1][0] in [4, 5]:
+				pos_in_seq_ed = query_seq_len - cigar[-1][1] - 1
+			else:
+				pos_in_seq_ed = query_seq_len - 1
+			#align_strand_to_seq = 1
+		elif query_seq.find(rc(partial_seq)) != -1:
+			if cigar[0][0] in [4, 5]:
+				pos_in_seq_ed = query_seq_len - cigar[0][1] - 1
+			else:
+				pos_in_seq_ed = query_seq_len - 1
+			if cigar[-1][0] in [4, 5]:
+				pos_in_seq = cigar[-1][1]
+			else:
+				pos_in_seq = 0
+			#align_strand_to_seq = -1
+
+		# If sequence position is not found, continue to the next read
+
+		if pos_in_seq == -1:
+			continue
+
+		if pos_refst < range_align_end or pos_refed > reference_length - range_align_end:
+			pass
+		else:
+			continue
+
+		# Check if the read spans almost the entire reference sequence
+		if pos_refst < 100 and pos_refed > reference_length - 100:
+			align_strand_in_refseq = 3  # Mark as an intact read
+		elif not read.is_reverse:  # If the read is aligned in the forward direction
+			align_strand_in_refseq = 1
+		elif read.is_reverse:  # If the read is aligned in the reverse direction
+			align_strand_in_refseq = -1
+		else:
+			continue
+
+		partial_read_info.append([pos_refst, pos_refed, pos_in_seq, pos_in_seq_ed, align_strand_in_refseq, align_strand_to_seq, cigar, partial_seq])
+	
+	partial_read_info = sorted(partial_read_info, key=lambda x: x[2])
+	partial_read_info.append((2, 2, 2, 2, 2, 2, '')) # To check last partial read is fully aligned
+
+	mutations_in_reads = []
+
+	# Loop through the list of partial reads' information
+
+	for i in range(len(partial_read_info) - 1):
+		mutations_in_read = []
+		info = partial_read_info[i: i+2]  # Take two consecutive reads for comparison
+		
+		if info[1][4] == 3:
+			continue
+
+		# Check if the read is an intact read (spans most of the reference)
+		if info[0][4] == 3:
+			ref_pos = info[0][0]  # Starting position in the reference
+			seq_pos = 0
+			using_query_seq = info[0][7]  # Use the query sequence directly
+
+			for operation, length in info[0][6]:
+				if operation == 0:  
+					for x in range(length):
+						if using_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+							mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))					
+				if operation == 1:  
+					mutations_in_read.append(('insertion', ref_pos, length, using_query_seq[seq_pos: seq_pos + length], ref_pos + 1,seq_pos, seq_pos + length))
+				elif operation == 2:  
+					mutations_in_read.append(('deletion', ref_pos, length))
+				
+				# Adjust the reference and sequence positions after operations
+				if operation in [0, 2, 3]: 
+					ref_pos += length
+				if operation in [0, 1,4 ]:
+					seq_pos += length
+			
+			# Append the detected mutations in the current read
+			mutations_in_reads.append(mutations_in_read)
+			continue
+		
+		# Process reads aligned to the forward strand
+		#if info[0][5] == 1 and info[1][5] == 1:
+
+		if info[0][5] == -1:
+			used_query_seq = rc(query_seq)
+		else:
+			used_query_seq = query_seq
+		
+		
+		if info[0][5] == info[1][5] and info[0][4] == info[1][4] and info[0][1] < info[1][0]:
+			
+			if info[0][1] < info[1][0] - 100:  # Check for a deletion between the two reads
+				mutations_in_read.append(('deletion', info[0][1], info[1][0] - info[0][1]))
+			if abs(info[0][3] - info[1][2]) > 20:  # Check for an insertion between the reads
+				ins_end_pos = info[1][0]
+				if ins_end_pos <= info[0][1]:
+					ins_end_pos = info[0][1] + 1
+				if query_seq.find(info[0][7]) != -1:
+					ins_seq = query_seq[info[0][3]: info[0][3] + (info[1][2] - info[0][3] - 1)]
 				else:
-					mut_info.append(f'{ref_pos+1}_{ref_pos+2}:Ins_{i[1]}')
-			seq_pos += i[1]
-		elif i[0] == 2:
-			if ref_pos + i[1] < window_st or ref_pos > window_ed:
+					ins_seq = rc(query_seq[info[0][3]: info[0][3] + (info[1][2] - info[0][3] - 1)])
+				mutations_in_read.append(('insertion', info[0][1], abs(info[0][3] - info[1][2]),  ins_seq, ins_end_pos, info[0][3], info[0][3] + abs(info[0][3] - info[1][2])))
+
+			# Iterate through both reads and check for mutations
+			for sub_info in info:
+				ref_pos = sub_info[0]  
+				seq_pos = 0
+				used_query_seq = sub_info[7]
+				for operation, length in sub_info[6]:
+					if operation == 0:  
+						sub_tmp_list = []
+						for x in range(length):
+							if used_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))
+					elif operation == 1:  
+						mutations_in_read.append(('insertion', ref_pos, length, used_query_seq[seq_pos: seq_pos + length], ref_pos + 1, seq_pos, seq_pos + length))
+					elif operation == 2: 
+						mutations_in_read.append(('deletion', ref_pos, length))
+					
+					if operation in [0, 2, 3]:
+						ref_pos += length
+					if operation in [0, 1, 4]:
+						seq_pos += length
+			
+			mutations_in_reads.append(mutations_in_read)
+
+		# Process reads aligned to the reverse strand
+		#elif info[0][5] == -1 and info[1][5] == -1:
+		elif info[0][5] ==  info[1][5] and info[0][4] == info[1][4]  and info[1][1] < info[0][0]:
+			if info[1][1] < info[0][0] - 100:  # Check for a deletion between the two reads
+				mutations_in_read.append(('deletion', info[1][1], info[0][0] - info[1][1] - 1))
+			if abs(info[1][2] - info[0][3]) > 20:  # Check for an insertion between the reads
+				ins_end_pos = info[0][0]
+				if ins_end_pos <= info[1][1]:
+					ins_end_pos = info[1][1] + 1
+				if query_seq.find(info[0][7]) != -1:
+					ins_seq = query_seq[info[0][3]: info[0][3] + (info[1][2] - info[0][3] - 1)]
+				else:
+					ins_seq = rc(query_seq[info[0][3]: info[0][3] + (info[1][2] - info[0][3] - 1)])
+				mutations_in_read.append(('insertion', info[1][1], abs(info[1][2] - info[0][3]), ins_seq, ins_end_pos, info[0][3], info[0][3] + (info[1][2] - info[0][3] - 1)))
+
+			# Reverse complement query sequence for reverse strand processing
+			query_seq_len = len(query_seq)
+
+			# Process mutations for both reads
+			for sub_info in info:
+				ref_pos = sub_info[0]  
+				seq_pos = 0
+				used_query_seq = sub_info[7]
+				
+				for operation, length in sub_info[6]:
+					if operation == 0:  
+						sub_tmp_list = []
+						for x in range(length):
+							if used_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))
+					elif operation == 1: 
+						mutations_in_read.append(('insertion', ref_pos, length, used_query_seq[seq_pos: seq_pos + x], ref_pos + 1, seq_pos, seq_pos+x))
+					elif operation == 2: 
+						mutations_in_read.append(('deletion', ref_pos, length))
+					
+					if operation in [0, 2, 3]:
+						ref_pos += length
+					if operation in [0, 1, 4]:
+						seq_pos += length
+			
+			mutations_in_reads.append(mutations_in_read)
+
+	return mutations_in_reads
+
+	
+def classify_mut_mild(mutations, induced_mutations, partial_induce_cutoff=0.8): #((mut_type, position, length))
+	if mutations == []:
+		return 'WT', 'None', '', 'X'
+	muts = ''
+	mut_info = ''
+	
+	whole_induced_muts = len(induced_mutations)
+	match_induced_mutations_cnt = 0
+	non_induced_mutations_cnt = 0
+	induced_mut_type = ''
+
+	for mutation in mutations: 
+		mut_type = mutation[0]
+		pos = mutation[1]
+		length = mutation[2]
+		insert_info = ''
+
+		if tuple(mutation) in induced_mutations:
+			match_induced_mutations_cnt += 1
+		else:
+			non_induced_mutations_cnt += 1
+		if mut_type == 'deletion':
+			if length < 100:
+				muts += 'Del,'
+				mut_info += f"{pos}_{pos+length-1}:Del_{length},"
+			else:
+				muts += 'LargeDel,'
+				mut_info +=  f"{pos}_{pos+length-1}:LargeDel_{length},"
+		elif mut_type == 'insertion':
+			length = mutation[2]
+			if length < 20:
+				muts += 'Ins,'
+				mut_info += f"{pos}_{mutation[4]}:Ins_{length}_{mutation[3]},"
+			else:
+				muts += 'LargeIns,'
+				mut_info += f"{pos}_{mutation[4]}:LargeIns_{length}_{mutation[3]},"
+			if len(mutation) == 8:
+				for insert in mutation[7]:
+					insert_info += f"{insert[0]}_{insert[1]}to{insert[2]}inSeq_{insert[3]}to{insert[4]}inRef_{insert[5]},"
+		else: 
+			muts += "Sub,"
+			mut_info += f"{pos}_{pos+length-1}:Sub_{length}_{mutation[3]}>{mutation[4]},"
+
+	mut_info = mut_info[:-1]
+
+	if induced_mutations != []:
+		if match_induced_mutations_cnt/whole_induced_muts > partial_induce_cutoff:
+			if match_induced_mutations_cnt == whole_induced_muts:
+				if non_induced_mutations_cnt == 0:
+					induced_mut_type = 'Precise'
+				elif non_induced_mutations_cnt > 0:
+					induced_mut_type = 'Precise_with_mutations'
+			else:
+				if non_induced_mutations_cnt == 0:
+					induced_mut_type = 'Partial'
+				elif non_induced_mutations_cnt > 0:
+					induced_mut_type = 'Partial_with_mutations'
+		else:
+			induced_mut_type = 'X'
+
+
+	if 'inversion' in insert_info:
+		return 'Inv', mut_info, insert_info, induced_mut_type
+	elif 'Large' in muts:
+		if 'LargeDel' in muts and 'LargeIns' in muts:
+			return 'Complex', mut_info, insert_info, induced_mut_type
+		elif 'LargeDel' in muts:
+			return 'LargeDel', mut_info, insert_info, induced_mut_type
+		elif 'LargeIns' in muts:
+			return 'LargeIns', mut_info, insert_info, induced_mut_type
+	elif 'Del' in muts and 'Ins' in muts:
+		return 'Complex', mut_info, insert_info, induced_mut_type
+	elif 'Del' in muts:
+		return 'Del', mut_info, insert_info, induced_mut_type
+	elif 'Ins' in muts:
+		return 'Ins', mut_info, insert_info, induced_mut_type
+	else:
+		if 'Sub' in muts:
+			return 'Sub', mut_info, insert_info, induced_mut_type
+		else:
+			return 'Complex', mut_info, insert_info, induced_mut_type
+
+
+
+
+def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, strand_2, window_r, input_file, output_dir, check_window_between_targets, induced_mutations, threads=1, Largeins_cut=20, Largedel_cut=100, mix_tag=False, write_cnt=False, partial_induce_cutoff=0.8, range_align_end=100):
+
+	
+	def cigar_str(cigar):
+		s = ''
+		for i in cigar:
+			if i[0] in [0, 1, 2]:
+				cigar += str(i[1]) + 'MID'[i[0]]
+		return cigar
+
+	
+	def check_in_window(mutation, cv_pos, cv_pos_2, check_window_between_targets, window):
+		
+		window_st = cv_pos - window
+		window_ed = cv_pos + window
+
+		check_position_in_window = False
+
+		mut_st = mutation[1]
+		if mutation[0] == 'insertion':
+			mut_ed = mutation[4]
+		else:
+			mut_ed = mut_st + mutation[2]
+		
+		if mut_ed < window_st or mut_st > window_ed:
+			pass
+		else:
+			check_position_in_window = True
+		
+		if cv_pos_2 != False:
+
+			if check_window_between_targets:
+				window_st2 = cv_pos
+			else:
+				window_st2 = cv_pos_2 - window
+
+			window_ed2 = cv_pos_2 + window
+			if mut_ed < window_st2 or mut_st > window_ed2:
 				pass
 			else:
-				if i[1] > large_del_cut:
-					mut_info.append(f'{ref_pos+1}_{ref_pos+i[1]}:Large_Del_{i[1]}')
-				else:
-					mut_info.append(f'{ref_pos+1}_{ref_pos+i[1]}:Del_{i[1]}')
-			ref_pos += i[1]
-		elif i[0] == 4:
-			seq_pos += i[1]
-	return mut_info
+				check_position_in_window = True
 
+		return check_position_in_window
 
-def mutation_analysis(ref_seq, target_seq, cleavage_pos, window_r, input_file, output_dir, threads=1, large_ins_cut=20, large_del_cut=100):
-
-	def rc(s): return s.translate(s.maketrans('ATGC','TACG'))[::-1]
-
-	# cleavage position is defined to next position to cleavage site
-	if ref_seq.find(target_seq) != -1:
-		st_pos = ref_seq.find(target_seq)
-		cv_pos = st_pos + cleavage_pos
-		strand = 1
-	elif ref_seq.find(rc(target_seq)) != -1:
-		st_pos = ref_seq.find(rc(target_seq))
-		cv_pos = st_pos + (len(target_seq) - cleavage_pos)
-		strand = -1
-	else:
-		print('ERROR: Can not find target seuqence in reference sequence')
-		sys.exit()
-
-	file_name = input_file[:input_file.find('.')]
-	cnt_dict = {'all': 0, 'ins': 0, 'del': 0, 'large_ins': 0, 'large_del': 0, 'wt': 0, 'sub':0, 'complex':0}
-	window_st = cv_pos - window_r
-	window_ed = cv_pos + window_r
-	pool = Pool(1)
-	pool_input = []
-	with pysam.AlignmentFile(input_file) as f, open(f'{output_dir}/read_classification.txt', 'w') as fw:
-		fw.write('Read_id\tClassification\tMutation_info\n')
-		for line_n, line in enumerate(f):
-			if line.is_unmapped or line.is_secondary or line.is_supplementary:
-				continue
-			if line_n % 1000 == 0:
-				pool_output = pool.map(extract_mutation, pool_input)
-				for i in pool_output:
-					if i == False:
-						continue
-					fw.write(i[0])
-					cnt_dict['all'] += 1
-					if len(i) == 1:
-						cnt_dict['wt'] += 1
-						fw.write(f'\tWT\tNone\n')
-					elif len(i) == 2:
-						mut = i[1][i[1].find(':')+1:i[1].rfind('_')]
-						cnt_dict[mut.lower()] += 1
-						fw.write(f'\t{mut}\t{i[1]}\n')
-					elif len(i) > 2:
-						cnt_dict['complex'] += 1
-						fw.write(f'\tComplex\t{",".join(i[1:])}\n')
-				pool_input = []
-			SA_tag = False
-			if line.has_tag('SA'):
-				SA_tag = line.get_tag('SA').split(';')
-				if len(SA_tag) != 2:
-					SA_tag = False
-				elif len(SA_tag) > 2:
-					continue
-				else:
-					SA_tag = SA_tag[0]
-			pool_input.append([line.cigar, line.is_reverse, line.reference_start, line.reference_end, line.query_sequence, line.query_name, ref_seq, window_st, window_ed, large_ins_cut, large_del_cut, SA_tag])
-		pool_output = pool.map(extract_mutation, pool_input)
-		for i in pool_output:
-			if i == False:
-				continue
-			fw.write(i[0])
-			cnt_dict['all'] += 1
-			if len(i) == 1:
-				cnt_dict['wt'] += 1
-				fw.write(f'\tWT\tNone\n')
-			elif len(i) == 2:
-				mut = i[1][i[1].find(':')+1:i[1].rfind('_')]
-				cnt_dict[mut.lower()] += 1
-				fw.write(f'\t{mut}\t{i[1]}\n')
-			elif len(i) > 2:
-				cnt_dict['complex'] += 1
-				fw.write(f'\tComplex\t{",".join(i[1:])}\n')
 	
-	print(f"All reads : {cnt_dict['all']}")
-	for i in ['wt', 'sub', 'ins', 'large_ins', 'del', 'large_del', 'complex']:
-		print(f"{i} : {cnt_dict[i]}  {round(cnt_dict[i]*100/cnt_dict['all'], 2)} %")
+	reference_length = len(reference_sequence)
+	samfile = pysam.AlignmentFile(input_file, 'r')
 
-	return cv_pos, strand
+	mutations = {}
+	dict_of_reads = {}
+	total_reads = -1
+	reads_that_passed = []
+	count_printed = 0
+	cnt_dict = {'all': 0, 'short': 0, 'unmapped': 0, 'low_quality': 0, 'used': 0}
+
+	for read in samfile.fetch():
+		mutations_in_read = []
+		# Skip unmapped reads
+		cnt_dict['all'] += 1
+		if read.is_unmapped:
+			cnt_dict['unmapped'] += 1
+			continue	
+		if read.is_secondary or read.is_supplementary:
+			continue
+
+		if read.has_tag('SA'):
+			SA_reads = [read]
+			SA_n = len(read.get_tag('SA').split(';'))
+
+			ori_query_seq = read.query_sequence.upper()
+
+			while len(SA_reads) < SA_n:
+				next_read = next(samfile)
+				if next_read.is_supplementary:
+					SA_reads.append(next_read)
+
+			if len(SA_reads) != SA_n:
+				cnt_dict['short'] += 1
+				continue
+
+			SA_reads_muts = analyze_SA_reads(SA_reads, ori_query_seq, reference_sequence, reference_length, read.query_name, range_align_end=range_align_end)
+
+			if len(SA_reads_muts) == 1:
+				split_reads_check = True
+			else:
+				split_reads_check = False
+
+			for split_n, mutations_in_read in enumerate(SA_reads_muts):
+
+				total_reads += 1
+				dict_of_reads[total_reads] = [[],[]]
+				if split_reads_check:
+					reads_that_passed.append(read.query_name)
+				else:
+					reads_that_passed.append(read.query_name + '_split_' + str(split_n))
+
+				cnt_dict['used'] += 1
+				for mut in mutations_in_read:
+					if check_in_window(mut, cv_pos, cv_pos_2, check_window_between_targets, window_r) == True:
+						dict_of_reads[total_reads][0].append(mut)
+					else:
+						dict_of_reads[total_reads][1].append(mut)
+						
+		else:
+			if read.reference_start>range_align_end or read.reference_end<(len(reference_sequence)-range_align_end):
+				cnt_dict['short'] += 1
+				continue
+			if not check_in_quality:
+				cnt_dict['low_quality'] += 1
+				continue
+
+			reads_that_passed.append(read.query_name)
+
+			total_reads+=1
+			#if total_reads%1000 == 0: print(read.reference_start)
+			dict_of_reads[total_reads] = [[],[]]
+			# Current position in the reference sequence
+			ref_pos = read.reference_start
+
+			query_seq = read.query_sequence
+			query_pos = 0
+			
+			# Iterate over CIGAR operations
+			for operation, length in read.cigar:
+				# Check for insertion (I) or deletion (D)
+				if operation == 0:  
+						sub_tmp_list = []
+						for x in range(length):
+							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
+								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+									sub_tmp_list[-1][2] += 1
+									sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+									sub_tmp_list[-1][4] += query_seq[query_pos + x]
+								else:
+									sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]])
+						for sub in sub_tmp_list:
+							mutations_in_read.append(tuple(sub))
+				if operation == 1:	# Insertion
+					key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1, query_pos, query_pos+length)
+				elif operation == 2:  # Deletion
+					key = ('deletion', ref_pos, length)
+
+				if operation in [0, 2, 3]:	# Match/Mismatch, Deletion, N (Skipped region)
+					ref_pos += length
+				if operation in [0, 1, 4]:
+					query_pos += length
+
+				if operation not in [1,2]: continue
+
+				mutations_in_read.append(key)
+
+			cnt_dict['used'] += 1
+			for mut in mutations_in_read:
+				if check_in_window(mut, cv_pos, cv_pos_2, check_window_between_targets, window_r) == True:
+					dict_of_reads[total_reads][0].append(mut)
+				else:
+					dict_of_reads[total_reads][1].append(mut)
+					
+					
+
+			# Update ref_pos based on operation
+		
+	for read_n in dict_of_reads.keys():
+		tmp_mut = dict_of_reads[read_n]
+		dict_of_reads[read_n] = [sorted(tmp_mut[0], key= lambda x: x[1]), sorted(tmp_mut[1], key= lambda x: x[1])]
+
+
+	# Close the SAM file
+	samfile.close()
+	print(cnt_dict)
+
+	fw = open(output_dir + '/preprocess_count.txt', 'w')
+	fw.write('\t'.join(cnt_dict.keys()) + '\n')
+	s = ''
+	for i in cnt_dict.values():
+		s += str(i) + '\t'
+	fw.write(s + '\n')
+	fw.close()
+
+	dict_of_reads = CRISPRlungo_insert_analysis.confirm_insertion_seq(dict_of_reads, reference_sequence, ref_name, './possible_insertion.fasta', output_dir, threads)
+
+	with open(f'{output_dir}/read_classification.txt', 'w', newline='') as file:
+		writer = csv.writer(file, delimiter='\t')
+		writer.writerow(['Read_id', 'Classification', 'Mutation_info', 'Integration_info', 'Induce_type', 'whole_mutation'])
+		
+		for read_id, mutations in dict_of_reads.items():
+			read_id = reads_that_passed[read_id]
+			classification, mutation_info, insert_info, induce_type = regular_py.classify_mut_mild(mutations[0], induced_mutations)
+			filtered_mutation_info = []
+			if mutations[1] != []:
+				tmp_classification, filtered_mutation_info, tmp_insert_info, tmp_induce_type = regular_py.classify_mut_mild(mutations[1], induced_mutations)
+
+			if  induce_type == ':':
+				induce_type = '-'
+			if induced_mutations != []:
+				writer.writerow([read_id, classification, mutation_info, insert_info, induce_type, filtered_mutation_info])
+			else:
+				writer.writerow([read_id, classification, mutation_info, insert_info, '-', filtered_mutation_info])
+
+
+
+
+
+
+
+
+
 
 

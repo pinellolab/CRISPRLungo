@@ -1,225 +1,373 @@
 #!/usr/bin/env python
-# coding: utf-8
-
-# In[9]:
-
 
 import argparse, sys
-import time, os
+import time, os, pysam
 from subprocess import Popen, PIPE
-
-
-# In[23]:
-
 
 import CRISPRlungo_regular as regular_py
 import CRISPRlungo_visualization as visual
 import CRISPRlungo_umi
-
-
-# In[25]:
-
-
-
-
-
-# In[ ]:
+import CRISPRlungo_insert_analysis 
+from CRISPRlungo_minimap import *
 
 
 def main():
 
 	start_time = time.time()
-
-	if len(sys.argv) == 1:
-		print('usage: CRISPRlungo [regular | umi]')
-		sys.exit()
-
-	parser = argparse.ArgumentParser(description='Analysis CRISPR mutaion pattern for Long-read sequencing')
-	subparsers = parser.add_subparsers(dest='command')
-
-	regular_parser = subparsers.add_parser('regular', help='Analyze CRISPR mutation for Long-read sequencing data without UMI')
-	regular_parser.add_argument('ref', type=str,  help='Reference FASTA file')
-	regular_parser.add_argument('control', type=str,  help='Control FASTQ file of Long-read sequencing data')
-	regular_parser.add_argument('treated', type=str,  help='Treated FASTQ file of Long-read sequencing data')
-	regular_parser.add_argument('output', type=str, help='Output file name')
-	regular_parser.add_argument('-t', '--threads', type=int, default=1, help='Output file name')
-	regular_parser.add_argument('--target', type=str, default=None, help='Target sequence')
-
-	umi_parser = subparsers.add_parser('umi', help='Analyze CRISPR mutation for Long-read sequencing data with UMI')
-	umi_parser.add_argument('ref', type=str,  help='Reference FASTA file')
-	umi_parser.add_argument('input_file', type=str,  help='FASTQ file of Long-read sequencing data')
-	umi_parser.add_argument('output_dir', type=str,  help='Directory for output files')
-	umi_parser.add_argument('target', type=str,  help='Target sequence without PAM')
-	umi_parser.add_argument('-t', '--threads', type=int, default=1, help='Output file name')
-	umi_parser.add_argument('-c', '--clust_cutoff', type=int, default=5, help='The minimum of UMI cluster size')
-	umi_parser.add_argument('--cleavage_pos', type=int, default=16, help='Cleavage position in target sequence')
-	umi_parser.add_argument('--window', type=int, default=10, help='The range for mutation analysis around cleavage site')
-
 	
+	parser = argparse.ArgumentParser(description='Analysis CRISPR mutaion pattern for Long-read sequencing')
+
+	parser.add_argument('ref', type=str,  help='Reference FASTA file, if your file has UMI, the reference includes UMI sequence and marks UMI using ( and ).')
+	parser.add_argument('treated', type=str,  help='Treated FASTQ file of Long-read sequencing data')
+	parser.add_argument('output_dir', type=str, help='Output directory name')
+	parser.add_argument('target', type=str, help='Target sequence')
+
+	parser.add_argument('--umi', action='store_true', help='If UMI sequencing is used, use this option.')
+
+	parser.add_argument('--window', type=int, default=5, help='The range for mutation analysis around cleavage site')
+	parser.add_argument('--whole_window_between_targets', action='store_true', help='Include the region for two targets into window range')
+	parser.add_argument('--cleavage_pos', type=int, default=16, help='Cleavage position in target sequence [default=16]')
+	parser.add_argument('--additional_target', type=str, default=None, help='Addtional target sequence')
+	parser.add_argument('--control', type=str, default=None, help='When a control file is input, background filtering is performed using the control file')
+	parser.add_argument('--induced_sequence_path', type=str, default=None, help='When a desired sequence file is input, additional classification of desired mutations is performed')
+	parser.add_argument('--merge_substitution', action='store_true', help='A continuous substitution is considered as one mutation.')
+
+	parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
+	parser.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')	
+	parser.add_argument('--mix_tag', type=bool, default=False, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
+	parser.add_argument('--min_mut_freq_no_control_refmut', type=float, default = 0.5, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
+	parser.add_argument('--induced_paritial_similiarity', type=float, default=0.8, help='The If the mutation pattern similarity is higher than this value, but not completely identical, it is considered partially induced.')
+	parser.add_argument('--range_both_end_region', type=int, default=100, help='If the reads were not aligned this range from both end, the read is considered as short fragment.')
+
+	parser.add_argument('--align_sa_len_threshold', type=int, default=200, help='FASTA file for induced sequence')
+	parser.add_argument('--p_value_threshold', type=float, default=0.002, help='Statistical threshold')
+	parser.add_argument('--mut_freq_threshold', type=float, default=0, help='muation frequency threshold, if you want more harsh filteration, you can use this')
+	parser.add_argument('-c', '--clust_cutoff', type=int, default=5, help='The minimum of UMI cluster size')
+
+	parser.add_argument('--just_visualization', action='store_true', help='If you just want to analyze mutation and the consensus generation is already done using CRISPRlungo, use this option [default: False]')
+	parser.add_argument('--allele_plot_window', type=int, default=20, help='Window for allele plot, [default: window + 10]')
+	parser.add_argument('--allele_plot_lines', type=int, default=20, help='Window for allele plot, [default: window + 10]')
+	parser.add_argument('--show_all_between_allele', action='store_true', help='Draw all sequences between two targets in an allele plot')
+
+	parser.add_argument('-t', '--threads', type=int, default=8, help='Output file name')
+
 	args = parser.parse_args()
+	read_res_cnt = {'fastq': 0, 'filtered': 0, 'aligned': 0}
 
 
-	def run_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, chaining_bandwidth, threads):
-		align_st_time = time.time()
-		print(f'minimap2 aligning {input_file} ...\r', end='')
-		p = Popen(f'minimap2 -ax map-ont -t {threads} -r {chaining_bandwidth},{longjoin_bandwidth} {ref_file} {input_file} -o {output_file}', shell=True, stderr=PIPE, stdout=PIPE).communicate()
-		if p[1].decode('utf-8').find('ERROR') != -1:
-			print(p[1].decode('utf-8'))
-			sys.exit()
-		else:
-			print(f'minimap2 aligning {input_file} ... Done {time.time() - align_st_time} s')
-		
 	def create_dir(dir_name):
 		if not os.path.exists(dir_name):
 			os.makedirs(dir_name)
+
+	output_dir = args.output_dir
+	threads = args.threads
+	treated_file_path = args.treated
+	if args.control:
+		control_file_path = args.control
+
+	create_dir(output_dir)
+	create_dir(f'{output_dir}/results')
+	create_dir(f'{output_dir}/custom_results')
+
+	if args.additional_target == None and args.whole_window_between_targets == True:
+		print('ERROR: whole_window_between_targets is declared, but additional_target is not declared.')
+		sys.exit()
+
+	if args.allele_plot_window == 0:
+		allele_plot_window = args.window + 10
+	else:
+		allele_plot_window = args.allele_plot_window
+
+	# Get reference information 
+
+	ref_file = args.ref
+
+	ref_dir = f'{output_dir}/ref_seq'
+	create_dir(ref_dir)
+
+	range_align_end = args.range_both_end_region
+
 	
-	def rev_comp(s):
-		return s.translate(s.maketrans('ATGC','TACG'))[::-1]
+	if args.umi:
 
-	if args.command == 'regular':
+		umi_pos, umi_len, ref_name, ref_seq = CRISPRlungo_umi.input_organize(ref_file, output_dir, treated_file_path)
+		ref_len= len(ref_seq)
 		
-		print('Start to analysis using REGULAR mode ...')
+		ref_seq_w_umi = ref_seq
+		ref_seq = ref_seq[umi_pos[0][1]+1: umi_pos[1][0]]
 
-			   
-		output_dir = os.path.dirname(args.output)
-		if output_dir == '':
-			output_dir = './'
-		threads = args.threads
-		
-		# Run Miniseq2 to align received files
-		ref_file = args.ref
-		ref_seq = ''.join(open(ref_file).readlines()[1:]).replace('\n','').upper()
-		ref_len = len(ref_seq)
-		if args.target != None:
-			target = args.target.upper()
-			if ref_seq.find(target) != -1:
-				cv_pos = ref_seq.find(target) + 16
-				strand = 1
-			elif ref_seq.find(target.translate(target.maketrans('ATGC','TACG'))[::-1]) != -1:
-				cv_pos = ref_seq.find(target.translate(target.maketrans('ATGC','TACG'))[::-1]) + 3
-				strand = -1
+		fw = open(output_dir + '/ref_seq/ref_wo_umi.fasta', 'w')
+		fw.write(f'>{ref_name}\n{ref_seq}\n')
+		fw.close()
 
-		longjoin_bandwidth = int(ref_len * 0.3)
-		if longjoin_bandwidth < 500:
-			chaining_bandwidth = longjoin_bandwidth
-		else:
-			chaining_bandwidth = 500
+		ref_file_w_umi = ref_dir + '/ref.fasta'
+		p = Popen(f'minimap2 -d {output_dir}/ref_seq/ref_wo_umi.mmi {output_dir}/ref_seq/ref_wo_umi.fasta', shell=True, stderr=PIPE, stdout=PIPE).communicate()
 
-		ref_indexed_file = os.path.splitext(ref_file)[0] + '.mmi'
-		Popen(f'minimap2 -d {ref_indexed_file} {ref_file}', shell=True, stderr=PIPE, stdout=PIPE).communicate()
+		fw = open(output_dir + '/ref_seq/ref.fasta', 'w')
+		fw.write(f'>{ref_name}\n{ref_seq_w_umi}\n')
+		fw.close()
+		p = Popen(f'minimap2 -d {output_dir}/ref_seq/ref.mmi {output_dir}/ref_seq/ref.fasta', shell=True, stderr=PIPE, stdout=PIPE).communicate()
 
-		run_minimap2(ref_indexed_file, args.control,  output_dir + '/Control_alignment.sam', longjoin_bandwidth, chaining_bandwidth, threads)
-		run_minimap2(ref_indexed_file, args.treated,  output_dir + '/Treated_alignment.sam', longjoin_bandwidth, chaining_bandwidth, threads)
+	else:
 
-
-		# Run Statistical anlaysis.py
-
-		edited_dictionary, controll_dictionary, List_of_valid_IDs = regular_py.analysis_function(output_dir + '/Control_alignment.sam', output_dir + '/Treated_alignment.sam', ref_file)
-		regular_py.process_mutations(edited_dictionary, args.output + '.tsv', List_of_valid_IDs)
-
-
-	elif args.command == 'umi':
-
-		print('Start to analyze using UMI mode ...')
-		
-		ref_file = args.ref
-		output_dir = args.output_dir
-		input_file = args.input_file
-		threads = args.threads
-
-		# Get UMI position information
-		umi_pos, umi_len, ref_name, ref_seq = CRISPRlungo_umi.input_organize(ref_file, output_dir,input_file)
+		ref_file_list = open(args.ref).readlines()
+		ref_seq = ''.join(ref_file_list[1:]).replace('\n','').upper().replace('(', '')
+		ref_name = ref_file_list[0].strip()[1:]
 		ref_len = len(ref_seq)
 
-		# Make output folders
-		create_dir(output_dir)
+		fw = open(ref_dir + '/ref_wo_umi.fasta', 'w')
+		fw.write(f'>{ref_name}\n{ref_seq}\n')
+		fw.close()
+
+		p = Popen(f'minimap2 -d {ref_dir}/ref_wo_umi.mmi {ref_dir}/ref_wo_umi.fasta', shell=True, stderr=PIPE, stdout=PIPE).communicate()
+		ref_index_path = f'{ref_dir}/ref_wo_umi.mmi'
+		
+
+	original_target = 1
 	
-		ref_dir = f'{output_dir}/ref_seq'
-		create_dir(ref_dir)
-		
-		with open(ref_dir + '/ref.fasta', 'w') as f:
-			f.write(f'>{ref_name}\n{ref_seq}')
-		
-		create_dir(output_dir + '/align')
+	final_mutation_analysis_file = args.treated
 
-		# Align recieved FASTQ file
-		longjoin_bandwidth = int(ref_len * 0.3)
-		if longjoin_bandwidth < 500:
-			chaining_bandwidth = longjoin_bandwidth
+	# Get target sequence information
+
+	if args.target != None:
+		target = args.target.upper()
+		if ref_seq.find(target) != -1:
+			cv_pos = ref_seq.find(target) + args.cleavage_pos
+			strand = 1
+		elif ref_seq.find(reverse_complementary(target)) != -1:
+			cv_pos = ref_seq.find(reverse_complementary(target)) + len(target) - args.cleavage_pos - 2
+			strand = -1
 		else:
-			chaining_bandwidth = 500
-			
-		p = Popen(f'minimap2 -d {ref_dir}/ref.mmi {ref_dir}/ref.fasta', shell=True, stderr=PIPE, stdout=PIPE).communicate()
-		run_minimap2(ref_dir + "/ref.mmi", args.input_file,  output_dir + '/align/fastq.sam', longjoin_bandwidth, chaining_bandwidth, threads)
+			print('ERROR: Can not find target sequence in reference !!')
+			sys.exit()
 
-		# Get UMI sequence
-		create_dir(f'{output_dir}/demultiplexing')
+	if args.additional_target != None:
+		target_2 = args.additional_target.upper()
+		if ref_seq.find(target_2) != -1:
+			cv_pos_2 = ref_seq.find(target_2) + args.cleavage_pos
+			strand_2 = 1
+		elif ref_seq.find(reverse_complementary(target_2)) != -1:
+			cv_pos_2 = ref_seq.find(reverse_complementary(target_2)) + len(target) - args.cleavage_pos - 2
+			strand_2 = -1
+		else:
+			print('ERROR: Can not find additional targt sequence in reference !!')
+			sys.exit()
+	else:
+		target_2 = False
+		cv_pos_2 = False
+		strand_2 = False
 
-		CRISPRlungo_umi.extract_index_umi(output_dir + '/align/fastq.sam', ref_file, output_dir, umi_pos[0], umi_pos[1])
+	if cv_pos_2 != False and cv_pos > cv_pos_2:
+		tmp_pos = [cv_pos, target, strand]
+		cv_pos, target, strand = [cv_pos_2, target_2, strand_2]
+		cv_pos_2, target_2, strand_2 = tmp_pos
+		original_target = 2
 
-		# Clustering UMI sequence
+	longjoin_bandwidth = int(ref_len * 0.3)
+	if longjoin_bandwidth < 500:
+		chaining_bandwidth = longjoin_bandwidth
+	else:
+		chaining_bandwidth = 500
 
-		create_dir(f'{output_dir}/clustering')
-		create_dir(f'{output_dir}/consensus')
+
+	# get induced mutation patterns
+
+	if args.induced_sequence_path:
+		run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', args.induced_sequence_path,  output_dir + '/induced_mutation_reference.sam', longjoin_bandwidth, chaining_bandwidth, 1, len_cutoff=args.align_sa_len_threshold)
+		induced_mutations, induced_mutation_str = regular_py.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, args.whole_window_between_targets, range_align_end)
+	else:
+		induced_mutations = []
+		induced_mutation_str = False
+
+	create_dir(output_dir + '/align')
+
+	# UMI Clustering
+	
+	if args.umi:
+
+		print('Generating treated consensus file...')
 
 		index_info = 'result,NNNNNNNNNN' #For index demultiplexing, not yet supported.
 
 		index_info_list = index_info.split(',')
 		index_names = []
-
 		for i in range(int(len(index_info_list)/2)):
-			
 			i = index_info_list[2*i]
 			index_names.append(i)
+
+		if args.just_visualization == False:
+
+			# Align recieved FASTQ file
+			run_triple_minimap2(ref_dir + "/ref.mmi", treated_file_path,  output_dir + '/align/input_fastq_align_to_umiref.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold)
+
+			# Get UMI sequence
+			create_dir(f'{output_dir}/demultiplexing')
+
+			CRISPRlungo_umi.extract_index_umi(output_dir + '/align/input_fastq_align_to_umiref.sam', ref_file_w_umi, output_dir, umi_pos[0], umi_pos[1], index_information='treated,NNNNNNNNNN')
+
+			# Clustering UMI sequence
+
+			create_dir(f'{output_dir}/clustering')
+			create_dir(f'{output_dir}/consensus')
+
+			create_dir(f'{output_dir}/clustering/treated')
+			create_dir(f'{output_dir}/clustering/treated/1st_clusters')
+			create_dir(f'{output_dir}/clustering/treated/2nd_clusters')
+			create_dir(f'{output_dir}/clustering/treated/medaka_input')
+			create_dir(f'{output_dir}/consensus/treated')
+
+			CRISPRlungo_umi.clustering_umi( f'{output_dir}/demultiplexing/umi_treated.fasta', umi_len, f'{output_dir}/clustering/treated', f'{output_dir}/consensus/treated', threads, args.clust_cutoff)
+
+			treated_file_path = f'{output_dir}/consensus/treated/consensus.fasta'
+
+			if args.control:
+				
+				print('Generating control consensus file...')
+
+				run_triple_minimap2(ref_dir + "/ref.mmi", args.control,  output_dir + '/align/control_fastq_align_to_umiref.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold)
+
+				# Get UMI sequence
+
+				CRISPRlungo_umi.extract_index_umi(output_dir + '/align/control_fastq_align_to_umiref.sam', ref_file_w_umi, output_dir, umi_pos[0], umi_pos[1], index_information='control,NNNNNNNNNN')
+
+				# Clustering UMI sequence
+				
+				create_dir(f'{output_dir}/clustering/control')
+				create_dir(f'{output_dir}/clustering/control/1st_clusters')
+				create_dir(f'{output_dir}/clustering/control/2nd_clusters')
+				create_dir(f'{output_dir}/clustering/control/medaka_input')
+				create_dir(f'{output_dir}/consensus/control')
+
+				CRISPRlungo_umi.clustering_umi( f'{output_dir}/demultiplexing/umi_control.fasta', umi_len, f'{output_dir}/clustering/control', f'{output_dir}/consensus/control', threads, args.clust_cutoff)
+
+				control_file_path = f'{output_dir}/consensus/control/consensus.fasta'
 			
-			create_dir(f'{output_dir}/clustering/{i}')
-			create_dir(f'{output_dir}/clustering/{i}/1st_clusters')
-			create_dir(f'{output_dir}/clustering/{i}/2nd_clusters')
-			create_dir(f'{output_dir}/clustering/{i}/medaka_input')
-			create_dir(f'{output_dir}/consensus/{i}')
+			ref_index_path = f'{ref_dir}/ref_wo_umi.mmi'
+			final_mutation_analysis_file = f'{output_dir}/consensus/treated/consensus.fasta'
 			
-		create_dir(f'{output_dir}/results')
+	create_dir(f'{output_dir}/results/')
 
-		for fn in index_names:
+	if args.control:
+
+		print('Start filtering module ...')
+
+		if args.just_visualization == False:
 			
-			CRISPRlungo_umi.clustering_umi( f'{output_dir}/demultiplexing/umi_{fn}.fasta', umi_len, f'{output_dir}/clustering/{fn}', f'{output_dir}/consensus/{fn}', args.clust_cutoff, threads)
+			run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', control_file_path,  output_dir + '/align/Control_alignment.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold, fasta_check=True)
+			run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', treated_file_path,  output_dir + '/align/Treated_alignment.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold, fasta_check=True)
 
-			run_minimap2(ref_dir + "/ref.mmi", f'{output_dir}/consensus/{fn}/consensus.fasta', f'{output_dir}/align/consensus_result.sam', longjoin_bandwidth, chaining_bandwidth, threads)
+			# Run Statistical anlaysis.py
 
-			# Mutation Analysis
-			print('Mutation analysis...')
-			create_dir(f'{output_dir}/results/{fn}')
-			cv_pos, strand = CRISPRlungo_umi.mutation_analysis(ref_seq, args.target.upper(), args.cleavage_pos, args.window, f'{output_dir}/align/consensus_{fn}.sam', f'{output_dir}/results/{fn}', threads=threads)
+			edited_dictionary, controll_dictionary, List_of_valid_IDs, control_reads_cnt, edited_reads_cnt = regular_py.analysis_function(
+				output_dir + '/align/Control_alignment.sam', 
+				output_dir + '/align/Treated_alignment.sam', 
+				f'{ref_dir}/ref_wo_umi.fasta', 
+				output_dir + '/results/',
+				cv_pos, 
+				cv_pos_2, 
+				args.window, 
+				args.whole_window_between_targets, 
+				induced_mutations, 
+				range_align_end = range_align_end,
+				threads=threads, 
+				p_limit_value=args.p_value_threshold, 
+				mut_freq_value = args.mut_freq_threshold,
+				allowance_value=0,
+				umi_clustered = args.umi)
 
-	#visualization
+			edited_dictionary = CRISPRlungo_insert_analysis.confirm_insertion_seq(edited_dictionary, ref_seq, ref_name, './possible_insertion.fasta', output_dir, threads)
 
-	if args.command == 'regular':
-		read_per_position = visual.visualization_preprocess(output_dir + '/Treated_alignment.sam', ref_file)
-		visual.regular_statistic_plot(args.output + '.tsv', args.treated, output_dir)
-		visual.regular_accuracy_plot(ref_seq, read_per_position, output_dir)
-		tsv_file = args.output + '.tsv'
-
-	else:
-		tsv_file = output_dir + '/results/result/read_classification.txt'
-		read_per_position = visual.visualization_preprocess(output_dir + '/align/consensus_result.sam', ref_file)
+			regular_py.process_mutations(edited_dictionary, 
+				f'{output_dir}/results/read_classification.txt', 
+				List_of_valid_IDs, 
+				induced_mutations, 
+				args.induced_paritial_similiarity)
+			regular_py.write_cnt_file(control_reads_cnt, edited_reads_cnt, f'{output_dir}/results/preprocess_count.txt')
 	
-	visual.base_proportion(read_per_position, output_dir, ref_seq)
-	visual.mutation_pie_chart(tsv_file, output_dir)
-	visual.indel_per_position(tsv_file, ref_seq, output_dir)
-	visual.Insertion_length(tsv_file, output_dir)
-	visual.Deletion_length(tsv_file, output_dir)
-	visual.Deletion_count_length(tsv_file, output_dir)
+	else:
+		ref_index = ref_dir + '/ref_wo_umi.mmi'
+		run_triple_minimap2(ref_index, final_mutation_analysis_file, f'{output_dir}/align/Treated_alignment.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold, fasta_check=True)
+		if not args.umi and not args.control:
+			write_cnt = True
+		else:
+			write_cnt = False
+		CRISPRlungo_umi.mutation_analysis(ref_seq, ref_name, cv_pos, strand, cv_pos_2, strand_2, args.window, 
+			f'{output_dir}/align/Treated_alignment.sam', 
+			f'{output_dir}/results', 
+			args.whole_window_between_targets, induced_mutations, 
+			threads=threads, mix_tag=args.mix_tag, 
+			write_cnt = write_cnt, partial_induce_cutoff=args.induced_paritial_similiarity, 
+			range_align_end=range_align_end)
+
+
+	#Visualization
+
+	full_html = """
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<title>Combined Graphs</title>
+		<style>
+			body {margin: 0;padding: 0;display: flex;justify-content: center;align-items: center;background-color: #f4f4f4;}
+    		#graph-container {min-width: 500px; max-width: 1000px;width: 80vw;background-color: #ffffff;border: 1px solid #ddd;box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);overflow: hidden; }
+			img {max-width: 100%;max-height: 100%;object-fit: contain;}
+		</style>
+	</head>
+	<body>
+		<div id='graph-container'>"""
+
+	print('Drawing graphs ... \r', end='')
+
+	tsv_file = output_dir + '/results/read_classification.txt'
+	graph_output_dir = output_dir + '/results/'
+
+	plots = {}
+	
+	read_per_position = visual.visualization_preprocess_regular(output_dir + '/align/Treated_alignment.sam', ref_file)
+
+	if args.control:
+		visual.regular_accuracy_plot(ref_seq, read_per_position, graph_output_dir)
+	
+	fw_input = open(f'{output_dir}/results/input_summary.txt', 'w')
+	fw_input.write(f'Target_1 :{target}\n')
+	fw_input.write(f'Target_2 :{target_2}\n')
+	fw_input.write(f'Ref_seq :{ref_seq}\n')
+	fw_input.write(f'CleavagePos_1 :{cv_pos}\n')
+	fw_input.write(f'CleavageStrand_1 :{strand}\n')
+	fw_input.write(f'CleavagePos_2 :{cv_pos_2}\n')
+	fw_input.write(f'CleavageStrand_2 :{strand_2}\n')
+	fw_input.write(f'induced_mut :{induced_mutation_str}\n')
+	fw_input.write(f'cut_pos_in_target :{args.cleavage_pos}\n')
+	fw_input.write(f'original_target :{original_target}\n')
+	fw_input.close()
+	
+	read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'
+	visual.write_read_count(tsv_file,  f'{output_dir}/results/preprocess_count.txt', read_cnt_file, f'{output_dir}/results/mutation_summary_count.txt', args.min_read_cnt, args.min_read_freq, args.induced_sequence_path)
+	plot_html = visual.align_count_plot(f'{output_dir}/results/preprocess_count.txt', f'{output_dir}/results/mutation_summary_count.txt', f'{output_dir}/results')
+	plots['treated_align'] = plot_html[1]
+	plots['control_align'] = ''
+	if args.control:
+		plots['control_align'] = plot_html[0]
+	#read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'
 	if args.target != None:
-		visual.allele_plot(ref_seq, cv_pos, tsv_file, output_dir)
-	visual.LD_tornado(tsv_file, cv_pos, ref_len, strand, output_dir)
-	  
-
-		
-
-
-# In[ ]:
+		print('Drawing graphs ... Allele plot                         \r', end='')
+		visual.allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, read_cnt_file, graph_output_dir, args.cleavage_pos, target, target_2, original_target, args.min_read_cnt, args.min_read_freq, allele_plot_window, args.allele_plot_lines, induced_mutation_str, args.show_all_between_allele)
+	print('Drawing graphs ... pie plot                         \r', end='')
+	plots['mutation_pie'], plots['pattern_pie'], plots['allele_pie'] = visual.mutation_pie_chart(read_cnt_file, graph_output_dir)
+	print('Drawing graphs ... indel plot                         \r', end='')
+	plots['indel_per_pos'] = visual.indel_per_position(read_cnt_file, ref_seq, graph_output_dir)
+	print('Drawing graphs ... insertion plot                         \r', end='')
+	plots['insertion_len'] = visual.Insertion_length(read_cnt_file, graph_output_dir)
+	print('Drawing graphs ... deletion plot                         \r', end='')
+	plots['deletion_len'] = visual.Deletion_length(read_cnt_file, graph_output_dir)
+	plots['deletion_count_len'] = visual.Deletion_count_length(read_cnt_file, graph_output_dir)	
+	print('Drawing graphs ... large deletion tornado plot                         \r', end='')
+	visual.LD_tornado(read_cnt_file, cv_pos, ref_len, strand, graph_output_dir)
+	print('Drawing graphs ... base proportion plot                         \r', end='')
+	plots['base_proportion'] = visual.base_proportion(read_per_position, graph_output_dir, ref_seq, cv_pos, cv_pos_2, allele_plot_window, args.show_all_between_allele)
+	
+	visual.write_html(plots, args.control, args.target, output_dir)
 
 
 if __name__=='__main__':
 	main()
-
