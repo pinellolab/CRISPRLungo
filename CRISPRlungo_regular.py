@@ -375,19 +375,18 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 			ref_pos = read.reference_start
 			# Skip unmapped reads
 
-			if read.is_unmapped:
-				reads_cnt['all_reads'] += 1
-				reads_cnt['unmapped'] += 1
+			if read.is_secondary or read.is_supplementary:
 				continue
 
-			if read.is_secondary or read.is_supplementary:
+			reads_cnt['all_reads'] += 1
+
+			if read.is_unmapped:
+				reads_cnt['unmapped'] += 1
 				continue
 
 			if not check_in_quality(read):
 				reads_cnt['low_quality'] += 1
 				continue
-
-			reads_cnt['all_reads'] += 1
 			
 			# Current position in the reference sequence
 			"""if read.reference_start > 100 and read.reference_end < reference_length - 100:
