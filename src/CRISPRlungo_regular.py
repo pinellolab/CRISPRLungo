@@ -147,7 +147,7 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 		# Check if the read spans almost the entire reference sequence
 
 		if pos_refst < range_align_end and pos_refed > reference_length - range_align_end:
-			align_strand_in_refseq = 3  # Mark as an intact read
+			align_strand_in_refseq = 3	# Mark as an intact read
 		elif not read.is_reverse:  # If the read is aligned in the forward direction
 			align_strand_in_refseq = 1
 		elif read.is_reverse:  # If the read is aligned in the reverse direction
@@ -180,14 +180,22 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 			using_query_seq = info[0][7]  # Use the query sequence directly
 
 			for operation, length in info[0][6]:
-				if operation == 0:  
+				if operation == 0:	
 					sub_tmp_list = []
-					
 					for x in range(length):
-						if using_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+						if query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
 							mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))
-						
-				if operation == 1:  
+							"""
+							if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+								sub_tmp_list[-1][2] += 1
+								sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+								sub_tmp_list[-1][4] += query_seq[seq_pos + x]
+							else:
+								sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]])
+					for sub in sub_tmp_list:
+						mutations_in_read.append(tuple(sub))
+							"""
+				if operation == 1:	
 					mutations_in_read.append(('insertion', ref_pos, length, using_query_seq[seq_pos: seq_pos + length], ref_pos + 1,seq_pos, seq_pos + length))
 				elif operation == 2:  
 					mutations_in_read.append(('deletion', ref_pos, length))
@@ -231,11 +239,22 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 				seq_pos = 0
 				used_query_seq = sub_info[7]
 				for operation, length in sub_info[6]:
-					if operation == 0:  
+					if operation == 0:	
 						sub_tmp_list = []
 						for x in range(length):
-							if used_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
-								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))
+							"""
+							if query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+									sub_tmp_list[-1][2] += 1
+									sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+									sub_tmp_list[-1][4] += query_seq[seq_pos + x]
+								else:
+									sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]])
+						for sub in sub_tmp_list:
+							mutations_in_read.append(tuple(sub))
+							"""
+							if query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))	
 					elif operation == 1:  
 						mutations_in_read.append(('insertion', ref_pos, length, used_query_seq[seq_pos: seq_pos + length], ref_pos + 1, seq_pos, seq_pos + length))
 					elif operation == 2: 
@@ -250,7 +269,7 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 
 		# Process reads aligned to the reverse strand
 		#elif info[0][5] == -1 and info[1][5] == -1:
-		elif info[0][5] ==  info[1][5] and info[0][4] == info[1][4]  and info[1][1] < info[0][0]:
+		elif info[0][5] ==	info[1][5] and info[0][4] == info[1][4]  and info[1][1] < info[0][0]:
 			if info[1][1] < info[0][0] - 100:  # Check for a deletion between the two reads
 				mutations_in_read.append(('deletion', info[1][1], info[0][0] - info[1][1] - 1))
 			if abs(info[1][2] - info[0][3]) > 20:  # Check for an insertion between the reads
@@ -273,11 +292,21 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 				used_query_seq = sub_info[7]
 				
 				for operation, length in sub_info[6]:
-					if operation == 0:  
+					if operation == 0:	
 						sub_tmp_list = []
 						for x in range(length):
-							if used_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
-								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], used_query_seq[seq_pos + x]))
+							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))
+								"""
+								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+									sub_tmp_list[-1][2] += 1
+									sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+									sub_tmp_list[-1][4] += query_seq[query_pos + x]
+								else:
+									sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]])
+						for sub in sub_tmp_list:
+							mutations_in_read.append(tuple(sub))
+								"""
 					elif operation == 1: 
 						mutations_in_read.append(('insertion', ref_pos, length, used_query_seq[seq_pos: seq_pos + x], ref_pos + 1, seq_pos, seq_pos+x))
 					elif operation == 2: 
@@ -434,11 +463,21 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 				# Iterate over CIGAR operations
 				for operation, length in read.cigar:
 					# Check for insertion (I) or deletion (D)
-					if operation == 0:  
-							sub_tmp_list = []
-							for x in range(length):
-								if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
-									mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))	
+					if operation == 0:	
+						sub_tmp_list = []
+						for x in range(length):
+							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))
+								"""
+								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+									sub_tmp_list[-1][2] += 1
+									sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+									sub_tmp_list[-1][4] += query_seq[query_pos + x]
+								else:
+									sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]])
+						for sub in sub_tmp_list:
+							mutations_in_read.append(tuple(sub))
+								"""
 					elif operation == 1:	# Insertion
 						#key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1)
 						key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos+length], ref_pos + 1, query_pos, query_pos+length)
@@ -683,11 +722,21 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 				# Iterate over CIGAR operations
 				for operation, length in read.cigar:
 					# Check for insertion (I) or deletion (D)
-					if operation == 0:  
+					if operation == 0:	
 							sub_tmp_list = []
 							for x in range(length):
 								if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
 									mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))
+									"""
+									if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+										sub_tmp_list[-1][2] += 1
+										sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+										sub_tmp_list[-1][4] += query_seq[query_pos + x]
+									else:
+										sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]])
+							for sub in sub_tmp_list:
+								mutations_in_read.append(tuple(sub))
+									"""
 					if operation == 1:	# Insertion
 						key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1, query_pos, query_pos+length)
 					elif operation == 2:  # Deletion
@@ -767,12 +816,12 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 		control1 = pool(control1)
 		print('Binning mutation information in Treated file ... \r', end='')
 		edited1 = pool(edited1)
-		print('Binning mutation information ... Done!             ')
+		print('Binning mutation information ... Done!			  ')
 
 	
 	print(window)
 	significant_keys, pvalues = significant_mutations(control1, edited1, control_reads_cnt['used'], edited_reads_cnt['used'], p_limit = p_limit_value, freq_limit = mut_freq_value)
-	print("Calculating mutation's significant... Done!             ")
+	print("Calculating mutation's significant... Done!			   ")
 
 
 	print("Calculating mutation in each reads.. \r", end ='')
@@ -785,7 +834,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 	
 	#edited_dict_reads2, _ = creat_dict_analysis(samfile_path2,significant_keys, induced_mutations)
 	edited_dict_reads2 = {}
-	print("Calculating mutation in each reads... Done!       ")
+	print("Calculating mutation in each reads... Done!		 ")
 
 	"""sub_count_edited = 0
 	sub_count_control = 0
@@ -845,7 +894,7 @@ def classify_mut_mild(mutations, induced_mutations, partial_induce_cutoff=0.8): 
 			mut_info += f"{pos}_{pos+length-1}:Sub_{length}_{mutation[3]}>{mutation[4]},"
 
 	mut_info = mut_info[:-1]
-
+	
 	if induced_mutations != []:
 		if match_induced_mutations_cnt/whole_induced_muts > partial_induce_cutoff:
 			if match_induced_mutations_cnt == whole_induced_muts:
@@ -934,7 +983,7 @@ def process_mutations(mutations_dict, output_file, ids, induced_mutations, parti
 			filtered_mutation_info = []
 			if mutations[1] != []:
 				tmp_classification, filtered_mutation_info, tmp_insert_info, tmp_induce_type = classify_mut_mild(mutations[1], induced_mutations, partial_induce_cutoff=partial_induce_cutoff)
-			if  induce_type == ':':
+			if	induce_type == ':':
 				induce_type = '-'
 			if induced_mutations != []:
 				writer.writerow([read_id, classification, mutation_info, insert_info, induce_type, filtered_mutation_info])
@@ -1021,11 +1070,22 @@ def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, ch
 			# Iterate over CIGAR operations
 			for operation, length in read.cigar:
 				# Check for insertion (I) or deletion (D)
-				if operation == 0:  
+				if operation == 0:	
 						sub_tmp_list = []
 						for x in range(length):
+							"""
 							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
-								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))
+								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+									sub_tmp_list[-1][2] += 1
+									sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+									sub_tmp_list[-1][4] += query_seq[query_pos + x]
+								else:
+									sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]])
+						for sub in sub_tmp_list:
+							mutations_in_read.append(tuple(sub))
+							"""
+							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))	
 				if operation == 1:	# Insertion
 					key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1, query_pos, query_pos+length)
 				elif operation == 2:  # Deletion

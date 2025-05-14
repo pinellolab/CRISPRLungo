@@ -1,0 +1,8 @@
+CRISPRlungo
+CRISPRlungo_custom_mutation
+CRISPRlungo_insert_analysis
+CRISPRlungo_minimap
+CRISPRlungo_regular
+CRISPRlungo_single_map
+CRISPRlungo_umi
+CRISPRlungo_visualization

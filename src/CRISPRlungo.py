@@ -53,7 +53,8 @@ def main():
 
 	args = parser.parse_args()
 	read_res_cnt = {'fastq': 0, 'filtered': 0, 'aligned': 0}
-
+	
+	current_dir = os.path.dirname(os.path.abspath(__file__))
 
 	def create_dir(dir_name):
 		if not os.path.exists(dir_name):
@@ -275,7 +276,7 @@ def main():
 				allowance_value=0,
 				umi_clustered = args.umi)
 
-			edited_dictionary = CRISPRlungo_insert_analysis.confirm_insertion_seq(edited_dictionary, ref_seq, ref_name, './possible_insertion.fasta', output_dir, threads)
+			edited_dictionary = CRISPRlungo_insert_analysis.confirm_insertion_seq(edited_dictionary, ref_seq, ref_name, current_dir + '/possible_insertion.fasta', output_dir, threads)
 
 			regular_py.process_mutations(edited_dictionary, 
 				f'{output_dir}/results/read_classification.txt', 
@@ -294,7 +295,7 @@ def main():
 		CRISPRlungo_umi.mutation_analysis(ref_seq, ref_name, cv_pos, strand, cv_pos_2, strand_2, args.window, 
 			f'{output_dir}/align/Treated_alignment.sam', 
 			f'{output_dir}/results', 
-			args.whole_window_between_targets, induced_mutations, 
+			args.whole_window_between_targets, induced_mutations, current_dir,
 			threads=threads, mix_tag=args.mix_tag, 
 			write_cnt = write_cnt, partial_induce_cutoff=args.induced_paritial_similiarity, 
 			range_align_end=range_align_end)

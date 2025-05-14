@@ -21,18 +21,28 @@
 - kaleido  (conda install conda-forge::python-kaleido)
 
 
+### Install
+
+After download repository,
+
+``` bash
+     cd CRISPR-LongReads
+     conda env create -n {env_name} -f environment.yml # can use mamba instead of conda
+     pip install -e .
+```
+
 ### Example
 
 1. REGULAR mode
 
 ```bash
-    python3 CRISPRlungo.py regular data/PD1.fasta data/Nanopore_umi_Run_test_control_wo_chi.fastq data/Nanopore_umi_Run_test_wo_chi.fastq regular_output --target ggcgccctggccagtcgtct
+    CRISPRlungo PD1.fasta --control Nanopore_umi_Run_test_control_wo_chi.fastq Nanopore_umi_Run_test_wo_chi.fastq regular_output ggcgccctggccagtcgtct
 ```
 
 2. UMI mode
 
 ```bash
-    python3 CRISPRlungo.py umi data/PD1_umi.fasta data/Nanopore_umi_Run_test_wo_chi.fastq output_umi/ ggcgccctggccagtcgtct
+    CRISPRlungo --umi PD1_umi.fasta --control Nanopore_umi_Run_test_control_wo_chi.fastq Nanopore_umi_Run_test_wo_chi.fastq regular_output ggcgccctggccagtcgtct
 ```
 
 

@@ -1,0 +1,16 @@
+LICENSE
+README.md
+setup.py
+src/CRISPRlungo.py
+src/CRISPRlungo_custom_mutation.py
+src/CRISPRlungo_insert_analysis.py
+src/CRISPRlungo_minimap.py
+src/CRISPRlungo_regular.py
+src/CRISPRlungo_single_map.py
+src/CRISPRlungo_umi.py
+src/CRISPRlungo_visualization.py
+src/CRISPRlungo.egg-info/PKG-INFO
+src/CRISPRlungo.egg-info/SOURCES.txt
+src/CRISPRlungo.egg-info/dependency_links.txt
+src/CRISPRlungo.egg-info/entry_points.txt
+src/CRISPRlungo.egg-info/top_level.txt

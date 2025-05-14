@@ -539,7 +539,7 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 				for spoa_res in pool.map(run_spoa, pool_input):
 					fn = spoa_res[1]
 					fw.write(f'>{fn[fn.rfind("/")+1:fn.rfind(".")]}\n{spoa_res[0]}\n')
-					print(f'Generating consensus sequence [{fn_n} / {len(medaka_input_list)}]                       \r', end='') 
+					print(f'Generating consensus sequence [{fn_n} / {len(medaka_input_list)}]						\r', end='') 
 				pool_input = []
 		for spoa_res in pool.map(run_spoa, pool_input):
 			fn = spoa_res[1]
@@ -643,7 +643,7 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 
 		# Check if the read spans almost the entire reference sequence
 		if pos_refst < 100 and pos_refed > reference_length - 100:
-			align_strand_in_refseq = 3  # Mark as an intact read
+			align_strand_in_refseq = 3	# Mark as an intact read
 		elif not read.is_reverse:  # If the read is aligned in the forward direction
 			align_strand_in_refseq = 1
 		elif read.is_reverse:  # If the read is aligned in the reverse direction
@@ -672,13 +672,24 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 			ref_pos = info[0][0]  # Starting position in the reference
 			seq_pos = 0
 			using_query_seq = info[0][7]  # Use the query sequence directly
-
+			
 			for operation, length in info[0][6]:
-				if operation == 0:  
+				if operation == 0:	
+					sub_tmp_list = []
 					for x in range(length):
-						if using_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
-							mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))					
-				if operation == 1:  
+						if query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+							mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))
+							"""
+							if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+								sub_tmp_list[-1][2] += 1
+								sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+								sub_tmp_list[-1][4] += query_seq[seq_pos + x]
+							else:
+								sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]])
+					for sub in sub_tmp_list:
+						mutations_in_read.append(tuple(sub))
+							"""
+				if operation == 1:	
 					mutations_in_read.append(('insertion', ref_pos, length, using_query_seq[seq_pos: seq_pos + length], ref_pos + 1,seq_pos, seq_pos + length))
 				elif operation == 2:  
 					mutations_in_read.append(('deletion', ref_pos, length))
@@ -722,11 +733,21 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 				seq_pos = 0
 				used_query_seq = sub_info[7]
 				for operation, length in sub_info[6]:
-					if operation == 0:  
+					if operation == 0:	
 						sub_tmp_list = []
 						for x in range(length):
-							if used_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+							if query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
 								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))
+								"""
+								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+									sub_tmp_list[-1][2] += 1
+									sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+									sub_tmp_list[-1][4] += query_seq[query_pos + x]
+								else:
+									sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]])
+						for sub in sub_tmp_list:
+							mutations_in_read.append(tuple(sub))
+								"""
 					elif operation == 1:  
 						mutations_in_read.append(('insertion', ref_pos, length, used_query_seq[seq_pos: seq_pos + length], ref_pos + 1, seq_pos, seq_pos + length))
 					elif operation == 2: 
@@ -741,7 +762,7 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 
 		# Process reads aligned to the reverse strand
 		#elif info[0][5] == -1 and info[1][5] == -1:
-		elif info[0][5] ==  info[1][5] and info[0][4] == info[1][4]  and info[1][1] < info[0][0]:
+		elif info[0][5] ==	info[1][5] and info[0][4] == info[1][4]  and info[1][1] < info[0][0]:
 			if info[1][1] < info[0][0] - 100:  # Check for a deletion between the two reads
 				mutations_in_read.append(('deletion', info[1][1], info[0][0] - info[1][1] - 1))
 			if abs(info[1][2] - info[0][3]) > 20:  # Check for an insertion between the reads
@@ -764,11 +785,21 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 				used_query_seq = sub_info[7]
 				
 				for operation, length in sub_info[6]:
-					if operation == 0:  
+					if operation == 0:	
 						sub_tmp_list = []
 						for x in range(length):
-							if used_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
 								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))
+								"""
+								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
+									sub_tmp_list[-1][2] += 1
+									sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
+									sub_tmp_list[-1][4] += query_seq[query_pos + x]
+								else:
+									sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]])
+						for sub in sub_tmp_list:
+							mutations_in_read.append(tuple(sub))
+								"""
 					elif operation == 1: 
 						mutations_in_read.append(('insertion', ref_pos, length, used_query_seq[seq_pos: seq_pos + x], ref_pos + 1, seq_pos, seq_pos+x))
 					elif operation == 2: 
@@ -869,7 +900,7 @@ def classify_mut_mild(mutations, induced_mutations, partial_induce_cutoff=0.8): 
 
 
 
-def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, strand_2, window_r, input_file, output_dir, check_window_between_targets, induced_mutations, threads=1, Largeins_cut=20, Largedel_cut=100, mix_tag=False, write_cnt=False, partial_induce_cutoff=0.8, range_align_end=100):
+def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, strand_2, window_r, input_file, output_dir, check_window_between_targets, induced_mutations, current_dir, threads=1, Largeins_cut=20, Largedel_cut=100, mix_tag=False, write_cnt=False, partial_induce_cutoff=0.8, range_align_end=100):
 
 	
 	def cigar_str(cigar):
@@ -994,10 +1025,12 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 			# Iterate over CIGAR operations
 			for operation, length in read.cigar:
 				# Check for insertion (I) or deletion (D)
-				if operation == 0:  
+				if operation == 0:	
 						sub_tmp_list = []
 						for x in range(length):
 							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))
+								"""
 								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
 									sub_tmp_list[-1][2] += 1
 									sub_tmp_list[-1][3] += reference_sequence[ref_pos + x]
@@ -1006,6 +1039,7 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 									sub_tmp_list.append(['substitution', ref_pos + x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]])
 						for sub in sub_tmp_list:
 							mutations_in_read.append(tuple(sub))
+								"""
 				if operation == 1:	# Insertion
 					key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1, query_pos, query_pos+length)
 				elif operation == 2:  # Deletion
@@ -1048,7 +1082,7 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 	fw.write(s + '\n')
 	fw.close()
 
-	dict_of_reads = CRISPRlungo_insert_analysis.confirm_insertion_seq(dict_of_reads, reference_sequence, ref_name, './possible_insertion.fasta', output_dir, threads)
+	dict_of_reads = CRISPRlungo_insert_analysis.confirm_insertion_seq(dict_of_reads, reference_sequence, ref_name, current_dir + '/possible_insertion.fasta', output_dir, threads)
 
 	with open(f'{output_dir}/read_classification.txt', 'w', newline='') as file:
 		writer = csv.writer(file, delimiter='\t')
@@ -1061,7 +1095,7 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 			if mutations[1] != []:
 				tmp_classification, filtered_mutation_info, tmp_insert_info, tmp_induce_type = regular_py.classify_mut_mild(mutations[1], induced_mutations)
 
-			if  induce_type == ':':
+			if	induce_type == ':':
 				induce_type = '-'
 			if induced_mutations != []:
 				writer.writerow([read_id, classification, mutation_info, insert_info, induce_type, filtered_mutation_info])
