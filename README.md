@@ -6,14 +6,14 @@
 
 
 ### Requirements
-
-- Minimap2
-- biopython
+- python3 >= 3.8
+- Minimap2 = 2.28
+- biopython = 1.85
 - pysam
 - scipy
-- vsearch 
+- vsearch = 2.30.0
 - matplotlib
-- plotly
+- plotly >= 6.0.1
 - pandas
 - numpy
 - editdistance
