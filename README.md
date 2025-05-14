@@ -18,7 +18,7 @@
 - numpy
 - editdistance
 - pyspoa
-- kaleido  (conda install conda-forge::python-kaleido)
+- kaleido
 
 
 ### Install
