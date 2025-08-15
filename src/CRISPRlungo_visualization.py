@@ -114,6 +114,7 @@ def align_count_plot(file_1, file_2, output_dir):
 	# Show the plot
 	plotly_html.append(fig.to_html(full_html=False, include_plotlyjs='cdn'))
 	fig.write_image(f'{output_dir}/Control_alignment_statistics.png')
+	fig.write_image(f'{output_dir}/Control_alignment_statistics.pdf')
 
 
 
@@ -157,6 +158,7 @@ def align_count_plot(file_1, file_2, output_dir):
 	# Show the plot
 	plotly_html.append(fig.to_html(full_html=False, include_plotlyjs='cdn'))
 	fig.write_image(f'{output_dir}/Treated_alignment_statistics.png')
+	fig.write_image(f'{output_dir}/Treated_alignment_statistics.pdf')
 
 
 	return plotly_html
@@ -199,6 +201,7 @@ def regular_statistic_plot(tsv_file, fastq_file, output_dir):
 	
 	# Show the plot
 	fig.write_image(f'{output_dir}/Alignment_statistics.png')
+	fig.write_image(f'{output_dir}/Alignment_statistics.pdf')
 
 
 def base_proportion(result, output_dir, reference, cv_pos, cv_pos_2, plot_window, show_all_between_allele):
@@ -305,6 +308,7 @@ def base_proportion(result, output_dir, reference, cv_pos, cv_pos_2, plot_window
 	
 	# Show the figure
 	fig.write_image(f'{output_dir}/Base_proportions.png')
+	fig.write_image(f'{output_dir}/Base_proportions.pdf')
 	return fig.to_html(full_html=False, include_plotlyjs='cdn')
 
 
@@ -348,6 +352,7 @@ def regular_accuracy_plot(reference, result, output_dir):
 	plt.ylabel('Proportion of bases at position that match refeernce sequence')
 	plt.grid(True)
 	plt.savefig(f'{output_dir}/Regular_accuracy.png')
+	plt.savefig(f'{output_dir}/Regular_accuracy.pdf')
 
 
 
@@ -457,10 +462,13 @@ def mutation_pie_chart(tsv_file, output_dir):
 	# Display the plots
 	html_mut_pie = [fig1.to_html(full_html=False, include_plotlyjs='cdn')]
 	fig1.write_image(f'{output_dir}/Mutation_pie_chart.png')
+	fig1.write_image(f'{output_dir}/Mutation_pie_chart.pdf')
 	html_pat_pie = [fig2.to_html(full_html=False, include_plotlyjs='cdn')]
 	fig2.write_image(f'{output_dir}/Pattern_pie_chart.png')
+	fig2.write_image(f'{output_dir}/Pattern_pie_chart.pdf')
 	html_allele_pie = [fig3.to_html(full_html=False, include_plotlyjs='cdn')]
 	fig3.write_image(f'{output_dir}/Percent_of_alleles_pie_chart.png')
+	fig3.write_image(f'{output_dir}/Percent_of_alleles_pie_chart.pdf')
 
 	return html_mut_pie, html_pat_pie, html_allele_pie
 
@@ -487,6 +495,7 @@ def custom_mutation_pie_chart(cnt_dict, output_dir):
 	# Display the plots
 	html_mut_pie = [fig1.to_html(full_html=False, include_plotlyjs='cdn')]
 	fig1.write_image(f'{output_dir}/Custom_mutation_pie_chart.png')
+	fig1.write_image(f'{output_dir}/Custom_mutation_pie_chart.pdf')
 
 	return html_mut_pie
 
@@ -582,6 +591,7 @@ def indel_per_position(tsv_file, reference, output_dir):
 	
 	# Show the plot
 	fig.write_image(f'{output_dir}/Deletion_and_insertions_per_position.png')
+	fig.write_image(f'{output_dir}/Deletion_and_insertions_per_position.pdf')
 	return fig.to_html(full_html=False, include_plotlyjs='cdn')
 
 
@@ -654,6 +664,7 @@ def Insertion_length(tsv_file, output_dir):
 	
 	# Show the plot
 	fig.write_image(f'{output_dir}/insertion_length.png')
+	fig.write_image(f'{output_dir}/insertion_length.pdf')
 	return fig.to_html(full_html=False, include_plotlyjs='cdn')
 
 
@@ -723,6 +734,7 @@ def Deletion_length(tsv_file, output_dir):
 	
 	# Show the plot
 	fig.write_image(f'{output_dir}/deletion_length.png')
+	fig.write_image(f'{output_dir}/deletion_length.pdf')
 	return fig.to_html(full_html=False, include_plotlyjs='cdn')
 
 def Deletion_count_length(tsv_file, output_dir):
@@ -775,6 +787,7 @@ def Deletion_count_length(tsv_file, output_dir):
 	
 	# Show the plot
 	fig.write_image(f'{output_dir}/Deletion_count_length.png')
+	fig.write_image(f'{output_dir}/Deletion_count_length.pdf')
 	return fig.to_html(full_html=False, include_plotlyjs='cdn')
 
 
@@ -829,6 +842,7 @@ def insertion_count_length(tsv_file, output_dir):
 	
 	# Show the plot
 	fig.write_image(f'{output_dir}/insertion_count_length.png')
+	fig.write_image(f'{output_dir}/insertion_count_length.pdf')
 
 
 def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_dir, cleavage_pos, target, target_2, original_target, min_read_cnt, min_read_freq, plot_window, show_line, induced_mutation_str, show_all_between_allele, group_separate=False):
@@ -851,16 +865,16 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			fig_wide = (plot_window * 2 + cv_pos_2 - cv_pos) * 0.2 + 6
 		else:
 			fig_wide = (plot_window * 4) * 0.2 + 8
-	
-	xlim_max = 0.005+(plot_window*2 + 50)*0.0185
+
+	xlim_max = 0.005+(plot_window*2 + 50)*0.021
 	
 	window_ed = cv_pos + plot_window
 	if cv_pos_2 != False:
 		if show_all_between_allele:
 			window_ed = cv_pos_2 + plot_window
-			xlim_max = 0.005+(plot_window * 4 + cv_pos_2 - cv_pos +1)*0.0185
+			xlim_max = 0.005+(plot_window * 4 + cv_pos_2 - cv_pos +1)*0.021
 		else:
-			xlim_max = 0.005+(plot_window*5+1)*0.0185
+			xlim_max = 0.005+(plot_window*5+1)*0.021
 	xlim_max = fig_wide/11
 
 	ref_plot = ref_seq[cv_pos - plot_window: window_ed]
@@ -879,8 +893,8 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 	}
 	
 	
-
-	fig, ax = plt.subplots(figsize=(fig_wide, 3 * (show_line+3)/10))
+	print(show_line)
+	fig, ax = plt.subplots(figsize=(fig_wide, 3 * (show_line+5)/10))
 	
 	fw = open(f'{output_dir}/Allel_table.txt', 'w') 
 	fw.write('ref_seq\tmut_seq\tRaw_count\t%\tCIGAR\tMutation_info\n')
@@ -893,20 +907,20 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 	seq = ref_plot
 	cleavage_pos += 1
 	if cv_pos_2 and not show_all_between_allele:
-		add_x = 0.0185 * (plot_window * 2 + 2)	
+		add_x = 0.021 * (plot_window * 2 + 2)	
 
 	for nucleotide in seq:
 		ax.text(x_pos, 0.9, nucleotide, fontsize=14, fontfamily='monospace',
 				ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-		x_pos += 0.0185
+		x_pos += 0.021
 	if strand == 1:
-		rect = patches.Rectangle((0.005+(plot_window+1-cleavage_pos)*0.0185, 0.72), len(target)*0.0185, 0.08, linewidth=2, edgecolor='none', facecolor='silver', zorder=10)
+		rect = patches.Rectangle((0.005+(plot_window+1-cleavage_pos)*0.021, 0.72), len(target)*0.021, 0.08, linewidth=2, edgecolor='none', facecolor='silver', zorder=10)
 		ax.add_patch(rect)
-		ax.text(0.005+(plot_window+1-cleavage_pos - 6)*0.0185, 0.77, f'sgRNA {original_target}', fontsize=14, ha='left', va='center', zorder=11)
+		ax.text(0.005+(plot_window+1-cleavage_pos - 6)*0.021, 0.77, f'sgRNA {original_target}', fontsize=14, ha='left', va='center', zorder=11)
 	else:
-		rect = patches.Rectangle((0.005+(plot_window+1-(len(target) - cleavage_pos))*0.0185, 0.72), len(target)*0.0185, 0.08, linewidth=2, edgecolor='none', facecolor='silver', zorder=10)
+		rect = patches.Rectangle((0.005+(plot_window+1-(len(target) - cleavage_pos))*0.021, 0.72), len(target)*0.021, 0.08, linewidth=2, edgecolor='none', facecolor='silver', zorder=10)
 		ax.add_patch(rect)
-		ax.text(0.005+(plot_window+1-(len(target) - cleavage_pos) - 6)*0.0185, 0.77, f'sgRNA {3 - original_target}', fontsize=14, ha='left', va='center', zorder=11)
+		ax.text(0.005+(plot_window+1-(len(target) - cleavage_pos) - 6)*0.021, 0.77, f'sgRNA {3 - original_target}', fontsize=14, ha='left', va='center', zorder=11)
 
 	status_list = [[],[],[]]
 
@@ -914,15 +928,15 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 
 		if not show_all_between_allele:
 			ref_plot_2 = ref_seq[cv_pos_2 - plot_window: cv_pos_2 + plot_window]
-			add_x = 0.0185 * (plot_window * 2 + 10)
+			add_x = 0.021 * (plot_window * 2 + 10)
 			x_pos = 0.01 + add_x
 
 			for nucleotide in ref_plot_2:
 				ax.text(x_pos, 0.9, nucleotide, fontsize=14, fontfamily='monospace',
 						ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-				x_pos += 0.0185 # Adjust spacing between nucleotides
+				x_pos += 0.021 # Adjust spacing between nucleotides
 			
-			ax.text(0.0185 * (plot_window * 2 + 5.5), 0.9, f'{cv_pos_2 - cv_pos - plot_window}bp', fontsize=10, backgroundcolor='white', ha='center', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))
+			ax.text(0.021 * (plot_window * 2 + 5.5), 0.9, f'{cv_pos_2 - cv_pos - plot_window}bp', fontsize=10, backgroundcolor='white', ha='center', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))
 			target2_rec_cp = plot_window + 1
 
 		else:
@@ -930,22 +944,22 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			target2_rec_cp = plot_window + cv_pos_2 - cv_pos + 1
 
 		if strand_2 == 1:
-			rect = patches.Rectangle((0.005+add_x+(target2_rec_cp-cleavage_pos)*0.0185, 0.728), len(target_2)*0.0185, 0.08, linewidth=2, edgecolor='none', facecolor='silver', zorder=10)
+			rect = patches.Rectangle((0.005+add_x+(target2_rec_cp-cleavage_pos)*0.021, 0.728), len(target_2)*0.021, 0.08, linewidth=2, edgecolor='none', facecolor='silver', zorder=10)
 			ax.add_patch(rect)
-			ax.text(0.005+add_x+(target2_rec_cp-cleavage_pos-6)*0.0185, 0.77, f'sgRNA 2', fontsize=14, ha='left', va='center', zorder=11)
+			ax.text(0.005+add_x+(target2_rec_cp-cleavage_pos-6)*0.021, 0.77, f'sgRNA 2', fontsize=14, ha='left', va='center', zorder=11)
 		else:
-			rect = patches.Rectangle((0.005+add_x+(target2_rec_cp-(len(target_2) - cleavage_pos))*0.0185, 0.72), len(target)*0.0185, 0.08, linewidth=2, edgecolor='none', facecolor='silver', zorder=10)
+			rect = patches.Rectangle((0.005+add_x+(target2_rec_cp-(len(target_2) - cleavage_pos))*0.021, 0.72), len(target)*0.021, 0.08, linewidth=2, edgecolor='none', facecolor='silver', zorder=10)
 			ax.add_patch(rect)
-			ax.text(0.005+add_x+(target2_rec_cp-(len(target_2) - cleavage_pos) - 6)*0.0185, 0.77, f'sgRNA 2', fontsize=14, ha='left', va='center', zorder=11)
+			ax.text(0.005+add_x+(target2_rec_cp-(len(target_2) - cleavage_pos) - 6)*0.021, 0.77, f'sgRNA 2', fontsize=14, ha='left', va='center', zorder=11)
 
 	if show_all_between_allele:
 		window_ed = plot_window * 2 + (cv_pos_2 - cv_pos)
 	else:
 		window_ed = plot_window * 2
 		
-	ax.text(0.0185 * window_ed + 0.02 + add_x, 0.9, f'Reference', fontsize=14, ha='left', va='center')
+	ax.text(0.021 * window_ed + 0.02 + add_x, 0.9, f'Reference', fontsize=14, ha='left', va='center')
 	if induced_mutation_str:
-		ax.text(0.0185 * window_ed + 0.02 + add_x, 0.6, f'Desired', fontsize=14, ha='left', va='center')
+		ax.text(0.021 * window_ed + 0.02 + add_x, 0.6, f'Desired', fontsize=14, ha='left', va='center')
 	showing_line = mut_list[:show_line]
 
 	if induced_mutation_str:
@@ -973,7 +987,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			for nucleotide in seq:
 				ax.text(x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 					ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-				x_pos += 0.0185 # Adjust spacing between nucleotides
+				x_pos += 0.021 # Adjust spacing between nucleotides
 			fw.write(f'{ref_plot}\t{ref_plot}\t{info[2]}\t{info[1]}\t{plot_window*2}M\t{info[0]}\n')
 			status_list[0].append(f'{info[1]}% ({info[2]} Reads)')
 			status_list[1].append('WT')
@@ -1021,9 +1035,9 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				if int(mut[0]) - (cv_pos - plot_window) + adjust_ins < 0:
 					left_large_check = True
 					left_seq = ref_seq[mut[0] - 10: mut[0]]
-					#left_len_comp = 2 * 0.0185 * (1- (mut[0]/ cv_pos_2))
+					#left_len_comp = 2 * 0.021 * (1- (mut[0]/ cv_pos_2))
 					left_len_comp = 0
-					xlim_min = -0.005-(11+2)*0.0185
+					xlim_min = -0.005-(11+2)*0.021
 				if int(mut[1]) - (cv_pos - plot_window) + adjust_ins > window_ed:
 					right_large_check = True
 					right_seq = ref_seq[mut[1]-10: mut[1]]
@@ -1092,7 +1106,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 									add_len_between = 10
 								if bar_st_between < add_len_between:
 									bar_st_between = add_len_between
-								#ax.annotate('', xy=(0.005+60*0.0185, y_pos), xytext=(0.01+(ed_pos+1+add_len_between)*0.0185, y_pos), arrowprops=dict(arrowstyle='-'), zorder=10)
+								#ax.annotate('', xy=(0.005+60*0.021, y_pos), xytext=(0.01+(ed_pos+1+add_len_between)*0.021, y_pos), arrowprops=dict(arrowstyle='-'), zorder=10)
 							if mut_ed > cv_pos_2 - plot_window and mut_st < cv_pos_2 - plot_window:
 								add_len_between = (mut_st - cv_pos - plot_window) / (cv_pos_2 - cv_pos) * 10
 								if add_len_between > 10:
@@ -1121,7 +1135,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			elif mut_type == 'Ins':
 				ins_len = int(mut.split(':')[1].split('_')[1])
 				if out_of_range == False:
-					rect = patches.Rectangle((0.008+st_pos*0.0185,	y_pos -0.04), ins_len*0.0185, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=10)
+					rect = patches.Rectangle((0.008+st_pos*0.021,	y_pos -0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=10)
 					ax.add_patch(rect)
 					seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])[:window_ed]
 					adjust_ins += ins_len
@@ -1146,27 +1160,27 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 					add_large_cv2 = 0
 				if left_large_check or right_large_check:
 					if left_large_check and right_large_check:
-						ax.annotate('', xy=(-0.005-left_len_comp, y_pos), xytext=(0.005+(window_ed+add_large_cv2)*0.0185+right_len_comp, y_pos), arrowprops=dict(arrowstyle='-'), zorder=9)
+						ax.annotate('', xy=(-0.005-left_len_comp, y_pos), xytext=(0.005+(window_ed+add_large_cv2)*0.021+right_len_comp, y_pos), arrowprops=dict(arrowstyle='-'), zorder=9)
 					elif left_large_check:
-						ax.annotate('', xy=(-0.005-left_len_comp, y_pos), xytext=(0.01+(ed_pos+1+add_len_between+0.05)*0.0185, y_pos), arrowprops=dict(arrowstyle='-'), zorder=9) 	
+						ax.annotate('', xy=(-0.005-left_len_comp, y_pos), xytext=(0.01+(ed_pos+1+add_len_between+0.05)*0.021, y_pos), arrowprops=dict(arrowstyle='-'), zorder=9) 	
 					elif right_large_check:
-						ax.annotate('', xy=(0.005+(st_pos+adjust_ins)*0.0185, y_pos), xytext=(0.005+(window_ed+add_large_cv2)*0.0185+right_len_comp, y_pos), arrowprops=dict(arrowstyle='-'), zorder=9) 	
+						ax.annotate('', xy=(0.005+(st_pos+adjust_ins)*0.021, y_pos), xytext=(0.005+(window_ed+add_large_cv2)*0.021+right_len_comp, y_pos), arrowprops=dict(arrowstyle='-'), zorder=9) 	
 					if left_large_ins_check:
 						rect = patches.Rectangle((-0.005-left_len_comp, y_pos -0.04), 0.005, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=9)
 						ax.add_patch(rect)
 					if right_large_ins_check and cv_pos_2 == False:
-						rect = patches.Rectangle((0.005+window_ed*0.0185+right_len_comp,	y_pos -0.04), 0.006, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
+						rect = patches.Rectangle((0.005+window_ed*0.021+right_len_comp,	y_pos -0.04), 0.006, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
 						ax.add_patch(rect)
 						mut_str += f'{ins_len}LargeIns,'
 				else:
-					ax.annotate('', xy=(0.005+(st_pos+adjust_ins)*0.0185, y_pos), xytext=(0.05+(ed_pos+1+add_len_between+0.01)*0.0185, y_pos), arrowprops=dict(arrowstyle='-'), zorder=10)
+					ax.annotate('', xy=(0.005+(st_pos+adjust_ins)*0.021, y_pos), xytext=(0.05+(ed_pos+1+add_len_between+0.01)*0.021, y_pos), arrowprops=dict(arrowstyle='-'), zorder=10)
 				if cv_pos_2 and not show_all_between_allele:
 					if mut_ed > cv_pos_2 - plot_window:
-						ax.text(0.005+(plot_window*2+5)*0.0185, y_pos, f'{del_len}bp{inv_str}', fontsize=10, backgroundcolor='white', ha='center', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))		
+						ax.text(0.005+(plot_window*2+5)*0.021, y_pos, f'{del_len}bp{inv_str}', fontsize=10, backgroundcolor='white', ha='center', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))		
 					else:
-						ax.text(0.005+(st_pos+ed_pos + add_len_between)/2*0.0185, y_pos, f'{del_len}bp{inv_str}', fontsize=10, backgroundcolor='white', ha='left', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))	
+						ax.text(0.005+(st_pos+ed_pos + add_len_between)/2*0.021, y_pos, f'{del_len}bp{inv_str}', fontsize=10, backgroundcolor='white', ha='left', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))	
 				else:
-					ax.text(0.005+(st_pos+ed_pos)/2*0.0185, y_pos, f'{del_len}bp{inv_str}', fontsize=10, backgroundcolor='white', ha='left', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))
+					ax.text(0.005+(st_pos+ed_pos)/2*0.021, y_pos, f'{del_len}bp{inv_str}', fontsize=10, backgroundcolor='white', ha='left', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))
 				mut_str += f'{del_len}LargeDel,'
 				
 			elif mut_type == 'LargeIns':
@@ -1178,7 +1192,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				#seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])[:plot_window*2]
 				if st_pos + ins_len > window_ed:
 					ins_len = window_ed - st_pos
-				rect = patches.Rectangle((0.008+st_pos*0.0185,	y_pos -0.04), ins_len*0.0185, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=14) 
+				rect = patches.Rectangle((0.008+st_pos*0.021,	y_pos -0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=14) 
 				ax.add_patch(rect)
 				adjust_ins += ins_len
 			
@@ -1202,21 +1216,21 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			else:
 				ax.text(x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 					ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-			x_pos += 0.0185 # Adjust spacing between nucleotides
+			x_pos += 0.021 # Adjust spacing between nucleotides
 
 		if left_large_check:
-			left_x_pos = -0.0185 * 1 - left_len_comp
+			left_x_pos = -0.021 * 1 - left_len_comp
 			for nucleotide in left_seq[::-1]:
 				ax.text(left_x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 					ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-				left_x_pos -= 0.0185 # Adjust spacing between nucleotides
+				left_x_pos -= 0.021 # Adjust spacing between nucleotides
 		
 		if right_large_check and (not cv_pos_2 or (cv_pos_2 and show_all_between_allele)):
-			right_x_pos = 0.01 + 0.0185 * window_ed + right_len_comp
+			right_x_pos = 0.01 + 0.021 * window_ed + right_len_comp
 			for nucleotide in right_seq:
 				ax.text(right_x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 					ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-				right_x_pos += 0.0185 # Adjust spacing between nucleotides
+				right_x_pos += 0.021 # Adjust spacing between nucleotides
 		
 		if induced_mutation_str and info_n == 0:
 			status_list[0].append(f'')
@@ -1230,7 +1244,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			status_list[2].append(info[5])
 			
 		if cv_pos_2 and bar_st_between < bar_ed_between and not show_all_between_allele:
-			rect = patches.Rectangle((0.0075+ plot_window*2*0.0185 + bar_st_between,y_pos -0.035), (bar_ed_between - bar_st_between)*0.0185, 0.08, linewidth=0, edgecolor='none', facecolor='whitesmoke', zorder=13)
+			rect = patches.Rectangle((0.0075+ plot_window*2*0.021 + bar_st_between,y_pos -0.035), (bar_ed_between - bar_st_between)*0.021, 0.08, linewidth=0, edgecolor='none', facecolor='whitesmoke', zorder=13)
 			ax.add_patch(rect)
 
 		if induced_mutation_str and info_n == 0:
@@ -1252,13 +1266,13 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			y_pos = 0.9 - (info_n + 3) * 0.1
 			if induced_mutation_str:
 				y_pos -= 0.15
-			ax.text(0.0185 * window_ed + 0.02 + add_x + (11+2 +st_pos)*0.0185, y_pos, x, fontsize=12, ha='left', va='center')
+			ax.text(0.021 * window_ed + 0.02 + add_x + (11+2 +st_pos)*0.021, y_pos, x, fontsize=12, ha='left', va='center')
 			if len(x) > max_len:
 				max_len = len(x)
 		st_pos += max_len/2 + 2
 
-	ax.annotate('', xy=(0.005+(plot_window+1)*0.0185, 1), xytext=(0.01+(plot_window+1)*0.0185, 1 - dash_line/10 -0.4), arrowprops=dict(arrowstyle='-', linestyle='--', color='gray'), zorder=10)
-	ax.text(0.0185 * plot_window * 2 + 1, y_pos, f'  ', fontsize=12, ha='left', va='center')
+	ax.annotate('', xy=(0.005+(plot_window)*0.021, 1), xytext=(0.01+(plot_window)*0.021, 1 - dash_line/10 -0.4), arrowprops=dict(arrowstyle='-', linestyle='--', color='gray'), zorder=10)
+	ax.text(0.021 * plot_window * 2 + 1, y_pos, f'  ', fontsize=12, ha='left', va='center')
 
 	if cv_pos_2 and not show_all_between_allele:
 		
@@ -1281,9 +1295,9 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				for nucleotide in seq:
 					ax.text(x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 							ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-					x_pos += 0.0185 # Adjust spacing between nucleotides
+					x_pos += 0.021 # Adjust spacing between nucleotides
 				fw.write(f'{ref_plot_2}\t{ref_plot_2}\t{info[2]}\t{info[1]}\t{plot_window*2}M\t{info[0]}\n')
-				rect = patches.Rectangle((0.0075+plot_window*2*0.0185,y_pos -0.035), 10 * 0.0185, 0.08, linewidth=0, edgecolor='none', facecolor='whitesmoke', zorder=13)
+				rect = patches.Rectangle((0.0075+plot_window*2*0.021,y_pos -0.035), 10 * 0.021, 0.08, linewidth=0, edgecolor='none', facecolor='whitesmoke', zorder=13)
 				ax.add_patch(rect)
 				continue
 		
@@ -1328,12 +1342,12 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 						if mut[0] > cv_pos + plot_window:
 							left_not_draw_between = True
 						left_seq = ref_seq[mut[0] - 10: mut[0]]
-						#right_len_comp = 2 * 0.0185 * (1- (mut[0]/ cv_pos_2))
+						#right_len_comp = 2 * 0.021 * (1- (mut[0]/ cv_pos_2))
 						left_len_comp = 0
 					if int(mut[1]) - (cv_pos_2 - plot_window) + adjust_ins > plot_window*2:
 						right_large_check = True
 						right_seq = ref_seq[mut[1]: mut[1]+10]
-						#left_len_comp = 2 * 0.0185 * (1- ((ref_len - mut[1])/(ref_len - cv_pos_2)))
+						#left_len_comp = 2 * 0.021 * (1- ((ref_len - mut[1])/(ref_len - cv_pos_2)))
 						right_len_comp = 0
 					if (left_large_check or right_large_check) and len(info_sp) > mut_n + 1:
 						next_mut = info_sp[mut_n + 1].replace(':', '_').replace('>', '_').split('_')
@@ -1393,17 +1407,17 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 							mark_st = 0
 						if mark_ed > mark_len:
 							mark_ed = mark_len
-						ax.annotate('', xy=((plot_window*2 + mark_st*10/mark_len)*0.0185, y_pos), xytext=((plot_window*2 + mark_ed*10/mark_len)*0.0185, y_pos), arrowprops=dict(arrowstyle='-', color='black'), zorder=15)
+						ax.annotate('', xy=((plot_window*2 + mark_st*10/mark_len)*0.021, y_pos), xytext=((plot_window*2 + mark_ed*10/mark_len)*0.021, y_pos), arrowprops=dict(arrowstyle='-', color='black'), zorder=15)
 				
 				elif mut_type == 'Ins':
 					ins_len = int(mut.split(':')[1].split('_')[1])
 					if out_of_range == False:
-						rect = patches.Rectangle((0.008+add_x+st_pos*0.0185, y_pos - 0.04), ins_len*0.0185, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=11)
+						rect = patches.Rectangle((0.008+add_x+st_pos*0.021, y_pos - 0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=11)
 						ax.add_patch(rect)
 						seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])
 						adjust_ins += ins_len
 					if cv_pos + plot_window <= mut_st and mut_ed < cv_pos_2 - plot_window:
-						ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.0185, y_pos-0.05), xytext=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.0185, y_pos+0.05), arrowprops=dict(arrowstyle='-', color='red'), zorder=15)
+						ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos-0.05), xytext=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos+0.05), arrowprops=dict(arrowstyle='-', color='red'), zorder=15)
 				
 				elif mut_type == 'LargeDel' and ed_pos > 0:
 					del_len = int(mut.split(':')[1].replace('Large','Large').split('_')[1])
@@ -1416,16 +1430,16 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 						add_len_between = (mut_st - cv_pos - plot_window) / (cv_pos_2 - cv_pos - plot_window*2) * 10
 
 					if right_large_check:
-						ax.annotate('', xy=(0.005+add_x+st_pos*0.0185, y_pos), xytext=(0.01+add_x+(ed_pos+1)*0.0185 + right_len_comp, y_pos), arrowprops=dict(arrowstyle='-'), zorder=11)
+						ax.annotate('', xy=(0.005+add_x+st_pos*0.021, y_pos), xytext=(0.01+add_x+(ed_pos+1)*0.021 + right_len_comp, y_pos), arrowprops=dict(arrowstyle='-'), zorder=11)
 					else:
-						ax.annotate('', xy=(0.005+add_x+(st_pos - add_len_between)*0.0185, y_pos), xytext=(0.01+add_x+(ed_pos+1)*0.0185, y_pos), arrowprops=dict(arrowstyle='-'), zorder=11)
+						ax.annotate('', xy=(0.005+add_x+(st_pos - add_len_between)*0.021, y_pos), xytext=(0.01+add_x+(ed_pos+1)*0.021, y_pos), arrowprops=dict(arrowstyle='-'), zorder=11)
 					if right_large_ins_check:
-						rect = patches.Rectangle((0.01+add_x+(ed_pos+1)*0.0185 + right_len_comp- 0.006, y_pos -0.04), 0.006, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
+						rect = patches.Rectangle((0.01+add_x+(ed_pos+1)*0.021 + right_len_comp- 0.006, y_pos -0.04), 0.006, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
 						ax.add_patch(rect)
 					if cv_pos_2 - plot_window < mut_st:
-						ax.text(0.005+add_x+(st_pos-add_len_between+ed_pos)/2*0.0185, y_pos, f'{del_len}bp{inv_str}', fontsize=10, backgroundcolor='white', ha='left', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))
+						ax.text(0.005+add_x+(st_pos-add_len_between+ed_pos)/2*0.021, y_pos, f'{del_len}bp{inv_str}', fontsize=10, backgroundcolor='white', ha='left', va='center', zorder=11,bbox=dict(facecolor='white', edgecolor='none', pad=2))
 					if cv_pos + plot_window <= mut_st and mut_ed < cv_pos_2 - plot_window:
-						ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.0185, y_pos), xytext=((plot_window*2 + (mut_ed-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.0185, y_pos), arrowprops=dict(arrowstyle='-', color='black'), zorder=15)
+						ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos), xytext=((plot_window*2 + (mut_ed-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos), arrowprops=dict(arrowstyle='-', color='black'), zorder=15)
 					
 				elif mut_type == 'LargeIns':
 					if right_large_ins_check or left_large_ins_check:
@@ -1435,18 +1449,18 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 					seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])[:plot_window*2]
 					if st_pos + ins_len > plot_window *2:
 						ins_len = plot_window*2 - st_pos
-					rect = patches.Rectangle((0.008+add_x+st_pos*0.0185, y_pos - 0.04), ins_len*0.0185, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
+					rect = patches.Rectangle((0.008+add_x+st_pos*0.021, y_pos - 0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
 					ax.add_patch(rect)
 					adjust_ins += ins_len
 					if cv_pos + plot_window <= mut_st and mut_ed < cv_pos_2 - plot_window:
-						ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.0185, y_pos-0.05), xytext=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.0185, y_pos+0.05), arrowprops=dict(arrowstyle='-', color='red'), zorder=15)
+						ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos-0.05), xytext=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos+0.05), arrowprops=dict(arrowstyle='-', color='red'), zorder=15)
 				
 				elif mut_type == 'Sub':
 					for n, nt in enumerate(mut.split('>')[1]):
 						if cv_pos_2 - plot_window <= mut_st + n < cv_pos_2 + plot_window:
 							seq = seq[:mut_st - (cv_pos_2 - plot_window)] + nt.lower() + seq[mut_st - (cv_pos_2 - plot_window)+1:]
 						if cv_pos + plot_window <= mut_st + n < cv_pos_2 - plot_window:
-							ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.0185, y_pos-0.05), xytext=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.0185, y_pos+0.05), arrowprops=dict(arrowstyle='-', color='black'), zorder=15)		
+							ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos-0.05), xytext=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos+0.05), arrowprops=dict(arrowstyle='-', color='black'), zorder=15)		
 
 			seq = seq[:plot_window*2]
 					
@@ -1458,17 +1472,17 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				else:
 					ax.text(x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 						ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-				x_pos += 0.0185 # Adjust spacing between nucleotides
+				x_pos += 0.021 # Adjust spacing between nucleotides
 
 			if right_large_check:
 				x_pos += right_len_comp
 				for nucleotide in right_seq:
 					ax.text(x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 							ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
-					x_pos += 0.0185 # Adjust spacing between nucleotides
+					x_pos += 0.021
 
 			if left_large_check and left_not_draw_between:
-				rect = patches.Rectangle((0.0075+plot_window*2*0.0185,y_pos -0.035), (10 - add_len_between)*0.0185, 0.08, linewidth=0, edgecolor='none', facecolor='whitesmoke', zorder=13)
+				rect = patches.Rectangle((0.0075+plot_window*2*0.021,y_pos -0.035), (10 - add_len_between)*0.021, 0.08, linewidth=0, edgecolor='none', facecolor='whitesmoke', zorder=13)
 				ax.add_patch(rect)
 
 			if induced_mutation_str and info_n == 0:
@@ -1476,12 +1490,12 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 
 	if cv_pos_2:
 		if show_all_between_allele:
-			cv_pos_2_plot = 0.01+(plot_window + cv_pos_2 - cv_pos + 1)*0.0185
+			cv_pos_2_plot = 0.01+(plot_window + cv_pos_2 - cv_pos + 1)*0.021
 		else:
-			cv_pos_2_plot = 0.01+add_x+(plot_window+1)*0.0185
+			cv_pos_2_plot = 0.01+add_x+(plot_window+1)*0.021
 		ax.annotate('', xy=(cv_pos_2_plot, 1), xytext=(cv_pos_2_plot, 1 - dash_line/10-0.4), arrowprops=dict(arrowstyle='-', linestyle='--', color='red'), zorder=10)
 
-	ax.text(0.0185 * plot_window * 2 + 1 + add_x, y_pos, f'  ', fontsize=12, ha='left', va='center')
+	ax.text(0.021 * plot_window * 2 + 1 + add_x, y_pos, f'  ', fontsize=12, ha='left', va='center')
 
 	plt.xlim(xlim_min,xlim_max)
 	plt.ylim(y_pos-0.1, 1 )
@@ -1591,7 +1605,7 @@ def write_html(plots, control_check, target_check, output_dir):
 		fw.write(full_html)
 
 
-def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summary_file, min_read_cnt, min_read_freq, induced_sequence_path):
+def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summary_file, min_read_cnt, min_read_freq, induced_sequence_path, custom_all_cnt = False):
 
 	mut_dict = {}
 	all_cnt = 0
@@ -1658,8 +1672,15 @@ def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summ
 			s1 += i + '\t'
 			s2 += str(pre_dict[i]) + '\t'
 	if 'Treated_used' in pre_dict:
-		s1 += 'Treated_low_cnt_reads\tTreated_used\t\t'
-		s2 += str(filted_low_cnt) + '\t' + str(int(pre_dict['Treated_used']) - filted_low_cnt) + '\t\t'
+		s1 += 'Treated_low_cnt_reads\tTreated_used\t'
+		s2 += str(filted_low_cnt) + '\t' + str(int(pre_dict['Treated_used']) - filted_low_cnt) + '\t'
+	
+	if custom_all_cnt:
+		s1 += 'Custom_classified_read\t'
+		s2 += int(custom_all_cnt) + '\t'
+
+	s1 += '\t'
+	s2 += '\t'
 
 	for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv', 'Complex', 'ComplexWithLargeMut']:
 		if i  in mut_cnt:

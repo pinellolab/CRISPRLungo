@@ -30,7 +30,11 @@ def main():
 	parser.add_argument('--additional_target', type=str, default=None, help='Addtional target sequence')
 	parser.add_argument('--control', type=str, default=None, help='When a control file is input, background filtering is performed using the control file')
 	parser.add_argument('--induced_sequence_path', type=str, default=None, help='When a desired sequence file is input, additional classification of desired mutations is performed')
+	parser.add_argument('--integration_file', type=str, default=False, help='FASTA file for possible sequences that can be integrated')
 	parser.add_argument('--merge_substitution', action='store_true', help='A continuous substitution is considered as one mutation.')
+
+	parser.add_argument('--largeins_cutlen', default=50, type=int, help='The minimum length for large deletions')
+	parser.add_argument('--largedel_cutlen', default=50, type=int, help='The minimum length for large insertion')
 
 	parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
 	parser.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')	
@@ -39,7 +43,7 @@ def main():
 	parser.add_argument('--induced_paritial_similiarity', type=float, default=0.8, help='The If the mutation pattern similarity is higher than this value, but not completely identical, it is considered partially induced.')
 	parser.add_argument('--range_both_end_region', type=int, default=100, help='If the reads were not aligned this range from both end, the read is considered as short fragment.')
 
-	parser.add_argument('--align_sa_len_threshold', type=int, default=200, help='FASTA file for induced sequence')
+	parser.add_argument('--align_sa_len_threshold', type=int, default=100, help='FASTA file for induced sequence')
 	parser.add_argument('--p_value_threshold', type=float, default=0.002, help='Statistical threshold')
 	parser.add_argument('--mut_freq_threshold', type=float, default=0, help='muation frequency threshold, if you want more harsh filteration, you can use this')
 	parser.add_argument('-c', '--clust_cutoff', type=int, default=5, help='The minimum of UMI cluster size')
@@ -65,6 +69,8 @@ def main():
 	treated_file_path = args.treated
 	if args.control:
 		control_file_path = args.control
+	
+
 
 	create_dir(output_dir)
 	create_dir(f'{output_dir}/results')
@@ -184,6 +190,7 @@ def main():
 
 	# UMI Clustering
 	
+
 	if args.umi:
 
 		print('Generating treated consensus file...')
@@ -271,12 +278,14 @@ def main():
 				induced_mutations, 
 				range_align_end = range_align_end,
 				threads=threads, 
+				largeins_cutlen = args.largeins_cutlen,
+				largedel_cutlen = args.largedel_cutlen,
 				p_limit_value=args.p_value_threshold, 
 				mut_freq_value = args.mut_freq_threshold,
 				allowance_value=0,
 				umi_clustered = args.umi)
 
-			edited_dictionary = CRISPRlungo_insert_analysis.confirm_insertion_seq(edited_dictionary, ref_seq, ref_name, current_dir + '/possible_insertion.fasta', output_dir, threads)
+			edited_dictionary = CRISPRlungo_insert_analysis.confirm_insertion_seq(edited_dictionary, ref_seq, ref_name, args.integration_file, output_dir, threads)
 
 			regular_py.process_mutations(edited_dictionary, 
 				f'{output_dir}/results/read_classification.txt', 
@@ -298,7 +307,9 @@ def main():
 			args.whole_window_between_targets, induced_mutations, current_dir,
 			threads=threads, mix_tag=args.mix_tag, 
 			write_cnt = write_cnt, partial_induce_cutoff=args.induced_paritial_similiarity, 
-			range_align_end=range_align_end)
+			range_align_end=range_align_end, 
+			largeins_cutlen = args.largeins_cutlen,
+			largedel_cutlen = args.largedel_cutlen)
 
 
 	#Visualization
@@ -340,6 +351,9 @@ def main():
 	fw_input.write(f'induced_mut :{induced_mutation_str}\n')
 	fw_input.write(f'cut_pos_in_target :{args.cleavage_pos}\n')
 	fw_input.write(f'original_target :{original_target}\n')
+	fw_input.write(f'minimum_read_count : {args.min_read_cnt}\n')
+	fw_input.write(f'minimum_read_frequency : {args.min_read_freq}\n')
+	fw_input.write(f'induced_sequence_path : {args.induced_sequence_path}\n')
 	fw_input.close()
 	
 	read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'

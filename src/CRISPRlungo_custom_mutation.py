@@ -1,5 +1,8 @@
-import sys, argparse
+import sys, argparse, os
 import CRISPRlungo_visualization as visual
+import CRISPRlungo_regular as regular_py
+from CRISPRlungo_minimap import *
+
 
 
 def run_customized_analysis():
@@ -27,69 +30,79 @@ def run_customized_analysis():
     
     def check_position(mut, start_pos, end_pos):
         mut = mut.split(':')[0].split('_')
-        if int(mut[1]) <= start_pos or int(mut[0]) >= end_pos:
+        if int(mut[1]) < start_pos or int(mut[0]) > end_pos:
             return False
         return True
+    
+    def create_dir(dir_name):
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)
 
-    def set_custom_mutation(input_file, cv_pos, cv_pos2, induced_mut):
+    def set_custom_mutation(input_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir):
         mutation_category = []
         additional_analysis_cateogry = {}
 
-        with open(input_file) as f:
-            mut_type = False
-            for line in f:
-                if line[0] == '#' or line.strip() == '':
-                    continue
+        if input_file[input_file.rfind('.')+1:].upper() in ['FASTA', 'FNA', 'FA']:
+            create_dir(analysis_res_dir + '/custom_results/align')
+            run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', args.induced_sequence_path,  f'{analysis_res_dir}/custom_results/align/induced_mutation_reference.sam', longjoin_bandwidth, chaining_bandwidth, 1, len_cutoff=args.align_sa_len_threshold)
+            induced_mutations, induced_mutation_str = regular_py.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, args.whole_window_between_targets, range_align_end)
+        else:
+            with open(input_file) as f:
+                mut_type = False
+                for line in f:
+                    if line[0] == '#' or line.strip() == '':
+                        continue
+                    
+                    line = line.strip().split()
+
+                    if line[0] == 'AND':
+                        if not mut_type:
+                            print('ERROR: "AND" can not be used in first line')
+                            sys.exit()
+                        pass
+                    else:
+                        mutation_category.append([line[0], []])
+                        mut_type = line[0]
                 
-                line = line.strip().split()
+                    start_pos = convert_postion(line[1])
 
-                if line[0] == 'AND':
-                    if not mut_type:
-                        print('ERROR: "AND" can not be used in first line')
+                    if not start_pos:
+                        print('ERROR: not proper format at start_pos') 
                         sys.exit()
-                    pass
-                else:
-                    mutation_category.append([line[0], []])
-                    mut_type = line[0]
-            
-                start_pos = convert_postion(line[1])
+                    end_pos = convert_postion(line[2])
+                    if not end_pos:
+                        print('ERROR: not proper format at end_pos') 
+                        sys.exit()
+                    mut = []
+                    mutation_marker = True
+                    if line[5].upper() == 'FALSE':
+                        mutation_marker = False
+                    OrNot_marker = True
+                    if line[6].upper() == 'FALSE':
+                        OrNot_marker = False
+                    Include_marker = True
+                    if line[8].upper() == 'FALSE':
+                        Include_marker = False
 
-                if not start_pos:
-                    print('ERROR: not proper format at start_pos') 
-                    sys.exit()
-                end_pos = convert_postion(line[2])
-                if not end_pos:
-                    print('ERROR: not proper format at end_pos') 
-                    sys.exit()
-                mut = []
-                mutation_marker = True
-                if line[5].upper() == 'FALSE':
-                    mutation_marker = False
-                OrNot_marker = True
-                if line[6].upper() == 'FALSE':
-                    OrNot_marker = False
-                Include_marker = True
-                if line[8].upper() == 'FALSE':
-                    Include_marker = False
+                
+                    if line[7] == 'TRUE':
+                        additional_analysis_cateogry[line[0]] = {}
+                        for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv']:
+                            additional_analysis_cateogry[line[0]][i] = 0
 
-            
-                if line[7] == 'TRUE':
-                    additional_analysis_cateogry[line[0]] = {}
-                    for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv']:
-                        additional_analysis_cateogry[line[0]][i] = 0
-
-                if line[3].upper() == 'WT':
-                    mutation_category[-1][1].append(['WT', [start_pos, end_pos, float(line[4])], mutation_marker, OrNot_marker, Include_marker])
-                elif line[3].upper() == 'DESIRED':
-                    for i in induced_mut:
-                        if check_position(i, start_pos, end_pos):
-                            mut.append(i)
-                    mutation_category[-1][1].append([mut, [0, 0, float(line[4])], mutation_marker, OrNot_marker, Include_marker])
-                elif 'DEL' in line[3].upper():
-                    mutation_category[-1][1].append(['DEL', [start_pos, end_pos, float(line[4])], mutation_marker, OrNot_marker, Include_marker])
-                elif 'SUB' in line[3].upper():
-                    mutation_category[-1][1].append(['SUB', [start_pos, 0, line[4]], mutation_marker, OrNot_marker, Include_marker])
-            
+                    if line[3].upper() == 'WT':
+                        mutation_category[-1][1].append(['WT', [start_pos, end_pos, float(line[4])], mutation_marker, OrNot_marker, Include_marker])
+                    elif line[3].upper() == 'DESIRED':
+                        for i in induced_mut:
+                            if check_position(i, start_pos, end_pos):
+                                mut.append(i)
+                        mutation_category[-1][1].append([mut, [0, 0, float(line[4])], mutation_marker, OrNot_marker, Include_marker])
+                    elif 'DEL' in line[3].upper():
+                        mutation_category[-1][1].append(['DEL', [start_pos, end_pos, float(line[4])], mutation_marker, OrNot_marker, Include_marker])
+                    elif 'SUB' in line[3].upper():
+                        mutation_category[-1][1].append(['SUB', [start_pos, 0, line[4], line[3].split('_')[1], line[3].split('_')[2]], mutation_marker, OrNot_marker, Include_marker])
+                
+        print(mutation_category)
 
         return mutation_category, additional_analysis_cateogry
     
@@ -97,7 +110,7 @@ def run_customized_analysis():
     parser = argparse.ArgumentParser(description='Re-analyze CRISPRlungo results with Customized Mutation Category')
 
     parser.add_argument('analysis_file_dir', type=str,  help='directory for CRISPRlungo ouptut')
-    parser.add_argument('custom_category_file', type=str,  help='directory for CRISPRlungo ouptut')
+    parser.add_argument('custom_category_file', type=str,  help='file for custom group conditions or allele reference fasta file')
 
     parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
     parser.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')
@@ -107,12 +120,13 @@ def run_customized_analysis():
     args = parser.parse_args()
 
     analysis_res_dir = args.analysis_file_dir
+    create_dir(analysis_res_dir + '/custom_results/')
 
     f = open(analysis_res_dir + '/results/input_summary.txt').readlines()
 
     ref_seq = f[2].split(':')[1]
     cv_pos = int(f[3].strip().split(':')[1])
-    strand = f[4].strip().split(':')[1]
+    strand = int(f[4].strip().split(':')[1])
     target = f[0].strip().split(':')[1]
     cv_pos2 = f[5].strip().split(':')[1]
     if cv_pos2 == 'False':
@@ -121,27 +135,34 @@ def run_customized_analysis():
         target_2 = False
     else:
         cv_pos2 = int(cv_pos2)
-        strand_2 = f[6].strip().split(':')[1]
-        target_2 = f[1].strip().split(':')[1]
+        strand_2 = int(f[6].strip().split(':')[1])
+        target_2 = int(f[1].strip().split(':')[1])
     induced_mut = f[7].strip().split(' :')[1].split(',')
     if induced_mut[0] == 'False':
         induced_mut = False
     cleavage_pos = int(f[8].strip().split(' :')[1])
     original_target = int(f[9].strip().split(' :')[1])
         
-    mutation_category, additional_analysis_category = set_custom_mutation(args.custom_category_file, cv_pos, cv_pos2, induced_mut)
+    mutation_category, additional_analysis_category = set_custom_mutation(args.custom_category_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir)
 
     f = open(analysis_res_dir + '/results/read_classification.txt').readlines()
 
     classification_cnt = {'all': 0 }
+    classification_fw = {}
     classification_read = {}
     for i in mutation_category:
         mut_name = i[0]
         if mut_name not in classification_cnt:
             classification_cnt[mut_name] = 0
             classification_read[mut_name] = {}
+            create_dir(analysis_res_dir + '/custom_results/' + mut_name)
+            classification_fw[mut_name] = open(analysis_res_dir + '/custom_results/' + mut_name + '/read_classification.txt', 'w')
+            classification_fw[mut_name].write(f[0])
     classification_cnt['Others'] = 0
     classification_read['Others'] = {}
+    create_dir(analysis_res_dir + '/custom_results/Others')
+    classification_fw['Others'] = open(analysis_res_dir + '/custom_results/Others/read_classification.txt', 'w')
+    classification_fw['Others'].write(f[0])
     total_cnt = 0
 
     for line in f[1:]:
@@ -150,13 +171,18 @@ def run_customized_analysis():
         line_sp = line.strip().split('\t')
         custom_mut_type = 'Others'
         filtered_mut_info = line_sp[2].split(',')
+        additional_mut_info = line_sp[5].split(',')
 
+        if additional_mut_info == ['[]'] or additional_mut_info == ['None']:
+            additional_mut_info = []
         if filtered_mut_info == ['None']:
             filtered_mut_info = []
-        whole_mut_info = filtered_mut_info + line_sp[5].split(',')
+
+        whole_mut_info = filtered_mut_info + additional_mut_info
 
         if whole_mut_info == ['None']:
             whole_mut_info = []
+
         for category in mutation_category:
             check = True
             obtained_mut = []
@@ -184,7 +210,7 @@ def run_customized_analysis():
                                 mut_len += 1
                             elif m.find('Sub') != -1:
                                 mut_len += int(m.split('_')[2])
-                    if mut_len > (condition[1][1] - condition[1][0] + 1) * condition[1][2]:
+                    if mut_len >= (condition[1][1] - condition[1][0] + 1) * condition[1][2]:
                         check = False
                         break
                 elif type(condition[0]) == list:
@@ -220,7 +246,7 @@ def run_customized_analysis():
                         break
                 elif condition[0] == 'SUB':
                     sub_pos = condition[1][0]
-                    sub_pat = condition[1][2]
+                    sub_pat = condition[1][4]
                     get_sub = False
                     for m in used_mut_list:
                         if m.find('Sub') != -1:
@@ -238,7 +264,7 @@ def run_customized_analysis():
                     if get_sub != True_or_Not:
                         check = False
                         break
-
+            
             if check:
                 custom_mut_type = category[0]
                 if condition[2] and condition[4]:
@@ -268,7 +294,10 @@ def run_customized_analysis():
         else:
             classification_read[custom_mut_type][final_mut_info] += 1
         total_cnt += 1
+        classification_fw[custom_mut_type].write(line)
 
+    for fw in classification_fw.values():
+        fw.close()
 
     filted_classification_cnt = {}
     filted_total_cnt = 0
@@ -286,32 +315,67 @@ def run_customized_analysis():
     fw = open(analysis_res_dir + '/custom_results/custom_mutation_patter_count.txt', 'w')
 
     for anno, res_dict in filted_classification_cnt.items():
+        group_all_cnt = sum(res_dict.values())
         for mut_pat, cnt in sorted(res_dict.items(), key=lambda x: x[1], reverse=True):
-            per = round(cnt*100/filted_total_cnt, 2)
+            per = round(cnt*100/group_all_cnt, 2)
             fw.write(f'{anno}\t{cnt}\t{per}\t{mut_pat}\n')
     fw.close()
 
     fw = open(analysis_res_dir + '/custom_results/custom_mutation_allele_plot_input.txt', 'w')
     fw.write('Pat\tcount\t(%)\t\t\n')
-    allele_line= 10
+    allele_line= 3
+    plot_line = 0
+    
     for anno, res_dict in filted_classification_cnt.items():
         n = 0
+        group_all_cnt = sum(res_dict.values())
+        plot_line += 1
         for mut_pat, cnt in sorted(res_dict.items(), key = lambda x: x[1], reverse=True):
             n += 1
             if anno == 'WT' or mut_pat.split('\t')[2] == '':
                 mut_pat = '\t'.join(mut_pat.split('\t')[:2] + ['None'])
-            per = round(cnt*100/filted_total_cnt, 2)
+            per = round(cnt*100/group_all_cnt, 2)
             fw.write(f'{anno}\t{cnt}\t{per}\t{mut_pat}\n')
+            plot_line += 1
             if n == allele_line:
                 break
+
+
     fw.close()
 
     print(classification_cnt)
     
+    print('Drawing graphs ...\r', end='')
     if induced_mut:
         induced_mut = ','.join(induced_mut)
     visual.custom_mutation_pie_chart(classification_cnt, analysis_res_dir + '/custom_results')
-    visual.allele_plot(ref_seq, cv_pos, cv_pos2, strand, strand_2, analysis_res_dir + '/custom_results/custom_mutation_allele_plot_input.txt', analysis_res_dir + '/custom_results/', cleavage_pos, target, target_2, original_target, args.min_read_cnt, args.min_read_freq, args.allele_plot_window, allele_line*len(classification_read), induced_mut, args.show_all_between_allele, group_separate=True)
+    print(len(classification_read), allele_line, plot_line)
+    visual.allele_plot(ref_seq, cv_pos, cv_pos2, strand, strand_2, analysis_res_dir + '/custom_results/custom_mutation_allele_plot_input.txt', analysis_res_dir + '/custom_results/', cleavage_pos, target, target_2, original_target, args.min_read_cnt, args.min_read_freq, args.allele_plot_window, plot_line, induced_mut, args.show_all_between_allele, group_separate=True)
+    min_read_cnt = 0
+    min_read_freq = 0
+    induced_sequence_path = False
+    ref_seq = ''
+    for i in open(analysis_res_dir + '/results/input_summary.txt').readlines():
+        i = i.strip().split(':')
+        x = i[0].strip()
+        if x == 'minimum_read_count':
+            min_read_cnt = int(i[1])
+        elif x == 'minimum_read_frequency':
+            min_read_freq = int(i[1])
+        elif x == 'induced_sequence_path':
+            induced_sequence_path = i[1]
+        elif x == 'Ref_seq':
+            ref_seq = i[1]
+
+    for i in mutation_category:
+        plots = {}
+        tsv_file = f'{analysis_res_dir}/custom_results/{i[0]}/read_classification.txt'
+        read_cnt_file = f'{analysis_res_dir}/custom_results/{i[0]}/mutation_patter_count.txt'
+        graph_output_dir = f'{analysis_res_dir}/custom_results/{i[0]}'
+        visual.write_read_count(tsv_file,  f'{analysis_res_dir}/results/preprocess_count.txt', read_cnt_file, f'{analysis_res_dir}/custom_results/{i[0]}/mutation_summary_count.txt', min_read_cnt, min_read_freq, induced_sequence_path)
+        read_per_position = visual.visualization_preprocess_regular(analysis_res_dir + '/align/Treated_alignment.sam', analysis_res_dir + '/ref_seq/ref_wo_umi.fasta')
+        plots['mutation_pie'], plots['pattern_pie'], plots['allele_pie'] = visual.mutation_pie_chart(read_cnt_file, graph_output_dir)
+        plots['indel_per_pos'] = visual.indel_per_position(read_cnt_file, ref_seq, graph_output_dir)
 
 if __name__=='__main__':
 	run_customized_analysis()

@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
-
-
 import pysam
 from scipy.stats import fisher_exact
 from scipy.stats import chi2_contingency
@@ -20,7 +17,7 @@ def cal_test (input_val):
 	treated_count = table[1][0]
 	# Perform Fisher's Exact Test if control count is less than  or equal to 5 or chi2 if control_count >5
 	if control_count == 0 and treated_count != 0:
-		if key[2] < 5 and table[1][0]/sum(table[1])  < 0.1 and umi_clustered == False:
+		if key[2] < 5 and table[1][0]/sum(table[1])  < 0.001 and umi_clustered == False:
 			p_value = 2
 		else:
 			p_value = 0
@@ -183,8 +180,8 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 				if operation == 0:	
 					sub_tmp_list = []
 					for x in range(length):
-						if query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
-							mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))
+						if using_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+							mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], using_query_seq[seq_pos + x]))
 							"""
 							if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
 								sub_tmp_list[-1][2] += 1
@@ -223,15 +220,15 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 			
 			if info[0][1] < info[1][0] - 100:  # Check for a deletion between the two reads
 				mutations_in_read.append(('deletion', info[0][1], info[1][0] - info[0][1]))
-			if abs(info[0][3] - info[1][2]) > 20:  # Check for an insertion between the reads
+			if abs(info[0][3] - info[1][2]) - 1 > 20:  # Check for an insertion between the reads
 				ins_end_pos = info[1][0]
 				if ins_end_pos <= info[0][1]:
 					ins_end_pos = info[0][1] + 1
 				if query_seq.find(info[0][7]) != -1:
-					ins_seq = query_seq[info[0][3]: info[0][3] + (info[1][2] - info[0][3] - 1)]
+					ins_seq = query_seq[info[0][3] + 1: info[0][3] + 1 + abs(info[0][3] - info[1][2]) - 1]
 				else:
-					ins_seq = reverse_complementary(query_seq[info[0][3]: info[0][3] + (info[1][2] - info[0][3] - 1)])
-				mutations_in_read.append(('insertion', info[0][1], abs(info[0][3] - info[1][2]),  ins_seq, ins_end_pos, info[0][3], info[0][3] + abs(info[0][3] - info[1][2])))
+					ins_seq = reverse_complementary(query_seq[info[0][3] + 1: info[0][3] + 1 + abs(info[0][3] - info[1][2]) - 1])
+				mutations_in_read.append(('insertion', info[0][1], abs(info[0][3] - info[1][2]) - 1,  ins_seq, ins_end_pos, info[0][3], info[0][3] + abs(info[0][3] - info[1][2])))
 
 			# Iterate through both reads and check for mutations
 			for sub_info in info:
@@ -253,8 +250,8 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 						for sub in sub_tmp_list:
 							mutations_in_read.append(tuple(sub))
 							"""
-							if query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
-								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[seq_pos + x]))	
+							if used_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], used_query_seq[seq_pos + x]))	
 					elif operation == 1:  
 						mutations_in_read.append(('insertion', ref_pos, length, used_query_seq[seq_pos: seq_pos + length], ref_pos + 1, seq_pos, seq_pos + length))
 					elif operation == 2: 
@@ -272,15 +269,15 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 		elif info[0][5] ==	info[1][5] and info[0][4] == info[1][4]  and info[1][1] < info[0][0]:
 			if info[1][1] < info[0][0] - 100:  # Check for a deletion between the two reads
 				mutations_in_read.append(('deletion', info[1][1], info[0][0] - info[1][1] - 1))
-			if abs(info[1][2] - info[0][3]) > 20:  # Check for an insertion between the reads
+			if abs(info[1][2] - info[0][3]) - 1 > 20:  # Check for an insertion between the reads
 				ins_end_pos = info[0][0]
 				if ins_end_pos <= info[1][1]:
 					ins_end_pos = info[1][1] + 1
 				if query_seq.find(info[0][7]) != -1:
-					ins_seq = query_seq[info[0][3]: info[0][3] + (info[1][2] - info[0][3] - 1)]
+					ins_seq = query_seq[info[0][3] + 1: info[0][3] + 1 + abs(info[1][2] - info[0][3]) - 1]
 				else:
-					ins_seq = reverse_complementary(query_seq[info[0][3]: info[0][3] + (info[1][2] - info[0][3] - 1)])
-				mutations_in_read.append(('insertion', info[1][1], abs(info[1][2] - info[0][3]), ins_seq, ins_end_pos, info[0][3], info[0][3] + (info[1][2] - info[0][3] - 1)))
+					ins_seq = reverse_complementary(query_seq[info[0][3] + 1: info[0][3] + 1 + abs(info[1][2] - info[0][3]) - 1])
+				mutations_in_read.append(('insertion', info[1][1], abs(info[1][2] - info[0][3]) - 1, ins_seq, ins_end_pos, info[0][3], info[0][3] + (info[1][2] - info[0][3] - 1)))
 
 			# Reverse complement query sequence for reverse strand processing
 			query_seq_len = len(query_seq)
@@ -295,8 +292,8 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 					if operation == 0:	
 						sub_tmp_list = []
 						for x in range(length):
-							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
-								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))
+							if used_query_seq[seq_pos + x] != reference_sequence[ref_pos + x]:
+								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], used_query_seq[seq_pos + x]))
 								"""
 								if len(sub_tmp_list) > 0 and sub_tmp_list[-1][1] + sub_tmp_list[-1][2] == ref_pos + x:
 									sub_tmp_list[-1][2] += 1
@@ -322,7 +319,7 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 	return mutations_in_reads
 
 
-def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, range_align_end=100, p_limit_value = 0.002, mut_freq_value = 0, allowance_value = 0.05, pooling = True, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
+def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, range_align_end=100, p_limit_value = 0.002, mut_freq_value = 0, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
 
 	# Path to SAM files
 	samfile_path1 = edited
@@ -384,6 +381,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 	
 	def quant_unique_indels(samfile_path):
 		# Open the SAM file
+		fw = open('short.txt', 'w')
 		samfile = pysam.AlignmentFile(samfile_path, 'r')
 		reference_sequence = ""
 		for record in SeqIO.parse(fasta_file, "fasta"):
@@ -422,7 +420,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 				reads_cnt['short'] += 1
 				continue"""
 
-
+			
 			if read.has_tag('SA'):
 				
 				SA_reads = [read]
@@ -436,9 +434,16 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 				
 				SA_reads_muts =  analyze_SA_reads(SA_reads, ori_query_seq, reference_sequence, reference_length, read.query_name, range_align_end)
 
+				if read.query_name.find("1837_QMFKJ") != -1:
+					print(read.query_name)
+					for i in SA_reads_muts:
+						print(i)
+
 				if SA_reads_muts == []:
+					fw.write(read.query_name + '\n')
 					reads_cnt['short'] += 1
 					continue
+
 				for SA_mutations in SA_reads_muts:
 					reads_cnt['used'] += 1
 					for mut in SA_mutations:
@@ -446,12 +451,10 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 							if mut[0] == 'insertion':
 								mut = mut[:4]
 							mutations[mut] = mutations.get(mut, 0) + 1
-						
-
-				
 				
 			else:
-				if read.reference_start>range_align_end or read.reference_end<(len(reference_sequence)-range_align_end):
+				if read.reference_start>=range_align_end or read.reference_end<(len(reference_sequence)-range_align_end):
+					fw.write(read.query_name + '\n')
 					reads_cnt['short'] += 1
 					continue
 				if not check_in_quality(read):
@@ -804,8 +807,10 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 	
 	print("reading Control SAM files...\r", end='')
 	control1, control_reads_cnt = quant_unique_indels(samfile_path2)
+	print(f"Control align : {control_reads_cnt}")
 	print("reading Treated SAM files... Done")
 	edited1, edited_reads_cnt = quant_unique_indels(samfile_path1)
+	print(f"Treated align : {edited_reads_cnt}")
 	print("reading CRISPR-treated SAM file...\r", end='')
 	
 	
@@ -849,7 +854,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 
 
 
-def classify_mut_mild(mutations, induced_mutations, partial_induce_cutoff=0.8): #((mut_type, position, length))
+def classify_mut_mild(mutations, induced_mutations, largeins_cutlen, largedel_cutlen, partial_induce_cutoff=0.8): #((mut_type, position, length))
 	if mutations == []:
 		return 'WT', 'None', '', 'X'
 	muts = ''
@@ -872,7 +877,7 @@ def classify_mut_mild(mutations, induced_mutations, partial_induce_cutoff=0.8): 
 		else:
 			non_induced_mutations_cnt += 1
 		if mut_type == 'deletion':
-			if length < 100:
+			if length <= largedel_cutlen:
 				muts += 'Del,'
 				mut_info += f"{pos}_{pos+length-1}:Del_{length},"
 			else:
@@ -880,7 +885,7 @@ def classify_mut_mild(mutations, induced_mutations, partial_induce_cutoff=0.8): 
 				mut_info +=  f"{pos}_{pos+length-1}:LargeDel_{length},"
 		elif mut_type == 'insertion':
 			length = mutation[2]
-			if length < 20:
+			if length <= largeins_cutlen:
 				muts += 'Ins,'
 				mut_info += f"{pos}_{mutation[4]}:Ins_{length}_{mutation[3]},"
 			else:
@@ -979,10 +984,10 @@ def process_mutations(mutations_dict, output_file, ids, induced_mutations, parti
 		for read_id, mutations in mutations_dict.items():
 
 			read_id = ids[read_id]
-			classification, mutation_info, insert_info, induce_type = classify_mut_mild(mutations[0], induced_mutations, partial_induce_cutoff=partial_induce_cutoff)
+			classification, mutation_info, insert_info, induce_type = classify_mut_mild(mutations[0], induced_mutations, largeins_cutlen, largedel_cutlen, partial_induce_cutoff=partial_induce_cutoff)
 			filtered_mutation_info = []
 			if mutations[1] != []:
-				tmp_classification, filtered_mutation_info, tmp_insert_info, tmp_induce_type = classify_mut_mild(mutations[1], induced_mutations, partial_induce_cutoff=partial_induce_cutoff)
+				tmp_classification, filtered_mutation_info, tmp_insert_info, tmp_induce_type = classify_mut_mild(mutations[1], induced_mutations, largeins_cutlen, largedel_cutlen, partial_induce_cutoff=partial_induce_cutoff)
 			if	induce_type == ':':
 				induce_type = '-'
 			if induced_mutations != []:
@@ -1005,7 +1010,7 @@ def write_cnt_file(control_reads_cnt, edited_reads_cnt, output_file):
 
 
 
-def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, check_window_between_targets, range_align_end):
+def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, check_window_between_targets, range_align_end, largedel_cutlen, largeins_cutlen):
 
 	reference_sequence = ""
 	for record in SeqIO.parse(fasta_file, "fasta"):
@@ -1123,13 +1128,13 @@ def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, ch
 		insert_info = ''
 
 		if mut_type == 'deletion':
-			if length < 100:
+			if length <= largedel_cutlen:
 				induced_mutation_str += f"{pos}_{pos+length-1}:Del_{length},"
 			else:
 				induced_mutation_str +=  f"{pos}_{pos+length-1}:LargeDel_{length},"
 		elif mut_type == 'insertion':
 			length = mutation[2]
-			if length < 20:
+			if length <= largeins_cutlen:
 				induced_mutation_str += f"{pos}_{mutation[4]}:Ins_{length}_{mutation[3]},"
 			else:
 				induced_mutation_str += f"{pos}_{mutation[4]}:LargeIns_{length}_{mutation[3]},"
