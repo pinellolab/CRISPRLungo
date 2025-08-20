@@ -11,6 +11,11 @@ import sys
 import time
 from multiprocessing import Pool, Pipe
 
+import bisect
+import numpy as np
+import pandas as pd
+from collections import Counter
+
 def cal_test (input_val):
 	table, key, umi_clustered = input_val
 	control_count = table[0][0]
@@ -554,54 +559,145 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 		- A list of keys for the mutations that are significantly different.
 		"""
 
-		significant_keys = []
-		pvalues = []
-		count_print = 0
-		# Combine all keys from both dictionaries
-		all_keys = set(control_dict.keys()) | set(edited_dict.keys())
+		def _lengths_from_control(control_dict):
+			del_lens, ins_lens, inv_lens = [], [], []
+			for mut, mut_n in control_dict.items():
+				L = int(mut[1])
+				t = mut[0]
+				if t in ('deletion'):
+					del_lens.append(L)
+				elif t == 'insertion':
+					ins_lens.append(L)
+				#elif t == 'inversion':
+				#	inv_lens.append(L)
+			return sorted(del_lens), sorted(ins_lens)
 
+		# Ensure counters and sizes exist
+		ctrl_counts = control_dict
+		edit_counts = edited_dict
+		total_ctrl = control_reads
+		total_edit = edited_reads
 
-		all_keys_n = len(all_keys)		
-		pool_run = Pool(threads)
+		# Recompute distributions to guarantee the deletion list
+		ctrl_del_sorted, ctrl_ins_sorted = _lengths_from_control(control_dict)
 
-		t = time.time()
-		pool_input = []
-
-		fw = open(output_dir + '/mutation_pattern_p_values.txt', 'w')
-		for key_n, key in enumerate(all_keys):
-			if key_n != 0 and key_n % 1000 == 0 or key_n == all_keys_n - 1:
-				pool_res = pool_run.map(cal_test, pool_input)
-				for p_value, key, freq in pool_res:
-					control_count = control_dict.get(key, 0)
-					edited_count = edited_dict.get(key, 0)
-					fw.write(f'{key}\t{p_value}\t{freq}\t{control_reads}\t{control_count}\t{edited_reads}\t{edited_count}\t')
-					if p_value <= p_limit and freq >= freq_limit:
-						fw.write('O\n')
-						significant_keys.append(key)
-						pvalues.append(p_value)
-					else:
-						fw.write('X\n')
-				pool_input = []
-				print(f"Calculating mutation's significant... {round(key_n*100/all_keys_n, 1)} %\r", end='')
-
-			# Get the counts for this mutation in both datasets
-			control_count = control_dict.get(key, 0)
-			edited_count = edited_dict.get(key, 0)
-			length = list(key)[2]
-
-			if control_count/control_reads > edited_count/edited_reads:
-				fw.write(f'{key}\t-\t-\t{control_reads}\t{control_count}\t{edited_reads}\t{edited_count}\tX\n')
-				continue
-
-			# Create the contingency table for this mutation
-
-			table = [
-				[control_count, control_reads - control_count],  # Control counts
-				[edited_count, edited_reads - edited_count]		 # Edited counts
-			]			
+		def probability_based_on_length(mutation, ins_sorted, del_sorted):#, inv_sorted):
+			"""
+			Tail-percentile by length within control of the same class.
+			- insertions vs ins_sorted
+			- (small) deletions vs del_sorted
+			- inversions vs inv_sorted
+			Substitutions get 1.0.
+			Uses (length-1) with bisect_right to count strictly-longer events.
+			"""
+			mutation = list(mutation)
+			length = mutation[1]
+			mtype = mutation[0]
 			
-			pool_input.append([table, key, umi_clustered])
-		fw.close()
+			if mtype.startswith('substitution'):
+				return 1.0
+			if mtype == 'insertion':
+				arr = ins_sorted
+			elif mtype in ('deletion', 'long_deletion'):
+				arr = del_sorted
+			#elif mtype == 'inversion':
+			#	arr = inv_sorted
+			else:
+				return 0.0
+
+			if not arr:
+				return 0.0
+
+			idx = bisect.bisect_right(arr, length - 1)  # strictly longer
+			return 1 - idx / len(arr)
+
+		def probability_based_on_count(mutation, ctrl_counts, edit_counts, total_ctrl, total_edit):
+			"""
+			2x2 enrichment test. Only proceeds when the edited fraction > control fraction.
+			Fisher if any expected <= 5; otherwise Chi-square.
+			"""
+			a = ctrl_counts.get(mutation, 0)
+			c = edit_counts.get(mutation, 0)
+			b = total_ctrl - a
+			d = total_edit - c
+
+			# Only continue if mutation is enriched in edited
+			if a/total_ctrl >= c/total_edit:
+				return 1.0
+
+			row1, row2 = a + b, c + d
+			col1, col2 = a + c, b + d
+			N = row1 + row2
+			exp = [row1*col1/N, row1*col2/N, row2*col1/N, row2*col2/N]
+
+			table = [[a, b], [c, d]]
+			if any(e <= 5 for e in exp):
+				_, p = fisher_exact(table)
+			else:
+				_, p, _, _ = chi2_contingency(table)
+			return p
+
+		# 3) Score each unique edited mutation with lightweight % progress
+		records = []
+		total = len(edit_counts)
+		interval = max(1, total // 100)
+		t0 = time.time()
+
+		for idx, (mut, cnt_edit) in enumerate(edit_counts.items(), start=1):
+			p_len = probability_based_on_length(mut, ctrl_ins_sorted, ctrl_del_sorted)#, ctrl_inv_sorted)
+			cnt_ctrl = ctrl_counts.get(mut, 0)
+			p_cnt = probability_based_on_count(mut, ctrl_counts, edit_counts, total_ctrl, total_edit)
+
+			records.append({
+				"mutation":      mut,
+				"prob_length":   p_len,
+				"count_edited":  cnt_edit,
+				"count_control": cnt_ctrl,
+				"prob_count":    p_cnt
+			})
+
+			if idx % interval == 0 or idx == total:
+				pct = idx / total * 100
+				print(f"\rScored mutations: {idx}/{total} ({pct:.1f}%)", end='', flush=True)
+
+		print(f"\nScored {total} mutations in {time.time() - t0:.1f}s")
+
+		# 4) Build output DF, BH on double-min, save CSV
+		t0 = time.time()
+		out_df = pd.DataFrame(records, columns=["mutation","prob_length","count_edited","count_control","prob_count"])
+
+		# Combine p-values via double-min (capped at 1)
+		out_df['double_min'] = (2 * np.minimum(out_df['prob_length'], out_df['prob_count'])).clip(upper=1.0)
+
+		df = out_df.copy()
+		len_df = len(df)
+
+		# (1) sort p-values
+		df = df.sort_values("double_min").reset_index(drop=True)
+
+		# (2) BH thresholds
+		alpha = 0.05
+		df["bh_threshold"] = (np.arange(1, len_df + 1) / len_df) * alpha
+
+		# (3) flag significant
+		df["significant_bh"] = df["double_min"] <= df["bh_threshold"]
+
+		# (4) pick cutoff and mark in the original table
+		if df["significant_bh"].any():
+			p_cutoff = df.loc[df["significant_bh"], "double_min"].max()
+			signif_mask = out_df["double_min"] <= p_cutoff
+		else:
+			signif_mask = np.zeros(len_df, dtype=bool)
+
+		signif_mutations = out_df[signif_mask].reset_index(drop=True)
+		significant_keys = signif_mutations['mutation']
+		pvalues = signif_mutations['double_min']
+		print(significant_keys[:10])
+		print(pvalues[:10])
+
+
+		print(f"Wrote CSV in {time.time() - t0:.1f}s")
+		print(f"Total runtime: {time.time() - start_total:.1f}s" if 'start_total' in locals() else "Done.")
 
 		return significant_keys, pvalues
 

@@ -46,7 +46,7 @@ function readFastqtoFasta(file) {
   });
 }
 
-function softClipped(alignOutput) {
+function softClipped(alignOutput, n) {
 
   checkSA = 0;
   var readLines = [];
@@ -63,6 +63,8 @@ function softClipped(alignOutput) {
 
     var flag = parseInt(line[1]);
     if ((flag & 0x4) !== 0 || (flag & 0x100) !== 0 || (flag & 0x800) !== 0) { continue; }
+    var mapQ = parseInt(line[4]);
+    if (mapQ < 30 && n != 1) { continue; }
 
     var clippedSeq = [[], []]
     var cigar = line[5].match(/(\d+)([MIDNSHP=X])/g);
@@ -81,11 +83,11 @@ function softClipped(alignOutput) {
     var cigarLastLen = parseInt(cigar[cigar.length - 1].slice(0, -1));
 
     var check = false;
-    if (cigar[0].slice(-1) == 'S' && cigarFirstLen > 100) {
+    if (cigar[0].slice(-1) == 'S' && cigarFirstLen > 200) {
       writeLines.push('>' + queryName + '\n' + line[9].slice(0, cigarFirstLen) + '\n');
       check = true;
     }
-    if (cigar[cigar.length - 1].slice(-1) == 'S' && cigarLastLen > 100) {
+    if (cigar[cigar.length - 1].slice(-1) == 'S' && cigarLastLen > 200) {
       writeLines.push('>' + queryName + '\n' + line[9].slice(-cigarLastLen,) + '\n');
       check = true;
     }
@@ -171,7 +173,7 @@ self.onmessage = async function (event) {
       const command = `minimap2 -ax map-ont -p 0.5 reference.fa input.fa -r ` + chainingBandWidth + ',' + longjoinBandWidth;
       var output = await CLI.exec(command);
 
-      [checkSA, readOut, writeLines] = softClipped(output);
+      [checkSA, readOut, writeLines] = softClipped(output, n);
 
       if (!get_header) {
         get_header = true;
@@ -197,11 +199,26 @@ self.onmessage = async function (event) {
         for (var x of strandInfo) {
           strand *= x;
         }
+        if (strand == -1) {
+          read[1] = (read[1] | 0x10).toString();
+        } else {
+          read[1] = (read[1] & ~0x10).toString();
+        }
         queryName = queryName.slice(0, queryName.indexOf('_AI_'));
         var suppleCheck = false;
         if (n != 1) {
           read[1] = (read[1] | 0x800).toString();
         }
+
+        read_tags = [];
+        for (i of read.slice(11,)) {
+          var ii = i.slice(0,2);
+          if (ii == 'AS' || ii == 'NM') {
+            read_tags.push(i);
+          }
+        }
+        read = read.slice(0,11).concat(read_tags);
+
         if (!alignResDict[queryName]) {
           alignResDict[queryName] = [[read, read[9], read[1]]];
         } else {
@@ -232,6 +249,7 @@ self.onmessage = async function (event) {
             cigar.push((oriSeq.length - partEnd) + 'H');
           }
           read[5] = cigar.join('');
+          
           alignResDict[queryName].push(read);
         }
       }

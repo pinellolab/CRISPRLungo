@@ -11,6 +11,7 @@ import CRISPRlungo_insert_analysis
 from CRISPRlungo_minimap import *
 
 
+
 def main():
 
 	start_time = time.time()
@@ -33,8 +34,8 @@ def main():
 	parser.add_argument('--integration_file', type=str, default=False, help='FASTA file for possible sequences that can be integrated')
 	parser.add_argument('--merge_substitution', action='store_true', help='A continuous substitution is considered as one mutation.')
 
-	parser.add_argument('--largeins_cutlen', default=50, type=int, help='The minimum length for large deletions')
-	parser.add_argument('--largedel_cutlen', default=50, type=int, help='The minimum length for large insertion')
+	parser.add_argument('--largeins_cutlen', default=20, type=int, help='The minimum length for large deletions')
+	parser.add_argument('--largedel_cutlen', default=100, type=int, help='The minimum length for large insertion')
 
 	parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
 	parser.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')	
@@ -63,6 +64,7 @@ def main():
 	def create_dir(dir_name):
 		if not os.path.exists(dir_name):
 			os.makedirs(dir_name)
+
 
 	output_dir = args.output_dir
 	threads = args.threads
@@ -181,7 +183,7 @@ def main():
 
 	if args.induced_sequence_path:
 		run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', args.induced_sequence_path,  output_dir + '/induced_mutation_reference.sam', longjoin_bandwidth, chaining_bandwidth, 1, len_cutoff=args.align_sa_len_threshold)
-		induced_mutations, induced_mutation_str = regular_py.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, args.whole_window_between_targets, range_align_end)
+		induced_mutations, induced_mutation_str = regular_py.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, args.whole_window_between_targets, range_align_end, args.largedel_cutlen, args.largeins_cutlen)
 	else:
 		induced_mutations = []
 		induced_mutation_str = False
@@ -254,6 +256,7 @@ def main():
 			final_mutation_analysis_file = f'{output_dir}/consensus/treated/consensus.fasta'
 			
 	create_dir(f'{output_dir}/results/')
+	create_dir(f'{output_dir}/css/')
 
 	if args.control:
 
@@ -291,7 +294,7 @@ def main():
 				f'{output_dir}/results/read_classification.txt', 
 				List_of_valid_IDs, 
 				induced_mutations, 
-				args.induced_paritial_similiarity)
+				args.induced_paritial_similiarity, args.largeins_cutlen, args.largedel_cutlen,)
 			regular_py.write_cnt_file(control_reads_cnt, edited_reads_cnt, f'{output_dir}/results/preprocess_count.txt')
 	
 	else:
@@ -314,19 +317,16 @@ def main():
 
 	#Visualization
 
-	full_html = """
-	<!DOCTYPE html>
-	<html>
-	<head>
-		<title>Combined Graphs</title>
-		<style>
-			body {margin: 0;padding: 0;display: flex;justify-content: center;align-items: center;background-color: #f4f4f4;}
-    		#graph-container {min-width: 500px; max-width: 1000px;width: 80vw;background-color: #ffffff;border: 1px solid #ddd;box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);overflow: hidden; }
-			img {max-width: 100%;max-height: 100%;object-fit: contain;}
-		</style>
-	</head>
-	<body>
-		<div id='graph-container'>"""
+	if args.just_visualization:
+		edited_reads_cnt = {}
+		f = open(f'{output_dir}/results/preprocess_count.txt').readlines()
+		menu = f[0].strip().split()
+		val = f[1].strip().split()
+		for i in zip(menu, val):
+			i = list(i)
+			if 'Treated' in i[0]:
+				i[0] = '_'.join(i[0].split('_')[1:])
+				edited_reads_cnt[i[0]] = int(i[1])
 
 	print('Drawing graphs ... \r', end='')
 
@@ -334,7 +334,7 @@ def main():
 	graph_output_dir = output_dir + '/results/'
 
 	plots = {}
-	
+
 	read_per_position = visual.visualization_preprocess_regular(output_dir + '/align/Treated_alignment.sam', ref_file)
 
 	if args.control:
@@ -348,6 +348,8 @@ def main():
 	fw_input.write(f'CleavageStrand_1 :{strand}\n')
 	fw_input.write(f'CleavagePos_2 :{cv_pos_2}\n')
 	fw_input.write(f'CleavageStrand_2 :{strand_2}\n')
+	fw_input.write(f'Window : {args.window}\n')
+	fw_input.write(f'Window_between_cleavage : {args.whole_window_between_targets}')
 	fw_input.write(f'induced_mut :{induced_mutation_str}\n')
 	fw_input.write(f'cut_pos_in_target :{args.cleavage_pos}\n')
 	fw_input.write(f'original_target :{original_target}\n')
@@ -355,9 +357,9 @@ def main():
 	fw_input.write(f'minimum_read_frequency : {args.min_read_freq}\n')
 	fw_input.write(f'induced_sequence_path : {args.induced_sequence_path}\n')
 	fw_input.close()
-	
+
 	read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'
-	visual.write_read_count(tsv_file,  f'{output_dir}/results/preprocess_count.txt', read_cnt_file, f'{output_dir}/results/mutation_summary_count.txt', args.min_read_cnt, args.min_read_freq, args.induced_sequence_path)
+	mut_cnt, precise_cnt = visual.write_read_count(tsv_file,  f'{output_dir}/results/preprocess_count.txt', read_cnt_file, f'{output_dir}/results/mutation_summary_count.txt', args.min_read_cnt, args.min_read_freq, args.induced_sequence_path)
 	plot_html = visual.align_count_plot(f'{output_dir}/results/preprocess_count.txt', f'{output_dir}/results/mutation_summary_count.txt', f'{output_dir}/results')
 	plots['treated_align'] = plot_html[1]
 	plots['control_align'] = ''
@@ -381,7 +383,7 @@ def main():
 	print('Drawing graphs ... base proportion plot                         \r', end='')
 	plots['base_proportion'] = visual.base_proportion(read_per_position, graph_output_dir, ref_seq, cv_pos, cv_pos_2, allele_plot_window, args.show_all_between_allele)
 	
-	visual.write_html(plots, args.control, args.target, output_dir)
+	visual.write_html(plots, args.control, args.target, output_dir, mut_cnt, precise_cnt, edited_reads_cnt)
 
 
 if __name__=='__main__':

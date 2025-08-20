@@ -1,4 +1,6 @@
 CRISPRlungo
+CRISPRlungoAllele
+CRISPRlungo_assets
 CRISPRlungo_custom_mutation
 CRISPRlungo_insert_analysis
 CRISPRlungo_minimap

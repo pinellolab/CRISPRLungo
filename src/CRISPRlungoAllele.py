@@ -106,11 +106,90 @@ def run_customized_analysis():
 
         return mutation_category, additional_analysis_cateogry
     
+    def set_mutation_reference(reference_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir, mut_range_reference):
+        
+        mutation_category = []
+        additional_analysis_cateogry = {}
+
+        cv_pos_ed = cv_pos
+        if cv_pos2 != False:
+            cv_pos_ed = cv_pos2
+
+        f = open(reference_file).readlines()
+        ref_seq = ''.join(open(f'{analysis_res_dir}/ref_seq/ref_wo_umi.fasta').readlines()[1:]).replace('\n','')
+        window_front_st = 100
+        window_front_ed = mut_range_reference
+        if window_front_ed > cv_pos - 100:
+            window_front_ed = cv_pos - 100
+        window_back_st = len(ref_seq) -  mut_range_reference
+        window_back_ed = len(ref_seq) - 100
+        if window_back_st < cv_pos_ed + 100:
+            window_back_ed = cv_pos_ed + 100
+
+        front_mut = []
+        back_mut = []
+
+        for i in range(int(len(f)/2)):
+            read_id = f[2*i].repace('>', '')
+            seq = f[2*i+1]
+            create_dir(f'{analysis_res_dir}/custom_results/align')
+            fw = open(f'{analysis_res_dir}/custom_results/align/{read_id}.fasta', 'w')
+            fw.write(f'>{read_id}\n{seq}\n')
+            fw.close()
+            longjoin = len(ref_seq)*0.3
+            if longjoin < 500:
+                chain = longjoin
+            else:
+                chain = 500
+            run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', f'{analysis_res_dir}/custom_results/align/{read_id}.fasta',  f'{analysis_res_dir}/custom_results/align/{read_id}.sam', longjoin, chain, 1, len_cutoff=args.align_sa_len_threshold)
+            mutations, mutation_str = regular_py.get_induced_mutation(f'{analysis_res_dir}/custom_results/align/{read_id}.sam', f'{analysis_res_dir}/ref_seq/ref_wo_umi.fasta', cv_pos, False, args.window, args.whole_window_between_targets, 100, full_window=True)
+
+            mutation_category.append([read_id, []])
+            additional_analysis_cateogry[line[0]] = {}
+            for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv']:
+                additional_analysis_cateogry[line[0]][i] = 0
+
+            for mut in mutations:
+                if mut[0] == 'substitution':
+                    st = mut[1]
+                    ed = mut[1]
+                    if window_front_st < st < window_front_ed:
+                        front_mut.append(['SUB', [st, 0, mut[3], mut[4]], True, True, False])
+                    elif window_back_st < ed < window_back_ed:
+                        back_mut.append(['SUB', [st, 0, mut[3], mut[4]], True, True, False])
+                elif mut[0] == 'deletion':
+                    st = mut[1]
+                    ed = mut[1] + mut[1]
+                    if window_front_st < ed < window_front_ed:
+                        front_mut.append(['DEL', [st, ed, 1], True, True, False])
+                    elif window_back_st < st < window_back_ed:
+                        back_mut.append(['DEL', [st, ed, 1], True, True, False])
+            
+            overlap_check = False
+            cycle_n = 0
+
+            while overlap_check == False:
+                cycle_n += 1
+                
+
+            
+
+
+
+
+
+
+    
 
     parser = argparse.ArgumentParser(description='Re-analyze CRISPRlungo results with Customized Mutation Category')
 
     parser.add_argument('analysis_file_dir', type=str,  help='directory for CRISPRlungo ouptut')
-    parser.add_argument('custom_category_file', type=str,  help='file for custom group conditions or allele reference fasta file')
+
+    parser.add_argument('-i', '--custom_category_file', type=str,  help='file for custom group conditions or allele reference fasta file')
+    #parser.add_argument('-r', '--reference_fasta', type=str, help='FASTA file for allele reference. The mutation should be located out of the window range.')
+
+    parser.add_argument('--mut_range_reference', type=int, default=1000, help='The range from both end of reference. The mutations only in this range are used for allele separation')
+    parser.add_argument('--mut_num_reference', type=str, default='Auto', help='The range from both end of reference. The mutations only in this range are used for allele separation')
 
     parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
     parser.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')
@@ -119,16 +198,28 @@ def run_customized_analysis():
 
     args = parser.parse_args()
 
+    if args.custom_category_file == None and args.reference_fasta == None:
+        print('ERROR: Please input custom_category_file (-i) or reference_fasta (-r)')
+        sys.exit()
+    
+
     analysis_res_dir = args.analysis_file_dir
     create_dir(analysis_res_dir + '/custom_results/')
 
     f = open(analysis_res_dir + '/results/input_summary.txt').readlines()
+    input_opt = {}
+    for i in f:
+        i = i.lower().strip().split(':')
+        input_opt[i[0].replace(' ', '')] = input_opt[i[1].replace(' ', '')]
 
-    ref_seq = f[2].split(':')[1]
-    cv_pos = int(f[3].strip().split(':')[1])
-    strand = int(f[4].strip().split(':')[1])
-    target = f[0].strip().split(':')[1]
-    cv_pos2 = f[5].strip().split(':')[1]
+    ref_seq = input_opt['ref_seq']
+    cv_pos = int(input_opt['cleavagepos_1'])
+    strand = int(input_opt['cleavagestrand_1'])
+    target = input_opt['target_1']
+    cv_pos2 = input_opt['cleavagespos_2']
+    window = int(input_opt['window'])
+    window_between = input_opt['window_between_cleavage']
+
     if cv_pos2 == 'False':
         cv_pos2 = False
         strand_2 = False
@@ -142,8 +233,12 @@ def run_customized_analysis():
         induced_mut = False
     cleavage_pos = int(f[8].strip().split(' :')[1])
     original_target = int(f[9].strip().split(' :')[1])
-        
-    mutation_category, additional_analysis_category = set_custom_mutation(args.custom_category_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir)
+
+
+    if args.custom_category_file != None:
+        mutation_category, additional_analysis_category = set_custom_mutation(args.custom_category_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir)
+    else:
+        mutation_category, additional_analysis_category = set_custom_mutation(args.reference_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir, args.mut_range_reference)
 
     f = open(analysis_res_dir + '/results/read_classification.txt').readlines()
 

@@ -14,6 +14,10 @@ import numpy as np
 from Bio import SeqIO
 from collections import Counter
 
+from importlib import resources
+from pathlib import Path
+import shutil
+
 
 def visualization_preprocess_regular(sam_file, fasta_file):
 
@@ -102,13 +106,14 @@ def align_count_plot(file_1, file_2, output_dir):
 	
 	# Customize the layout
 	fig.update_layout(
-		title='Alignment statistics',
 		xaxis_title='Categories',
 		yaxis_title='Number of Reads',
 		yaxis=dict(tickformat=',', linecolor='black', linewidth=2),  # Black lines on the y-axis
 		xaxis=dict(linecolor='black', linewidth=2),  # Black lines on the x-axis
 		margin=dict(l=40, r=40, t=40, b=40),  # Adjust margins if needed
-		plot_bgcolor='white'
+		plot_bgcolor='white',
+		width=500,
+    	height=400,
 	)
 	
 	# Show the plot
@@ -146,7 +151,6 @@ def align_count_plot(file_1, file_2, output_dir):
 	
 	# Customize the layout
 	fig.update_layout(
-		title='Alignment statistics',
 		xaxis_title='Categories',
 		yaxis_title='Number of Reads',
 		yaxis=dict(tickformat=',', linecolor='black', linewidth=2),  # Black lines on the y-axis
@@ -190,7 +194,6 @@ def regular_statistic_plot(tsv_file, fastq_file, output_dir):
 	
 	# Customize the layout
 	fig.update_layout(
-		title='Alignment statistics',
 		xaxis_title='Categories',
 		yaxis_title='Number of Reads',
 		yaxis=dict(tickformat=',', linecolor='black', linewidth=2),  # Black lines on the y-axis
@@ -295,7 +298,6 @@ def base_proportion(result, output_dir, reference, cv_pos, cv_pos_2, plot_window
 		))"""
 		
 	fig.update_layout(
-		title='Reads by Position with Base Proportions',
 		xaxis_title='Position',
 		yaxis_title='Reads',
 		barmode='stack',  # Stack bars to show proportions
@@ -437,12 +439,7 @@ def mutation_pie_chart(tsv_file, output_dir):
 	fig2 = go.Figure(data=[go.Pie(labels=list(percent_of_alleles_dict.keys()), 
 		values=list(percent_of_alleles_dict.values()),  marker=dict(colors=pie_colors), domain={'x': [0, 0.7], 'y': [0, 0.7]})])
 	fig2.update_layout(
-		showlegend=False,
-		title='Detailed Counts',
-		legend=dict(
-			x=1.1,
-			y=0.5
-		)
+		showlegend=False
 	)
 	
 	fig2.update_traces(
@@ -452,7 +449,7 @@ def mutation_pie_chart(tsv_file, output_dir):
 	)
 
 	fig3 = go.Figure(data=[go.Pie(labels=list(percent_of_alleles_dict.keys()), values=list(percent_of_alleles_dict.values()))])
-	fig3.update_layout(showlegend=False, title='Frequency of Alleles')
+	fig3.update_layout(showlegend=False)
 
 	fig3.update_traces(
 			textposition="outside",
@@ -484,7 +481,7 @@ def custom_mutation_pie_chart(cnt_dict, output_dir):
 		key_list.append(i[0])
 
 	fig1 = go.Figure(data=[go.Pie(labels=key_list, values=value_list, sort=False)])
-	fig1.update_layout(showlegend=False, title='Proportion of Customized Mutations')
+	fig1.update_layout(showlegend=False)
 	
 	fig1.update_traces(
 			textposition="outside",
@@ -579,7 +576,6 @@ def indel_per_position(tsv_file, reference, output_dir):
 	
 	# Customize the layout
 	fig.update_layout(
-		title='Deletions and Insertions per Position',
 		xaxis_title='Position',
 		yaxis_title='Sequence %',
 		showlegend=True,
@@ -653,7 +649,6 @@ def Insertion_length(tsv_file, output_dir):
 	
 	# Customize the layout
 	fig.update_layout(
-		title='Average Insertion Length at Each Position',
 		xaxis_title='Position',
 		yaxis_title='Average Insertion Length',
 		showlegend=True,
@@ -722,7 +717,6 @@ def Deletion_length(tsv_file, output_dir):
 	
 	# Customize the layout
 	fig.update_layout(
-		title='Average Deletion Length at Each Position',
 		xaxis_title='Position',
 		yaxis_title='Average Deletion Length',
 		showlegend=True,
@@ -775,7 +769,6 @@ def Deletion_count_length(tsv_file, output_dir):
 	
 	# Customize the layout
 	fig.update_layout(
-		title='Count of Deletions vs. Deletion Length',
 		xaxis_title='Deletion Length',
 		yaxis_title='Count of Deletions (Log Scale)',
 		showlegend=True,
@@ -830,7 +823,6 @@ def insertion_count_length(tsv_file, output_dir):
 	
 	# Customize the layout
 	fig.update_layout(
-		title='Count of Insertions vs. Insertion Length',
 		xaxis_title='Insertion Length',
 		yaxis_title='Count of Insertions (Log Scale)',
 		showlegend=True,
@@ -1567,42 +1559,32 @@ def LD_tornado(tsv_file, cv_pos, ref_len, strand, output_dir):
 	plt.savefig(output_dir + '/Largedeletion_tornado.png')
 	plt.savefig(output_dir + '/Largedeletion_tornado.pdf')
 
-def write_html(plots, control_check, target_check, output_dir):
+def write_html(plots, control_check, target_check, output_dir, mut_cnt, precise_cnt, edited_reads_cnt):
 
-	full_html = """
-	<!DOCTYPE html>
-	<html>
-	<head>
-		<title>Combined Graphs</title>
-		<style>
-			body {margin: 0;padding: 0;display: flex;justify-content: center;align-items: center;background-color: #f4f4f4;}
-    		#graph-container {min-width: 500px; max-width: 1000px;width: 80vw;background-color: #ffffff;border: 1px solid #ddd;box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);overflow: hidden; }
-			img {max-width: 100%;max-height: 100%;object-fit: contain;}
-		</style>
-	</head>
-	<body>
-		<div id='graph-container'>"""
-	
-	full_html += f"<h1>Preprocess graphs</h1>{plots['treated_align']}{plots['control_align']}<br />"
+	full_html = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CRISPRlungo</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/><style>:root{--border:#e5e7eb;--mut-muted:#f8f9fa;--mut-bg:#ffffff;--mut-page:#fbfbfb;--mut-text:#111827;}html,body{height:100%;}.page{display:none;}.active{display:block;}body{background:var(--mut-page);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";color:var(--mut-text);} .navbar-brand span{font-weight:700;letter-spacing:.2px;}.hero{padding:2rem 0 0.5rem;text-align:center;}.hero img{max-width:640px;width:100%;height:auto;}.app-card{border:1px solid var(--border);background:var(--mut-bg);border-radius:16px;box-shadow:0 6px 16px rgba(0,0,0,.04);}.seq{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;letter-spacing:.2px;resize:vertical;min-height:72px;white-space:pre-wrap;}.form-help{color:#6b7280;font-size:.9rem;}.range-value{font-variant-numeric:tabular-nums;}.file-box{border:1px dashed var(--border);background:var(--mut-muted);border-radius:12px;transition:border-color .2s ease,background .2s ease;}.file-box:focus-within{border-color:#0d6efd;background:#f5f9ff;}.section-title{font-weight:600;}@media (min-width:992px){.container-narrow{max-width:980px;}}</style></head><body><nav class="navbar bg-white border-bottom sticky-top"><div class="container container-narrow"><a class="navbar-brand d-flex align-items-center gap-2" href="#"><i class="bi bi-bezier"></i><span>CRISPRlungo</span></a><div class="text-secondary small">v1</div></div></nav><section class="hero"><div class="container container-narrow"><img src="css/title_icon.png" alt="App banner" class="img-fluid"/></div></section></body></html>"""
+	full_html += """<div class="py-3 py-md-4"><div class="container container-narrow">"""
 
-	if control_check:
-		full_html += f'<h1>Accuracy graphs</h1><img src="results/Regular_accuracy.png" alt="Matplotlib Graph"/><br />'
+	full_html += f"""<div id="cnt-table-container" class="mb-3"><table class="table table-bordered table-striped w-100 result-table"><colgroup><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"></colgroup><thead class="thead-light"><tr><th>Total reads</th><th>Reads used in analysis</th><th>WT</th><th>Ins</th><th>Del</th><th>Sub</th><th>LargeDel</th><th>LargeIns</th><th>Inversion</th><th>Complex</th><th>Precisely induced editing</th><th>Partially induced editing</th></tr></thead><tbody><tr><td>{edited_reads_cnt["all_reads"]}</td><td>{edited_reads_cnt["used"]}</td><td>{mut_cnt["WT"]} ({round(mut_cnt["WT"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Ins"]} ({round(mut_cnt["Ins"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Del"]} ({round(mut_cnt["Del"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Sub"]} ({round(mut_cnt["Sub"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["LargeDel"]} ({round(mut_cnt["LargeDel"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["LargeIns"]} ({round(mut_cnt["LargeIns"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Inv"]} ({round(mut_cnt["Inv"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Complex"]+mut_cnt["ComplexWithLargeMut"]} ({round((mut_cnt["Complex"]+mut_cnt["ComplexWithLargeMut"])*100/edited_reads_cnt["used"],2)} %)</td><td>{precise_cnt["Precise"]} ({round(precise_cnt["Precise"]*100/edited_reads_cnt["used"],2)} %)</td><td>{precise_cnt["Precise"]} ({round(precise_cnt["Precise"]*100/edited_reads_cnt["used"],2)} %)</td></tr></tbody></table></div>"""
+	full_html += f"""<div class="chart-container"><div class="d-flex align-items-center justify-content-between flex-wrap gap-2" style="width:70%; min-width:420px;"><h2 class="h5 m-0">Allele assignments</h2></div><div id="alignSumPlot" class="mx-auto" style="width:500px;height:450px;">{plots["treated_align"]}</div>"""
 
-	full_html += f'<h1>Allele plot</h1><img src="results/allel_plot.png" alt="Matplotlib Graph" /><br />'
-	full_html += f'<h1>Mutation plot</h1>{plots["mutation_pie"]}{plots["pattern_pie"]}{plots["allele_pie"]}<br />'
-	full_html += f'<h1>Indel plot</h1>{plots["indel_per_pos"]}<br />'
-	full_html += f'<h1>Insertion plot</h1>{plots["insertion_len"]}<br />'
-	full_html += f'<h1>Deletion plot</h1>{plots["deletion_len"]}{plots["deletion_count_len"]}<br />'
-	full_html += f'<h1>Large Deletion plot</h1><img src="results/Largedeletion_tornado.png" alt="Matplotlib Graph" /><br />'
-	full_html += f'<h1>Substitutions plot</h1>{plots["base_proportion"]}<br />'
+	#if control_check:
+	#	full_html += f'<h1>Accuracy graphs</h1><img src="results/Regular_accuracy.png" alt="Matplotlib Graph"/><br />'
 
+	plots["pattern_pie"]  = ''.join(plots["pattern_pie"])
+	plots["mutation_pie"] = ''.join(plots["mutation_pie"])
 
-	full_html += """</div></body>
-	</html>
-	"""
+	full_html += f"""<ul class="nav nav-tabs mx-auto" id="optionTab" role="tablist"><li class="nav-item" role="presentation"><button class="nav-link active" id="allPiePlotBtn" data-bs-toggle="tab" data-bs-target="#allPiePlotPanel" type="button" role="tab" aria-controls="allPiePlotPanel" aria-selected="true">All pattern</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="mutPiePlotBtn" data-bs-toggle="tab" data-bs-target="#mutPiePlotPanel" type="button" role="tab" aria-controls="mutPiePlotPanel" aria-selected="false">WT vs other</button></li></ul><div class="tab-content" id="optionTabContent"><div class="tab-pane fade show active" id="allPiePlotPanel" role="tabpanel" aria-labelledby="allPiePlotBtn"><div id="allPiePlot" class="mx-auto" style="width:600px;height:400px;">{plots["pattern_pie"]}</div></div><div class="tab-pane fade" id="mutPiePlotPanel" role="tabpanel" aria-labelledby="mutPiePlotBtn"><div id="mutPiePlot" class="mx-auto" style="width:600px;height:400px;">{plots["mutation_pie"]}</div></div></div>"""
+	full_html += f"""<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3" style="width:70%; min-width:420px;"><h2 class="h5 m-0">Indel characterization</h2></div><ul class="nav nav-tabs mx-auto" id="mutationTab" role="tablist"><li class="nav-item" role="presentation"><button class="nav-link active" id="combinedPlotBtn" data-bs-toggle="tab" data-bs-target="#combinedPlotPanel" type="button" role="tab" aria-controls="combinedPlotPanel" aria-selected="true">Combined</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="insertionsPlotBtn" data-bs-toggle="tab" data-bs-target="#insertionsPlotPanel" type="button" role="tab" aria-controls="insertionsPlotPanel" aria-selected="false">Insertions</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="deletionsPlotBtn" data-bs-toggle="tab" data-bs-target="#deletionsPlotPanel" type="button" role="tab" aria-controls="deletionsPlotPanel" aria-selected="false">Deletions</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="largeDeletionsPlotBtn" data-bs-toggle="tab" data-bs-target="#largeDeletionsPlotPanel" type="button" role="tab" aria-controls="largeDeletionsPlotPanel" aria-selected="false">Large Deletions</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="substitutionsPlotBtn" data-bs-toggle="tab" data-bs-target="#substitutionsPlotPanel" type="button" role="tab" aria-controls="substitutionsPlotPanel" aria-selected="false">Substitutions</button></li></ul><div class="tab-content" id="mutationTabContent"><div class="tab-pane fade show active" id="combinedPlotPanel" role="tabpanel" aria-labelledby="combinedPlotBtn"><div id="combinedPlot" class="mx-auto" style="width:600px;height:400px;">{plots["indel_per_pos"]}</div></div><div class="tab-pane fade" id="insertionsPlotPanel" role="tabpanel" aria-labelledby="insertionsPlotBtn"><div id="insertionsPlot" class="mx-auto" style="width:600px;height:400px;">{plots["insertion_len"]}</div></div><div class="tab-pane fade" id="deletionsPlotPanel" role="tabpanel" aria-labelledby="deletionsPlotBtn"><div id="deletionsPlot" class="mx-auto" style="width:600px;height:400px;">{plots["deletion_len"]}</div></div><div class="tab-pane fade" id="largeDeletionsPlotPanel" role="tabpanel" aria-labelledby="largeDeletionsPlotBtn"><div id="largeDeletionPlot" class="mx-auto" style="width:600px;height:400px;"><img src="results/Largedeletion_tornado.png" alt="Matplotlib Graph" /></div></div><div class="tab-pane fade" id="substitutionsPlotPanel" role="tabpanel" aria-labelledby="substitutionsPlotBtn"><div id="substitutionsPlot" class="mx-auto" style="width:600px;height:400px;">{plots["base_proportion"]}</div></div></div></div></div>"""
+	full_html += f"""<div class="container container-narrow"><h2 class="h5">Allele plot</h2><div class="allelechart-container"><div id="allelePlot"><img src="results/allel_plot.png" alt="Matplotlib Graph" style="max-width:100%; height:auto; display:block; margin:auto;"/></div></div></div></div>"""
+
+	full_html += '</div></div><link href="css/bootstrap-5.3.7-dist/css/bootstrap.min.css" rel="stylesheet"><script src="css/bootstrap-5.3.7-dist/js/bootstrap.bundle.min.js"></script></body></html>'
 
 	with open(output_dir + "/combined_graphs.html", "w") as fw:
 		fw.write(full_html)
+
+	bootstrap_dir = resources.files("CRISPRlungo_assets") / "css" 
+	shutil.copytree(bootstrap_dir, output_dir + '/css/', dirs_exist_ok=True)
+
 
 
 def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summary_file, min_read_cnt, min_read_freq, induced_sequence_path, custom_all_cnt = False):
@@ -1698,6 +1680,8 @@ def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summ
 
 	fw.write(s1 + '\n' + s2 + '\n')
 	fw.close()
+
+	return mut_cnt, precise_cnt
 
 
 	

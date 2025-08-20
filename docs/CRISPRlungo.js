@@ -8,9 +8,10 @@ var numRows = 10;
 var plotWindow = 20;
 
 var preciseEditThreshold = 1.0;
-var partialEditThreshold = 0.2;
+var partialEditThreshold = 0.8;
 
 var showAllBetweenAllele = false;
+var minaResult;
 
 async function runAlignDesired() {
 
@@ -21,7 +22,7 @@ async function runAlignDesired() {
 
     if (desiredSeq !== "") {
 
-      const minimap2Worker_desired = new Worker('minimap2_worker.js');
+      const minimap2Worker_desired = new Worker('minimap2_worker_prog.js');
       minimap2Worker_desired.postMessage({
         fastqFile: ">desired\n" + desiredSeq,
         reference: reference,
@@ -173,7 +174,7 @@ async function runMainAlgorithm() {
     } else {
       mainResult = event.data.result
       console.log("Worker 결과:", event.data);
-      filterMutations();
+      confirmInsertion();
     }
   };
   
@@ -182,47 +183,91 @@ async function runMainAlgorithm() {
   };
 }
 
+async function confirmInsertion() {
+
+  const insertWorker = new Worker('insert_worker.js');
+  const insReference = '>ref\n' + reference + '\n>nCas9\ngacaagaagtacagcatcggcctggacatcggcaccaactctgtgggctgggccgtgatcaccgacgagtacaaggtgcccagcaagaaattcaaggtgctgggcaacaccgaccggcacagcatcaagaagaacctgatcggagccctgctgttcgacagcggcgaaacagccgaggccacccggctgaagagaaccgccagaagaagatacaccagacggaagaaccggatctgctatctgcaagagatcttcagcaacgagatggccaaggtggacgacagcttcttccacagactggaagagtccttcctggtggaagaggataagaagcacgagcggcaccccatcttcggcaacatcgtggacgaggtggcctaccacgagaagtaccccaccatctaccacctgagaaagaaactggtggacagcaccgacaaggccgacctgcggctgatctatctggccctggcccacatgatcaagttccggggccacttcctgatcgagggcgacctgaaccccgacaacagcgacgtggacaagctgttcatccagctggtgcagacctacaaccagctgttcgaggaaaaccccatcaacgccagcggcgtggacgccaaggccatcctgtctgccagactgagcaagagcagaaagctggaaaatctgatcgcccagctgcccggcgagaagaagaatggcctgttcggaaacctgattgccctgagcctgggcctgacccccaacttcaagagcaacttcgacctggccgaggatgccaaactgcagctgagcaaggacacctacgacgacgacctggacaacctgctggcccagatcggcgaccagtacgccgacctgtttctggccgccaagaacctgtccgacgccatcctgctgagcgacatcctgagagtgaacaccgagatcaccaaggcccccctgagcgcctctatgatcaagagatacgacgagcaccaccaggacctgaccctgctgaaagctctcgtgcggcagcagctgcctgagaagtacaaagagattttcttcgaccagagcaagaacggctacgccggctacattgacggcggagccagccaggaagagttctacaagttcatcaagcccatcctggaaaagatggacggcaccgaggaactgctcgtgaagctgaagagagaggacctgctgcggaagcagcggaccttcgacaacggcagcatcccccaccagatccacctgggagagctgcacgccattctgcggcggcaggaagatttttacccattcctgaaggacaaccgggaaaagatcgagaagatcctgaccttccgcatcccctactacgtgggccctctggccaggggaaacagcagattcgcctggatgaccagaaagagcgaggaaaccatcaccccctggaacttcgaggaagtggtggacaagggcgcttccgcccagagcttcatcgagcggatgaccaacttcgataagaacctgcccaacgagaaggtgctgcccaagcacagcctgctgtacgagtacttcaccgtgtataacgagctgaccaaagtgaaatacgtgaccgagggaatgagaaagcccgccttcctgagcggcgagcagaaaaaggccatcgtggacctgctgttcaagaccaaccggaaagtgaccgtgaagcagctgaaagaggactacttcaagaaaatcgagtgcttcgactccgtggaaatctccggcgtggaagatcggttcaacgcctccctgggcacataccacgatctgctgaaaattatcaaggacaaggacttcctggacaatgaggaaaacgaggacattctggaagatatcgtgctgaccctgacactgtttgaggacagagagatgatcgaggaacggctgaaaacctatgcccacctgttcgacgacaaagtgatgaagcagctgaagcggcggagatacaccggctggggcaggctgagccggaagctgatcaacggcatccgggacaagcagtccggcaagacaatcctggatttcctgaagtccgacggcttcgccaacagaaacttcatgcagctgatccacgacgacagcctgacctttaaagaggacatccagaaagcccaggtgtccggccagggcgatagcctgcacgagcacattgccaatctggccggcagccccgccattaagaagggcatcctgcagacagtgaaggtggtggacgagctcgtgaaagtgatgggccggcacaagcccgagaacatcgtgatcgaaatggccagagagaaccagaccacccagaagggacagaagaacagccgcgagagaatgaagcggatcgaagagggcatcaaagagctgggcagccagatcctgaaagaacaccccgtggaaaacacccagctgcagaacgagaagctgtacctgtactacctgcagaatgggcgggatatgtacgtggaccaggaactggacatcaaccggctgtccgactacgatgtggacgctatcgtgcctcagagctttctgaaggacgactccatcgacaacaaggtgctgaccagaagcgacaagaaccggggcaagagcgacaacgtgccctccgaagaggtcgtgaagaagatgaagaactactggcggcagctgctgaacgccaagctgattacccagagaaagttcgacaatctgaccaaggccgagagaggcggcctgagcgaactggataaggccggcttcatcaagagacagctggtggaaacccggcagatcacaaagcacgtggcacagatcctggactcccggatgaacactaagtacgacgagaatgacaagctgatccgggaagtgaaagtgatcaccctgaagtccaagctggtgtccgatttccggaaggatttccagttttacaaagtgcgcgagatcaacaactaccaccacgcccacgacgcctacctgaacgccgtcgtgggaaccgccctgatcaaaaagtaccctaagctggaaagcgagttcgtgtacggcgactacaaggtgtacgacgtgcggaagatgatcgccaagagcgagcaggaaatcggcaaggctaccgccaagtacttcttctacagcaacatcatgaactttttcaagaccgagattaccctggccaacggcgagatccggaagcggcctctgatcgagacaaacggcgaaaccggggagatcgtgtgggataagggccgggattttgccaccgtgcggaaagtgctgagcatgccccaagtgaatatcgtgaaaaagaccgaggtgcagacaggcggcttcagcaaagagtctatcctgcccaagaggaacagcgataagctgatcgccagaaagaaggactgggaccctaagaagtacggcggcttcgacagccccaccgtggcctattctgtgctggtggtggccaaagtggaaaagggcaagtccaagaaactgaagagtgtgaaagagctgctggggatcaccatcatggaaagaagcagcttcgagaagaatcccatcgactttctggaagccaagggctacaaagaagtgaaaaaggacctgatcatcaagctgcctaagtactccctgttcgagctggaaaacggccggaagagaatgctggcctctgccggcgaactgcagaagggaaacgaactggccctgccctccaaatatgtgaacttcctgtacctggccagccactatgagaagctgaagggctcccccgaggataatgagcagaaacagctgtttgtggaacagcacaagcactacctggacgagatcatcgagcagatcagcgagttctccaagagagtgatcctggccgacgctaatctggacaaagtgctgtccgcctacaacaagcaccgggataagcccatcagagagcaggccgagaatatcatccacctgtttaccctgaccaatctgggagcccctgccgccttcaagtactttgacaccaccatcgaccggaagaggtacaccagcaccaaagaggtgctggacgccaccctgatccaccagagcatcaccggcctgtacgagacacggatcgacctgtctcagctgggaggtgac\n>Scaffold\nGTTTTAGAGCTAGAAATAGCAAGTTAAAATAAGGCTAGTCCGTTATCAACTTGAAAAAGTGGCACCGAGTCGGTGC\n>DC_cluster\ncagagccagtgggctagcaccagaggcggacacaaggaacggcctaccgtgatgctcttcccattccgc\n>ITR\naggaacccctagtgatggagttggccactccctctctgcgcgctcgctcgctcactgaggccgggcgaccaaaggtcgcccgacgcccgggctttgcccgggcggcctcagtgagcgagcgagcgcgcag\n';
+
+  insertWorker.postMessage({
+    treated_read_to_mut: mainResult.treated_read_to_mut,
+    reference: insReference,
+  });
+
+  const progressBarUpdate = document.getElementById('progress-bar');
+  insertWorker.onmessage = (event) => {
+    if (event.data && event.data.type === 'error') {
+      console.error("Worker에서 에러 발생:", event.data.message);
+      console.error("Stack:", event.data.stack);
+    } else if (event.data.type == 1) {
+      alignProgressControl = event.data.progress;
+      progressBarUpdate.style.width = (alignProgressControl).toFixed(1) + '%' ;
+      progressBarUpdate.textContent = (alignProgressControl).toFixed(1) + '%';
+    } else if (event.data.type == 2) {
+      mainResult.treated_read_to_mut = event.data.result
+      filterMutations();
+    }
+  };
+  
+  insertWorker.onerror = (event) => {
+    console.error("Worker 에러 발생 (onerror):", event);
+  };
+}
+
 function filterMutations() {
 
   filteredSigMut = [];
   var key, val, cnt, info;
-  for (val of mainResult.significant_keys) {
-    if (val[1] < 0.002) {
+  for (val of Object.entries(mainResult.significant_keys)) {
+    if (val[1][0] < 0.002) {
       filteredSigMut.push(val[0]);
     }
   }
 
   filteredTreatedReads = {};
+  var liens_res = [];
   var filteredMutStr = '';
   var inducedMutPatCnt = mainResult.induced_mutations.length;
-  for (key in mainResult.treated_mut) {
+  for (val of Object.entries(mainResult.treated_read_to_mut)) {
     var filteredMutStr = '';
-    cnt = mainResult.treated_mut[key];
-    for (i of key.split(',')) {
+    cnt = 1
+    for (i of val[1][0]) {
       if (filteredSigMut.includes(i)) {
+        if (i.includes('Del')) {
+          if (Number(i.split('_')[2]) >= 100) {
+            i = i.replace('Del', 'LargeDel');
+          }
+        } else if (i.includes('Ins')) {
+          if (i.split('_')[2].length >= 20) {
+            i = i.replace('Ins', 'LargeIns');
+          }
+        }
         filteredMutStr += i + ',';
       }
     }
+    
+    liens_res.push(val[0] + ': ' + filteredMutStr);
 
     if (filteredMutStr == "") {
-      filteredMutStr = "WT_WT";
+      filteredMutStr = "WT";
       mutTypeCnt["WT"] += cnt;
     } else {
       var mutType = "";
-      if (filteredMutStr.indexOf("Large") != -1) {
-        if (filteredMutStr.indexOf("LargeIns") != -1 && filteredMutStr.indexOf("LargeDe") != -1) {
+      if (i[0] === true) {
+        mutType = 'Inv';
+      } else if (filteredMutStr.indexOf("Large") != -1) {
+        if (filteredMutStr.indexOf("LargeIns") != -1 && filteredMutStr.indexOf("LargeDel") != -1) {
           mutType = "Complex";
-        } else if (filteredMutStr.indexOf("LargeIns") != -1) {
-          mutType = "LargeIns";
         } else if (filteredMutStr.indexOf("LargeDel") != -1) {
           mutType = "LargeDel";
+        } else if (filteredMutStr.indexOf("LargeIns") != -1) {
+          mutType = "LargeIns";
         }
       } else if (filteredMutStr.indexOf("Ins") != -1 && filteredMutStr.indexOf("Del") != -1) {
         mutType = "Complex";
-      } else if (filteredMutStr.indexOf("Ins") != -1) {
-        mutType = "Ins";
       } else if (filteredMutStr.indexOf("Del") != -1) {
         mutType = "Del";
+      } else if (filteredMutStr.indexOf("Ins") != -1) {
+        mutType = "Ins";
       } else {
         if (filteredMutStr.indexOf("Sub") != -1) {
           mutType = "Sub";
@@ -231,7 +276,7 @@ function filterMutations() {
         }
       }
       mutTypeCnt[mutType] += cnt;
-      filteredMutStr = filteredMutStr.slice(0,-1) + "_" + mutType;
+      filteredMutStr = filteredMutStr.slice(0,-1); //+ "_" + mutType;
     }
     preciseMutCnt = 0
     for (mut of filteredMutStr.split(',')) {
@@ -250,6 +295,9 @@ function filterMutations() {
     filteredTreatedReads[filteredMutStr] = (filteredTreatedReads[filteredMutStr] || 0) + cnt;
 
   }
+
+  var sortedEntries = Object.entries(filteredTreatedReads).sort((a, b) => b[1] - a[1]);
+  filteredTreatedReads = Object.fromEntries(sortedEntries);
 
   var all_cnt = 0
   for (key in filteredTreatedReads) {
@@ -459,7 +507,7 @@ function drawAllelePlot() {
         for (x = 0; x < mutSeq.length; x++) {
           aligned[pos + x] = mutSeq[x] + 'S';
         }
-      } else if (m == 'Del') {
+      } else if (m == 'Del' || m == 'LargeDel') {
         mutSeq = +mutInfo[3];
         pos = +mutInfo[0];
         if (pos < cleavagePos + plotWindow && mutInfo[1]*1 > cleavagePos2 - plotWindow) {
@@ -468,7 +516,7 @@ function drawAllelePlot() {
         for (x = 0; x < mutSeq; x++) {
           aligned[pos+x] = '-_' + mutSeq + '_' + (x);
         }
-      } else if (m == 'Ins') {
+      } else if (m == 'Ins' || m == 'LargeIns') {
         mutSeq = mutInfo[3];
         pos = +mutInfo[0];
         aligned[pos] = aligned[pos]+'I'+mutSeq;
@@ -556,7 +604,7 @@ function drawAllelePlot() {
           var mDel = m.split('_');
           drawInfo_2[2] = [[],[],[]];
           drawInfo_2[2][0] = mDel[1] - mDel[2];
-          drawInfo_2[2][1].push(aligned.slice(pos + drawInfo_2[2][0]+1, pos + drawInfo_2[2][0]+1 + 10));
+          drawInfo_2[2][1].push(aligned.slice(pos + drawInfo_2[2][0], pos + drawInfo_2[2][0] + 10));
           drawInfo_2[2][2] = false;
           if (m.indexOf('I') != -1) {
             drawInfo_2[2][2] = true;
@@ -726,13 +774,13 @@ function drawAllelePlot() {
   height = cellSizeHeight * (numRows+5) + margin.top  + margin.bottom ; 
 
   var initialScale = width/plotWidth * 0.8;
-  var translateX = (width - width * initialScale) / 2;
+  var translateX = (width - width * initialScale);
   var translateY = (height - height * initialScale) / 2;
 
 
   const svg = d3.select("#allelePlot")
     .append("svg")
-    .attr("viewBox", `0 0 ${width} ${height+300}`)
+    .attr("viewBox", `0 0 ${width} ${height+100}`)
     .attr("preserveAspectRatio", "xMidYMid meet")
     .style("width", "100%") 
     .style("height", "auto");
@@ -749,7 +797,7 @@ function drawAllelePlot() {
 
   svg.call(zoom);
 
-  svg.call(zoom.transform, d3.zoomIdentity.translate(translateX, translateY).scale(initialScale));
+  svg.call(zoom.transform, d3.zoomIdentity.translate(0, translateY).scale(initialScale));
   
   d3.select("#zoomSlider").property("value", initialScale);
   
@@ -986,7 +1034,7 @@ function runVisualization() {
   var table = document.createElement("table");
   table.className = "table table-bordered table-striped w-100 result-table";
 
-  var headers = ["Total reads", "Reads used in analysis", "WT", "Ins", "Del", "Sub", "LargeIns", "Precisely induced editing", "Partially induced editing"];
+  var headers = ["Total reads", "Reads used in analysis", "WT", "Ins", "Del", "Sub", "LargeDel", "LargeIns", "Inversion", "Complex",  "Precisely induced editing", "Partially induced editing"];
 
   var colgroup = document.createElement("colgroup");
   for (let i = 0; i < headers.length; i++) {
@@ -1018,7 +1066,10 @@ function runVisualization() {
     mutTypeCnt.Ins + ' (' + (mutTypeCnt.Ins*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
     mutTypeCnt.Del + ' (' + (mutTypeCnt.Del*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
     mutTypeCnt.Sub + ' (' + (mutTypeCnt.Sub*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.LargeDel + ' (' + (mutTypeCnt.LargeDel*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
     mutTypeCnt.LargeIns + ' (' + (mutTypeCnt.LargeIns*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Inv + ' (' + (mutTypeCnt.Inv*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Complex + ' (' + (mutTypeCnt.Complex*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
     mutTypeCnt.Precise + ' (' + (mutTypeCnt.Precise*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
     mutTypeCnt.Partial + ' (' + (mutTypeCnt.Partial*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)'
   ];
@@ -1036,7 +1087,7 @@ function runVisualization() {
   // pvalue distribution
   var threshold = Math.log10(0.002);
   var x = [];
-  for (i of mainResult.significant_keys) {
+  for (i of Object.entries(mainResult.significant_keys)) {
     i = i[2];
     i += 0.0000000001;
     x.push(Math.log10(i));
@@ -1100,7 +1151,7 @@ function runVisualization() {
   // freq distribution
   var threshold = 0;
   var x = [];
-  for (i of mainResult.significant_keys) {
+  for (i of Object.entries(mainResult.significant_keys)) {
     i = i[2];
     x.push(i);
   }
@@ -1280,10 +1331,7 @@ function runVisualization() {
   var maxy = insPlotList[1].reduce((max, current) => {
     return current > max ? current : max;
   }, -Infinity);
-  shapes[0].y1 = maxy;
-  if (cleavagePos2 != '') {
-    shapes[1].y1 = maxy;
-  }
+
 
   var layout = {
     xaxis: { title: 'Insertion length' },
@@ -1311,14 +1359,11 @@ function runVisualization() {
   var maxy = delPlotList[1].reduce((max, current) => {
     return current > max ? current : max;
   }, -Infinity);
-  shapes[0].y1 = maxy;
-  if (cleavagePos2 != '') {
-    shapes[1].y1 = maxy;
-  }
+
 
   var layout = {
-    xaxis: { title: 'Deletion length' },
-    yaxis: { title: 'Deletion position' },
+    xaxis: { title: 'Deletion position' },
+    yaxis: { title: 'Deletion length' },
     shapes: shapes
   };
   

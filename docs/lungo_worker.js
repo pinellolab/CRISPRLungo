@@ -32,7 +32,8 @@ self.onmessage = async (e) => {
             windowFilter
         );
 
-        self.postMessage({ type: 'success',  result    });
+
+        self.postMessage({ type: 'success',  result});
     } catch (error) {
         self.postMessage({ type: 'error_run', message: error.message, stack: error.stack });
     }
