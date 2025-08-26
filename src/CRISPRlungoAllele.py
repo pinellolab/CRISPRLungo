@@ -2,10 +2,11 @@ import sys, argparse, os
 import CRISPRlungo_visualization as visual
 import CRISPRlungo_regular as regular_py
 from CRISPRlungo_minimap import *
+from itertools import combinations
 
 
 
-def run_customized_analysis():
+def main():
 
     def convert_postion(pos):
         try:
@@ -38,6 +39,32 @@ def run_customized_analysis():
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
 
+    def marker_find(mut_set):
+        all_vals = set().union(*mut_set.values())
+        for r in range(1, len(all_vals)+1):
+            for combo in combinations(all_vals, r):
+                marker_set = set(combo)
+                sigs = {}
+                for g, vals in mut_set.items():
+                    sigs[g] = tuple(sorted(set(vals) & marker_set))
+                unique_check = len(set(sigs.values())) == len(sigs)
+                nonempty_check = all(len(sig) > 0 for sig in sigs.values())
+                if unique_check:
+                    return sigs
+        return False
+        
+    def marker_find_mild(mut_set):
+        all_vals = set().union(*mut_set.values())
+        print(all_vals)
+        for r in range(1, len(all_vals)+1):
+            for combo in combinations(all_vals, r):
+                marker_set = set(combo)
+                sigs = {}
+                for g, vals in mut_set.items():
+                    sigs[g] = tuple(sorted(set(vals) & marker_set))
+            return sigs
+        return False
+
     def set_custom_mutation(input_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir):
         mutation_category = []
         additional_analysis_cateogry = {}
@@ -45,7 +72,7 @@ def run_customized_analysis():
         if input_file[input_file.rfind('.')+1:].upper() in ['FASTA', 'FNA', 'FA']:
             create_dir(analysis_res_dir + '/custom_results/align')
             run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', args.induced_sequence_path,  f'{analysis_res_dir}/custom_results/align/induced_mutation_reference.sam', longjoin_bandwidth, chaining_bandwidth, 1, len_cutoff=args.align_sa_len_threshold)
-            induced_mutations, induced_mutation_str = regular_py.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, args.whole_window_between_targets, range_align_end)
+            induced_mutations, induced_mutation_str = regular_py.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, window_between, range_align_end)
         else:
             with open(input_file) as f:
                 mut_type = False
@@ -87,7 +114,7 @@ def run_customized_analysis():
                 
                     if line[7] == 'TRUE':
                         additional_analysis_cateogry[line[0]] = {}
-                        for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv']:
+                        for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv', 'Complex']:
                             additional_analysis_cateogry[line[0]][i] = 0
 
                     if line[3].upper() == 'WT':
@@ -108,7 +135,7 @@ def run_customized_analysis():
     
     def set_mutation_reference(reference_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir, mut_range_reference):
         
-        mutation_category = []
+        mutation_category_dict = {}
         additional_analysis_cateogry = {}
 
         cv_pos_ed = cv_pos
@@ -124,14 +151,18 @@ def run_customized_analysis():
         window_back_st = len(ref_seq) -  mut_range_reference
         window_back_ed = len(ref_seq) - 100
         if window_back_st < cv_pos_ed + 100:
-            window_back_ed = cv_pos_ed + 100
+            window_back_st = cv_pos_ed + 100
 
         front_mut = []
         back_mut = []
 
+        induced_mut_front = {}
+        induced_mut_back = {}
+
+
         for i in range(int(len(f)/2)):
-            read_id = f[2*i].repace('>', '')
-            seq = f[2*i+1]
+            read_id = f[2*i].replace('>', '').strip()
+            seq = f[2*i+1].strip()
             create_dir(f'{analysis_res_dir}/custom_results/align')
             fw = open(f'{analysis_res_dir}/custom_results/align/{read_id}.fasta', 'w')
             fw.write(f'>{read_id}\n{seq}\n')
@@ -141,44 +172,143 @@ def run_customized_analysis():
                 chain = longjoin
             else:
                 chain = 500
-            run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', f'{analysis_res_dir}/custom_results/align/{read_id}.fasta',  f'{analysis_res_dir}/custom_results/align/{read_id}.sam', longjoin, chain, 1, len_cutoff=args.align_sa_len_threshold)
-            mutations, mutation_str = regular_py.get_induced_mutation(f'{analysis_res_dir}/custom_results/align/{read_id}.sam', f'{analysis_res_dir}/ref_seq/ref_wo_umi.fasta', cv_pos, False, args.window, args.whole_window_between_targets, 100, full_window=True)
+            run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', f'{analysis_res_dir}/custom_results/align/{read_id}.fasta',  f'{analysis_res_dir}/custom_results/align/{read_id}.sam', longjoin, chain, 1, len_cutoff=100)
+            mutations, mutation_str = regular_py.get_induced_mutation(f'{analysis_res_dir}/custom_results/align/{read_id}.sam', f'{analysis_res_dir}/ref_seq/ref_wo_umi.fasta', cv_pos, False, window, False, 100, largedel_cutlen, largeins_cutlen, full_window=True)
 
-            mutation_category.append([read_id, []])
-            additional_analysis_cateogry[line[0]] = {}
-            for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv']:
-                additional_analysis_cateogry[line[0]][i] = 0
+            mutation_side = [[],[]]
 
             for mut in mutations:
-                if mut[0] == 'substitution':
-                    st = mut[1]
-                    ed = mut[1]
-                    if window_front_st < st < window_front_ed:
-                        front_mut.append(['SUB', [st, 0, mut[3], mut[4]], True, True, False])
-                    elif window_back_st < ed < window_back_ed:
-                        back_mut.append(['SUB', [st, 0, mut[3], mut[4]], True, True, False])
-                elif mut[0] == 'deletion':
-                    st = mut[1]
-                    ed = mut[1] + mut[1]
-                    if window_front_st < ed < window_front_ed:
-                        front_mut.append(['DEL', [st, ed, 1], True, True, False])
-                    elif window_back_st < st < window_back_ed:
-                        back_mut.append(['DEL', [st, ed, 1], True, True, False])
-            
-            overlap_check = False
-            cycle_n = 0
+                if mut[0] in ['substitution']:
+                    if window_front_st < mut[1] < window_front_ed:
+                        mutation_side[0].append(mut)
+                        front_mut.append(mut)
+                    elif window_back_st < mut[1] < window_back_ed:
+                        mutation_side[1].append(mut)
+                        back_mut.append(mut)
+                if mut[0] == 'deletion':
+                    if window_front_st < mut[1] and window_front_ed > mut[1] + mut[2]:
+                        mutation_side[0].append(mut)
+                        front_mut.append(mut)
+                    elif window_back_st < mut[1] and window_back_ed > mut[1] + mut[2]:
+                        mutation_side[1].append(mut)
+                        back_mut.append(mut)
 
-            while overlap_check == False:
-                cycle_n += 1
+            induced_mut_front[read_id] = sorted(mutation_side[0], key= lambda x: x[1])
+            induced_mut_back[read_id] = sorted(mutation_side[1], key= lambda x: x[1], reverse=True)
+
+
+            mutation_category_dict[read_id] = []
+
+            additional_analysis_cateogry[read_id] = {}
+            for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv', 'Complex']:
+                additional_analysis_cateogry[read_id][i] = 0
+
+        marker_front = marker_find(induced_mut_front)
+        marker_back = marker_find(induced_mut_back)
+
+        if marker_front == False and marker_back == False:
+            print('ERROR:: can not find proper mutation markers')
+            sys.exit()
+        
+        n = 0
+        confirmed_table = False
+        read_ids = induced_mut_back.keys()
+
+        if marker_front:
+            for read_id, muts in marker_front.items():
+                for mut in muts:
+                    if mut[0] == 'deletion':
+                        mutation_category_dict[read_id].append(['DEL', [mut[1], mut[1] + mut[2], 0.8], True, True, False])
+                    elif mut[0] == 'substitution':
+                        mutation_category_dict[read_id].append(['SUB', [mut[1], 0, 1, mut[3], mut[4]], True, True, False])
+        else:
+            marker_front_mild = marker_find_mild(induced_mut_front)
+            if marker_front_mild:
+                for read_id, muts in marker_front_mild.items():
+                    for mut in muts:
+                        if mut[0] == 'deletion':
+                            mutation_category_dict[read_id].append(['DEL', [mut[1], mut[1] + mut[2], 0.8], True, True, False])
+                        elif mut[0] == 'substitution':
+                            mutation_category_dict[read_id].append(['SUB', [mut[1], 0, 1, mut[3], mut[4]], True, True, False])
+            
+
+        if marker_back:
+            for read_id, muts in marker_back.items():
+                for mut in muts:
+                    if mut[0] == 'deletion':
+                        mutation_category_dict[read_id].append(['DEL', [mut[1], mut[1] + mut[2], 0.8], True, True, False])
+                    elif mut[0] == 'substitution':
+                        mutation_category_dict[read_id].append(['SUB', [mut[1], 0, 1, mut[3], mut[4]], True, True, False]) 
+        else:   
+            marker_back_mild = marker_find_mild(induced_mut_back)
+            if marker_back_mild:
+                for read_id, muts in marker_back_mild.items():
+                    for mut in muts:
+                        if mut[0] == 'deletion':
+                            mutation_category_dict[read_id].append(['DEL', [mut[1], mut[1] + mut[2], 0.8], True, True, False])
+                        elif mut[0] == 'substitution':
+                            mutation_category_dict[read_id].append(['SUB', [mut[1], 0, 1, mut[3], mut[4]], True, True, False])
+
+        updated_mutation_category_dict = {}
+        for read_id in read_ids:
+            updated_mutation_category_dict[read_id] = []
+        
+        for read_id, muts in mutation_category_dict.items():
+            for mut in muts:
+                updated_mutation_category_dict[read_id].append(mut)
+                if mut[0] == 'SUB':
+                    for read_id_2, muts_2 in updated_mutation_category_dict.items():
+                        if read_id == read_id_2: continue
+                        range_check = True
+                        for mut_2 in mutation_category_dict[read_id_2]:
+                            if mut_2[0] in ['SUB', 'WT'] and mut[1][0] == mut_2[1][0]:
+                                range_check = False
+                                break
+                            elif mut_2[0] == 'DEL' and mut_2[1][0] <= mut[1][1] <= mut_2[1][1]:
+                                range_check = False
+                                break
+
+                        for mut_2 in muts_2:
+                            if mut_2[0] in ['SUB', 'WT'] and mut[1][0] == mut_2[1][0]:
+                                range_check = False
+                                break
+                            elif mut_2[0] == 'DEL' and mut_2[1][0] <= mut[1][1] <= mut_2[1][1]:
+                                range_check = False
+                                break
+                        if range_check:
+                            updated_mutation_category_dict[read_id_2].append(['WT', [mut[1][0], mut[1][0], 1], True, True, False])
+
+                if mut[0] == 'DEL':
+                    for read_id_2, muts_2 in updated_mutation_category_dict.items():
+                        if read_id == read_id_2: continue
+                        range_check = True
+                        for mut_2 in mutation_category_dict[read_id_2]:
+                            if mut_2[0] in ['SUB', 'WT'] and mut[1][0] <= mut_2[1][0] <= mut[1][1]:
+                                range_check = False
+                                break
+                            elif mut_2[0] == 'DEL' and (mut_2[1][0] > mut[1][1]  or mut[1][0] > mut_2[1][1]):
+                                range_check = False
+                                break
+
+                        for mut_2 in muts_2:
+                            if mut_2[0] in ['SUB', 'WT'] and mut[1][0] <= mut_2[1][0] <= mut[1][1]:
+                                range_check = False
+                                break
+                            elif mut_2[0] == 'DEL' and (mut_2[1][0] > mut[1][1]  or mut[1][0] > mut_2[1][1]):
+                                range_check = False
+                                break
+                        if range_check:
+                            updated_mutation_category_dict[read_id_2].append(['WT', [mut[1][0], mut[1][1], 0.8], True, True, False])
+
+
+
+        print(updated_mutation_category_dict)
+        mutation_category = []
+        for read_id, mut in updated_mutation_category_dict.items():
+            mutation_category.append([read_id, mut])
+    
+        return mutation_category, additional_analysis_cateogry
                 
-
-            
-
-
-
-
-
-
     
 
     parser = argparse.ArgumentParser(description='Re-analyze CRISPRlungo results with Customized Mutation Category')
@@ -186,7 +316,7 @@ def run_customized_analysis():
     parser.add_argument('analysis_file_dir', type=str,  help='directory for CRISPRlungo ouptut')
 
     parser.add_argument('-i', '--custom_category_file', type=str,  help='file for custom group conditions or allele reference fasta file')
-    #parser.add_argument('-r', '--reference_fasta', type=str, help='FASTA file for allele reference. The mutation should be located out of the window range.')
+    parser.add_argument('-r', '--reference_fasta', type=str, help='FASTA file for allele reference. The mutation should be located out of the window range.')
 
     parser.add_argument('--mut_range_reference', type=int, default=1000, help='The range from both end of reference. The mutations only in this range are used for allele separation')
     parser.add_argument('--mut_num_reference', type=str, default='Auto', help='The range from both end of reference. The mutations only in this range are used for allele separation')
@@ -210,35 +340,41 @@ def run_customized_analysis():
     input_opt = {}
     for i in f:
         i = i.lower().strip().split(':')
-        input_opt[i[0].replace(' ', '')] = input_opt[i[1].replace(' ', '')]
+        input_opt[i[0].replace(' ', '')] = i[1].replace(' ', '')
 
-    ref_seq = input_opt['ref_seq']
+    ref_seq = input_opt['ref_seq'].upper()
     cv_pos = int(input_opt['cleavagepos_1'])
     strand = int(input_opt['cleavagestrand_1'])
-    target = input_opt['target_1']
-    cv_pos2 = input_opt['cleavagespos_2']
+    target = input_opt['target_1'].upper()
+    cv_pos2 = input_opt['cleavagepos_2']
     window = int(input_opt['window'])
     window_between = input_opt['window_between_cleavage']
+    largeins_cutlen = int(input_opt['largeins_cutlen'])
+    largedel_cutlen = int(input_opt['largedel_cutlen'])
 
-    if cv_pos2 == 'False':
+    if cv_pos2.upper() == 'FALSE':
         cv_pos2 = False
         strand_2 = False
         target_2 = False
     else:
         cv_pos2 = int(cv_pos2)
-        strand_2 = int(f[6].strip().split(':')[1])
-        target_2 = int(f[1].strip().split(':')[1])
-    induced_mut = f[7].strip().split(' :')[1].split(',')
-    if induced_mut[0] == 'False':
+        strand_2 = input_opt['cleavagestrand_2']
+        target_2 = input_opt['target_2'].upper()
+    induced_mut = input_opt['induced_mut'].split(',')
+    if induced_mut[0].upper() == 'FALSE':
         induced_mut = False
-    cleavage_pos = int(f[8].strip().split(' :')[1])
-    original_target = int(f[9].strip().split(' :')[1])
+    cleavage_pos = int(input_opt['cleavagepos_1'])
+    original_target = input_opt['target_1']
 
 
     if args.custom_category_file != None:
         mutation_category, additional_analysis_category = set_custom_mutation(args.custom_category_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir)
+    elif args.reference_fasta != None:
+        mutation_category, additional_analysis_category = set_mutation_reference(args.reference_fasta, cv_pos, cv_pos2, induced_mut, analysis_res_dir, args.mut_range_reference)
     else:
-        mutation_category, additional_analysis_category = set_custom_mutation(args.reference_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir, args.mut_range_reference)
+        print('ERROR: input mutation information files (--custom_category_file or --reference_fasta)')
+        sys.exit()
+    for i in mutation_category: print(i)
 
     f = open(analysis_res_dir + '/results/read_classification.txt').readlines()
 
@@ -343,6 +479,7 @@ def run_customized_analysis():
                     sub_pos = condition[1][0]
                     sub_pat = condition[1][4]
                     get_sub = False
+
                     for m in used_mut_list:
                         if m.find('Sub') != -1:
                             sub_len = int(m.split('_')[2])
@@ -374,7 +511,7 @@ def run_customized_analysis():
 
 
         if custom_mut_type in additional_analysis_category:
-            mut_classification = line_sp[1]
+            mut_classification = line_sp[1].replace('WithLargeMut', '')
             additional_analysis_category[custom_mut_type][mut_classification] += 1
             if line_sp[4] == '-':
                 line_sp[4] = mut_classification
@@ -445,7 +582,8 @@ def run_customized_analysis():
         induced_mut = ','.join(induced_mut)
     visual.custom_mutation_pie_chart(classification_cnt, analysis_res_dir + '/custom_results')
     print(len(classification_read), allele_line, plot_line)
-    visual.allele_plot(ref_seq, cv_pos, cv_pos2, strand, strand_2, analysis_res_dir + '/custom_results/custom_mutation_allele_plot_input.txt', analysis_res_dir + '/custom_results/', cleavage_pos, target, target_2, original_target, args.min_read_cnt, args.min_read_freq, args.allele_plot_window, plot_line, induced_mut, args.show_all_between_allele, group_separate=True)
+    print(induced_mut)
+    visual.allele_plot(ref_seq, cv_pos, cv_pos2, strand, strand_2, analysis_res_dir + '/custom_results/custom_mutation_allele_plot_input.txt', analysis_res_dir + '/custom_results/', int(input_opt['cut_pos_in_target']), target, target_2, 1, args.min_read_cnt, args.min_read_freq, args.allele_plot_window, plot_line, induced_mut, args.show_all_between_allele, group_separate=True)
     min_read_cnt = 0
     min_read_freq = 0
     induced_sequence_path = False
@@ -473,7 +611,7 @@ def run_customized_analysis():
         plots['indel_per_pos'] = visual.indel_per_position(read_cnt_file, ref_seq, graph_output_dir)
 
 if __name__=='__main__':
-	run_customized_analysis()
+	main()
 
 
 

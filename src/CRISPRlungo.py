@@ -4,7 +4,7 @@ import argparse, sys
 import time, os, pysam
 from subprocess import Popen, PIPE
 
-import CRISPRlungo_regular as regular_py
+import CRISPRlungo_regular_new as regular_py
 import CRISPRlungo_visualization as visual
 import CRISPRlungo_umi
 import CRISPRlungo_insert_analysis 
@@ -349,13 +349,15 @@ def main():
 	fw_input.write(f'CleavagePos_2 :{cv_pos_2}\n')
 	fw_input.write(f'CleavageStrand_2 :{strand_2}\n')
 	fw_input.write(f'Window : {args.window}\n')
-	fw_input.write(f'Window_between_cleavage : {args.whole_window_between_targets}')
+	fw_input.write(f'Window_between_cleavage : {args.whole_window_between_targets}\n')
 	fw_input.write(f'induced_mut :{induced_mutation_str}\n')
 	fw_input.write(f'cut_pos_in_target :{args.cleavage_pos}\n')
 	fw_input.write(f'original_target :{original_target}\n')
 	fw_input.write(f'minimum_read_count : {args.min_read_cnt}\n')
 	fw_input.write(f'minimum_read_frequency : {args.min_read_freq}\n')
 	fw_input.write(f'induced_sequence_path : {args.induced_sequence_path}\n')
+	fw_input.write(f'largeins_cutlen : {args.largeins_cutlen}\n')
+	fw_input.write(f'largedel_cutlen : {args.largedel_cutlen}\n')
 	fw_input.close()
 
 	read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'

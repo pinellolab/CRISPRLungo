@@ -838,13 +838,13 @@ def insertion_count_length(tsv_file, output_dir):
 
 
 def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_dir, cleavage_pos, target, target_2, original_target, min_read_cnt, min_read_freq, plot_window, show_line, induced_mutation_str, show_all_between_allele, group_separate=False):
-		
+
 	mut_dict = []
 	all_cnt = 0
 	for line in open(input_file).readlines()[1:]:
 		line = line.strip().split('\t')
 		mut_dict.append([line[5], [int(line[1]), float(line[2]), line[3], line[4], line[0]]])
-	
+
 	mut_list = []
 	for i in mut_dict:
 		mut_list.append([i[0], i[1][1], i[1][0], i[1][2].split(','), i[1][3], i[1][4]])
@@ -885,7 +885,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 	}
 	
 	
-	print(show_line)
+	print("Drawing allele plot : ", show_line, " lines")
 	fig, ax = plt.subplots(figsize=(fig_wide, 3 * (show_line+5)/10))
 	
 	fw = open(f'{output_dir}/Allel_table.txt', 'w') 
@@ -897,6 +897,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 	x_pos = 0.01
 	add_x = 0
 	seq = ref_plot
+	
 	cleavage_pos += 1
 	if cv_pos_2 and not show_all_between_allele:
 		add_x = 0.021 * (plot_window * 2 + 2)	
@@ -1001,7 +1002,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 		right_large_ins_check = False
 		left_large_check = False
 		left_large_ins_check = False
-
+		
 		for mut_n, mut in enumerate(info_sp):
 			
 			mut = mut.replace(':', '_').replace('>', '_').split('_')

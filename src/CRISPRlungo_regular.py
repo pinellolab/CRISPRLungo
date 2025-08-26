@@ -1057,7 +1057,10 @@ def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, ch
 					pos = mut[1]
 					mut_type = mut[0]
 				
-					window_check = check_in_window(mut, True, cv_pos, cv_pos_2, window, check_window_between_targets)
+					if full_window:
+						window_check = True
+					else:
+						window_check = check_in_window(mut, True, cv_pos, cv_pos_2, window, check_window_between_targets)
 
 					if window_check == True: 
 						if mut not in mutation_information:
@@ -1114,7 +1117,7 @@ def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, ch
 	
 				mutation = (mut_type,pos,length1)
 
-				if check_in_window(mut, True, cv_pos, cv_pos_2, window, check_window_between_targets) == True:
+				if full_window or check_in_window(mut, True, cv_pos, cv_pos_2, window, check_window_between_targets) == True:
 					mutation_information.append(tuple(mut))
 				else:
 					print("ERROR: Induced mutation is outside the window range. Please increase the window option (--window).")

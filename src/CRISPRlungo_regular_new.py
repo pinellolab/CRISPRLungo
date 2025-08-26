@@ -562,7 +562,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 		def _lengths_from_control(control_dict):
 			del_lens, ins_lens, inv_lens = [], [], []
 			for mut, mut_n in control_dict.items():
-				L = int(mut[1])
+				L = int(mut[2])
 				t = mut[0]
 				if t in ('deletion'):
 					del_lens.append(L)
@@ -580,6 +580,8 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 
 		# Recompute distributions to guarantee the deletion list
 		ctrl_del_sorted, ctrl_ins_sorted = _lengths_from_control(control_dict)
+		print(ctrl_del_sorted[:10])
+		print(ctrl_del_sorted[-10:])
 
 		def probability_based_on_length(mutation, ins_sorted, del_sorted):#, inv_sorted):
 			"""
@@ -689,7 +691,9 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 		else:
 			signif_mask = np.zeros(len_df, dtype=bool)
 
+
 		signif_mutations = out_df[signif_mask].reset_index(drop=True)
+		df.to_csv(output_dir + "/mutation_pattern_p_values.txt", sep="\t", index=False)
 		significant_keys = signif_mutations['mutation']
 		pvalues = signif_mutations['double_min']
 		print(significant_keys[:10])
