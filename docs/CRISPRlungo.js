@@ -63,9 +63,10 @@ async function runAlignDesired() {
 
 async function runAlignFiles() {
 
-  const minimap2Worker_treated = new Worker('minimap2_worker_prog.js');
-  const minimap2Worker_control = new Worker('minimap2_worker_prog.js');
+  let minimap2Worker_treated = null;
+  let minimap2Worker_control = null;
 
+  minimap2Worker_treated = new Worker('minimap2_worker_prog.js');
   minimap2Worker_treated.postMessage({
       fastqFile : treatedFile,
       reference: reference,
@@ -74,13 +75,19 @@ async function runAlignFiles() {
       fileType : "file"
   });
 
-  minimap2Worker_control.postMessage({
+  var progress_max = 1;
+
+  if (controlFile !== false) {
+    minimap2Worker_control = new Worker('minimap2_worker_prog.js');
+    minimap2Worker_control.postMessage({
       fastqFile : controlFile,
       reference: reference,
       longjoinBandWidth : longjoinBandWidth,
       chainingBandWidth : chainingBandWidth,
       fileType : "file"
-  });
+    });
+    progress_max = 0.5;
+  }
 
   const progressBarUpdate = document.getElementById('progress-bar');
   var alignProgressTreat = 0;
@@ -95,8 +102,8 @@ async function runAlignFiles() {
           statusElem.innerHTML = "Treated file has " + event.data.fileLen + " lines";
           }  else if (event.data.type === 1) {
             alignProgressTreat = event.data.progress;
-            progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat)*0.5).toFixed(1) + '%';
-            progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat)*0.5).toFixed(1) + '%';
+            progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat)*progress_max).toFixed(1) + '%';
+            progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat)*progress_max).toFixed(1) + '%';
           console.log("Mapping result:", event.data.stdout);
           } else if (event.data.type === 2) {
               resolve(event.data.result);
@@ -105,23 +112,28 @@ async function runAlignFiles() {
       };
   });
 
-  const controlPromise = new Promise((resolve, reject) => {
-      minimap2Worker_control.onmessage = function(event) {
-      if (event.data.error) {
-          console.error("Error:", event.data.error);
-      } else {
-          if (event.data.type === 0) {
-          statusElem.innerHTML = "Control file has " + event.data.fileLen + " lines";
-          }  else if (event.data.type === 1) {
-            alignProgressControl = event.data.progress;
-            progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat)*0.5).toFixed(1) + '%';
-            progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat)*0.5).toFixed(1) + '%';
-          } else if (event.data.type === 2) {
-          resolve(event.data.result);
-          }
-      }
-    };
-  });
+  let controlPromise
+  if (minimap2Worker_control) {
+    controlPromise = new Promise((resolve, reject) => {
+        minimap2Worker_control.onmessage = function(event) {
+        if (event.data.error) {
+            console.error("Error:", event.data.error);
+        } else {
+            if (event.data.type === 0) {
+            statusElem.innerHTML = "Control file has " + event.data.fileLen + " lines";
+            }  else if (event.data.type === 1) {
+              alignProgressControl = event.data.progress;
+              progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat)*progress_max).toFixed(1) + '%';
+              progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat)*progress_max).toFixed(1) + '%';
+            } else if (event.data.type === 2) {
+            resolve(event.data.result);
+            }
+        }
+      };
+    });
+  } else {
+    controlPromise = Promise.resolve(null);
+  }
 
   Promise.all([treatedPromise, controlPromise])
     .then(([x, y]) => {
@@ -131,7 +143,10 @@ async function runAlignFiles() {
     console.log("Treated result:", treatedAlignSam);
     console.log("Control result:", controlAlignSam);
     minimap2Worker_treated.terminate();
-    minimap2Worker_control.terminate();
+    if (controlFile == false) { 
+      //minimap2Worker_control.terminate();
+      controlAlignSam = [];
+    }
     runMainAlgorithm();
     })
     .catch(error => {
@@ -153,6 +168,8 @@ function downloadText(variable, filename = "data.txt") {
 async function runMainAlgorithm() {
 
   const mainWorker = new Worker('lungo_worker.js', { type: 'module' });
+  document.getElementById("progress_1").innerHTML =
+  '<i class="bi bi-caret-right-fill"></i> Analyzing mutations ... <i class="bi bi-caret-left-fill"></i>';
 
   mainWorker.postMessage({
     controlSamString : controlAlignSam.join('\n'),
@@ -218,32 +235,39 @@ function filterMutations() {
   filteredSigMut = [];
   var key, val, cnt, info;
   for (val of Object.entries(mainResult.significant_keys)) {
-    if (val[1][0] < 0.002) {
-      filteredSigMut.push(val[0]);
-    }
+    //if (val[1][0] < 0.002) {
+    filteredSigMut.push(val[0]);
+    //}
   }
 
   filteredTreatedReads = {};
   var liens_res = [];
   var filteredMutStr = '';
   var inducedMutPatCnt = mainResult.induced_mutations.length;
+
   for (val of Object.entries(mainResult.treated_read_to_mut)) {
     var filteredMutStr = '';
     cnt = 1
+
     for (i of val[1][0]) {
       if (filteredSigMut.includes(i)) {
         if (i.includes('Del')) {
-          if (Number(i.split('_')[2]) >= 100) {
+          if (Number(i.split('_')[2]) > 100) {
             i = i.replace('Del', 'LargeDel');
           }
         } else if (i.includes('Ins')) {
-          if (i.split('_')[2].length >= 20) {
+          if (i.split('_')[2].length > 20) {
             i = i.replace('Ins', 'LargeIns');
           }
         }
+
         filteredMutStr += i + ',';
+      } else {
+
       }
     }
+
+
     
     liens_res.push(val[0] + ': ' + filteredMutStr);
 
@@ -252,7 +276,7 @@ function filterMutations() {
       mutTypeCnt["WT"] += cnt;
     } else {
       var mutType = "";
-      if (i[0] === true) {
+      if (val[1][2][0] === true && val[1][2][1].includes('inversion')) {
         mutType = 'Inv';
       } else if (filteredMutStr.indexOf("Large") != -1) {
         if (filteredMutStr.indexOf("LargeIns") != -1 && filteredMutStr.indexOf("LargeDel") != -1) {
@@ -276,6 +300,8 @@ function filterMutations() {
         }
       }
       mutTypeCnt[mutType] += cnt;
+      mainResult.treated_read_to_mut[val[0]].push(filteredMutStr);
+      mainResult.treated_read_to_mut[val[0]].push(mutType);
       filteredMutStr = filteredMutStr.slice(0,-1); //+ "_" + mutType;
     }
     preciseMutCnt = 0
@@ -291,6 +317,7 @@ function filterMutations() {
       filteredMutStr += "_PartialEdit";
       mutTypeCnt["Partial"] += cnt;
     }
+    console.log()
 
     filteredTreatedReads[filteredMutStr] = (filteredTreatedReads[filteredMutStr] || 0) + cnt;
 

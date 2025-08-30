@@ -836,7 +836,8 @@ def classify_mut_mild(mutations, induced_mutations, largedel_cutoff, largeins_cu
 		else:
 			non_induced_mutations_cnt += 1
 		if mut_type == 'deletion':
-			if length < largedel_cutoff:
+			print(length, largedel_cutoff)
+			if length <= largedel_cutoff:
 				muts += 'Del,'
 				mut_info += f"{pos}_{pos+length-1}:Del_{length},"
 			else:
@@ -844,7 +845,7 @@ def classify_mut_mild(mutations, induced_mutations, largedel_cutoff, largeins_cu
 				mut_info +=  f"{pos}_{pos+length-1}:LargeDel_{length},"
 		elif mut_type == 'insertion':
 			length = mutation[2]
-			if length < largeins_cutoff:
+			if length <= largeins_cutoff:
 				muts += 'Ins,'
 				mut_info += f"{pos}_{mutation[4]}:Ins_{length}_{mutation[3]},"
 			else:
@@ -920,6 +921,8 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 		mut_st = mutation[1]
 		if mutation[0] == 'insertion':
 			mut_ed = mutation[4]
+		elif mutation[0] == 'substitution':
+			mut_ed = mut_st + mutation[2] - 1
 		else:
 			mut_ed = mut_st + mutation[2]
 		
@@ -940,6 +943,7 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 				pass
 			else:
 				check_position_in_window = True
+	
 
 		return check_position_in_window
 
@@ -952,12 +956,12 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 	total_reads = -1
 	reads_that_passed = []
 	count_printed = 0
-	cnt_dict = {'all': 0, 'short': 0, 'unmapped': 0, 'low_quality': 0, 'used': 0}
+	cnt_dict = {'all_reads': 0, 'short': 0, 'unmapped': 0, 'low_quality': 0, 'used': 0}
 
 	for read in samfile.fetch():
 		mutations_in_read = []
 		# Skip unmapped reads
-		cnt_dict['all'] += 1
+		cnt_dict['all_reads'] += 1
 		if read.is_unmapped:
 			cnt_dict['unmapped'] += 1
 			continue	
@@ -1086,13 +1090,12 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 	with open(f'{output_dir}/read_classification.txt', 'w', newline='') as file:
 		writer = csv.writer(file, delimiter='\t')
 		writer.writerow(['Read_id', 'Classification', 'Mutation_info', 'Integration_info', 'Induce_type', 'whole_mutation'])
-		
 		for read_id, mutations in dict_of_reads.items():
 			read_id = reads_that_passed[read_id]
-			classification, mutation_info, insert_info, induce_type = regular_py.classify_mut_mild(mutations[0], induced_mutations, largedel_cutlen, largeins_cutlen)
+			classification, mutation_info, insert_info, induce_type = regular_py.classify_mut_mild(mutations[0], induced_mutations, largeins_cutlen, largedel_cutlen)
 			filtered_mutation_info = []
 			if mutations[1] != []:
-				tmp_classification, filtered_mutation_info, tmp_insert_info, tmp_induce_type = regular_py.classify_mut_mild(mutations[1], induced_mutations, largedel_cutlen, largeins_cutlen)
+				tmp_classification, filtered_mutation_info, tmp_insert_info, tmp_induce_type = regular_py.classify_mut_mild(mutations[1], induced_mutations, largeins_cutlen, largedel_cutlen)
 
 			if	induce_type == ':':
 				induce_type = '-'

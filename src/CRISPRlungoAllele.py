@@ -340,7 +340,7 @@ def main():
     input_opt = {}
     for i in f:
         i = i.lower().strip().split(':')
-        input_opt[i[0].replace(' ', '')] = i[1].replace(' ', '')
+        input_opt[i[0].replace(' ', '')] = ':'.join(i[1:]).replace(' ', '')
 
     ref_seq = input_opt['ref_seq'].upper()
     cv_pos = int(input_opt['cleavagepos_1'])
@@ -361,6 +361,7 @@ def main():
         strand_2 = input_opt['cleavagestrand_2']
         target_2 = input_opt['target_2'].upper()
     induced_mut = input_opt['induced_mut'].split(',')
+
     if induced_mut[0].upper() == 'FALSE':
         induced_mut = False
     cleavage_pos = int(input_opt['cleavagepos_1'])
@@ -542,7 +543,8 @@ def main():
             filted_total_cnt += cnt
 
     print('Total cnt', total_cnt)
-    print('Filted cnt', filted_total_cnt)
+    print('Filted cnt', 
+    filted_total_cnt)
 
     fw = open(analysis_res_dir + '/custom_results/custom_mutation_patter_count.txt', 'w')
 
@@ -581,8 +583,7 @@ def main():
     if induced_mut:
         induced_mut = ','.join(induced_mut)
     visual.custom_mutation_pie_chart(classification_cnt, analysis_res_dir + '/custom_results')
-    print(len(classification_read), allele_line, plot_line)
-    print(induced_mut)
+
     visual.allele_plot(ref_seq, cv_pos, cv_pos2, strand, strand_2, analysis_res_dir + '/custom_results/custom_mutation_allele_plot_input.txt', analysis_res_dir + '/custom_results/', int(input_opt['cut_pos_in_target']), target, target_2, 1, args.min_read_cnt, args.min_read_freq, args.allele_plot_window, plot_line, induced_mut, args.show_all_between_allele, group_separate=True)
     min_read_cnt = 0
     min_read_freq = 0
@@ -605,7 +606,7 @@ def main():
         tsv_file = f'{analysis_res_dir}/custom_results/{i[0]}/read_classification.txt'
         read_cnt_file = f'{analysis_res_dir}/custom_results/{i[0]}/mutation_patter_count.txt'
         graph_output_dir = f'{analysis_res_dir}/custom_results/{i[0]}'
-        visual.write_read_count(tsv_file,  f'{analysis_res_dir}/results/preprocess_count.txt', read_cnt_file, f'{analysis_res_dir}/custom_results/{i[0]}/mutation_summary_count.txt', min_read_cnt, min_read_freq, induced_sequence_path)
+        visual.write_read_count(tsv_file,  f'{analysis_res_dir}/results/preprocess_count.txt', read_cnt_file, f'{analysis_res_dir}/custom_results/{i[0]}/mutation_summary_count.txt', min_read_cnt, min_read_freq, induced_sequence_path, out_print=False)
         read_per_position = visual.visualization_preprocess_regular(analysis_res_dir + '/align/Treated_alignment.sam', analysis_res_dir + '/ref_seq/ref_wo_umi.fasta')
         plots['mutation_pie'], plots['pattern_pie'], plots['allele_pie'] = visual.mutation_pie_chart(read_cnt_file, graph_output_dir)
         plots['indel_per_pos'] = visual.indel_per_position(read_cnt_file, ref_seq, graph_output_dir)

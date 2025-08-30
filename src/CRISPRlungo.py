@@ -38,7 +38,8 @@ def main():
 	parser.add_argument('--largedel_cutlen', default=100, type=int, help='The minimum length for large insertion')
 
 	parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
-	parser.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')	
+	parser.add_argument('--min_read_freq', type=int, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')
+	parser.add_argument('--length_min', type=float, default=10, help='Mutations that are longer than this value and that are not in control will be considered as significant mutation.')	
 	parser.add_argument('--mix_tag', type=bool, default=False, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
 	parser.add_argument('--min_mut_freq_no_control_refmut', type=float, default = 0.5, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
 	parser.add_argument('--induced_paritial_similiarity', type=float, default=0.8, help='The If the mutation pattern similarity is higher than this value, but not completely identical, it is considered partially induced.')
@@ -149,6 +150,7 @@ def main():
 		else:
 			print('ERROR: Can not find target sequence in reference !!')
 			sys.exit()
+		print(f'Cleavage site : {cv_pos}')
 
 	if args.additional_target != None:
 		target_2 = args.additional_target.upper()
@@ -161,6 +163,7 @@ def main():
 		else:
 			print('ERROR: Can not find additional targt sequence in reference !!')
 			sys.exit()
+		print(f'Additional cleavage site : {cv_pos_2}')
 	else:
 		target_2 = False
 		cv_pos_2 = False
@@ -284,7 +287,7 @@ def main():
 				largeins_cutlen = args.largeins_cutlen,
 				largedel_cutlen = args.largedel_cutlen,
 				p_limit_value=args.p_value_threshold, 
-				mut_freq_value = args.mut_freq_threshold,
+				length_min = args.length_min,
 				allowance_value=0,
 				umi_clustered = args.umi)
 
@@ -313,6 +316,17 @@ def main():
 			range_align_end=range_align_end, 
 			largeins_cutlen = args.largeins_cutlen,
 			largedel_cutlen = args.largedel_cutlen)
+		edited_reads_cnt = {}
+
+		f = open(f'{output_dir}/results/preprocess_count.txt').readlines()
+		menu = f[0].strip().split()
+		val = f[1].strip().split()
+		for i in zip(menu, val):
+			i = list(i)
+			i[0] = i[0].replace('Treated_','')
+			if 'Control' in i[0]:
+				continue
+			edited_reads_cnt[i[0]] = int(i[1])
 
 
 	#Visualization
@@ -324,9 +338,10 @@ def main():
 		val = f[1].strip().split()
 		for i in zip(menu, val):
 			i = list(i)
-			if 'Treated' in i[0]:
-				i[0] = '_'.join(i[0].split('_')[1:])
-				edited_reads_cnt[i[0]] = int(i[1])
+			i[0] = i[0].replace('Treated_','')
+			if 'Control' in i[0]:
+				continue
+			edited_reads_cnt[i[0]] = int(i[1])
 
 	print('Drawing graphs ... \r', end='')
 
@@ -335,9 +350,11 @@ def main():
 
 	plots = {}
 
+	print('Preprocessing for visualization ... \r', end = '')
 	read_per_position = visual.visualization_preprocess_regular(output_dir + '/align/Treated_alignment.sam', ref_file)
 
 	if args.control:
+		print('Drawing accuracy plot ... \r', end ='')
 		visual.regular_accuracy_plot(ref_seq, read_per_position, graph_output_dir)
 	
 	fw_input = open(f'{output_dir}/results/input_summary.txt', 'w')
@@ -361,6 +378,7 @@ def main():
 	fw_input.close()
 
 	read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'
+	print('writing output ...                              \r', end = '')
 	mut_cnt, precise_cnt = visual.write_read_count(tsv_file,  f'{output_dir}/results/preprocess_count.txt', read_cnt_file, f'{output_dir}/results/mutation_summary_count.txt', args.min_read_cnt, args.min_read_freq, args.induced_sequence_path)
 	plot_html = visual.align_count_plot(f'{output_dir}/results/preprocess_count.txt', f'{output_dir}/results/mutation_summary_count.txt', f'{output_dir}/results')
 	plots['treated_align'] = plot_html[1]

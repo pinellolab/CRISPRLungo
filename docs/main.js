@@ -21,7 +21,7 @@ var subProportionList = [[],[],[],[]]
 
 
 var windowRange = 5;
-var cleavagePosTarget = 17;
+var cleavagePosTarget = 16;
 
 function reverseComplement(seq) {
     const complement = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'};
@@ -40,19 +40,21 @@ function main() {
     reference = document.getElementById("reference").value.trim().toUpperCase();
     desiredSeq = document.getElementById("desiredSequence").value.trim().toUpperCase();
     treatedFile =   document.getElementById("treatedFile").files[0];
-    controlFile =   document.getElementById("controlFile").files[0];
+    if (document.getElementById("controlFile").files.length == 0) {
+        controlFile = false;
+    } else {
+        controlFile =   document.getElementById("controlFile").files[0];
+    }
 
     statusElem = document.getElementById("status");
     
     if (target === "" || reference === "") {
-        statusElem.innerHTML = "Please enter both Target and Reference sequences";
-        statusElem.style.color = "red";
+        alert("Please enter both Target and Reference sequences");
         return;
     }
 
-    if  (!treatedFile || !controlFile) {
-        statusElem.innerHTML = "No fastq file";
-        statusElem.style.color = "red";
+    if  (!treatedFile) {
+        alert("No Treate fastq file");
         return;
     }
 
@@ -60,25 +62,27 @@ function main() {
         cleavagePos = reference.indexOf(target) + 16;
         strand = 1;
     } else if (reference.includes(reverseComplement(target))) {
-        cleavagePos = reference.indexOf(reverseComplement(target)) + 3;
+        cleavagePos = reference.indexOf(reverseComplement(target)) + 2;
         strand = -1;
     } else {
-        statusElem.innerHTML = "Target sequence is not found in the Reference";
-        statusElem.style.color = "red";
+         alert("Target sequence is not found in the Reference");
         return ;
     }
     
     
     if (target2 !== '') {
+        if (target2.length < 10) {
+            alert('Additional target is too short!')
+            return ;
+        }
         if (reference.includes(target2)) {
             cleavagePos2 = reference.indexOf(target2) + 16;
             strand2 = 1;
         } else if (reference.includes(reverseComplement(target2))) {
-            cleavagePos2 = reference.indexOf(reverseComplement(target2)) + 3;
+            cleavagePos2 = reference.indexOf(reverseComplement(target2)) + 2;
             strand2 = -1;
         } else {
-            statusElem.innerHTML = "Second target sequence is not found in the Reference";
-            statusElem.style.color = "red";
+             alert("Second target sequence is not found in the Reference");
             return ;
         }
     }

@@ -1,4 +1,4 @@
-import init, { analyze } from './pkg/CRISPRlungo_regular.js';
+import init, { analyze } from './pkg_v2/CRISPRlungo_regular.js';
 
 self.onmessage = async (e) => {
 
@@ -17,7 +17,7 @@ self.onmessage = async (e) => {
 
     try {
 
-        await init('./pkg/CRISPRlungo_regular_bg.wasm');
+        await init('./pkg_v2/CRISPRlungo_regular_bg.wasm');
 
         const result = analyze(
             controlSamString,
@@ -29,7 +29,9 @@ self.onmessage = async (e) => {
             window,
             wholeWindow,
             filter1,
-            windowFilter
+            windowFilter,
+            0.05,
+            10
         );
 
 

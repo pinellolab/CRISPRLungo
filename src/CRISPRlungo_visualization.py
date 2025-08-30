@@ -125,7 +125,8 @@ def align_count_plot(file_1, file_2, output_dir):
 
 
 	f = open(file_2).readlines()
-	cnts = f[2].strip().split('\t')[:6]
+	print(file_2, cnts)
+	cnts = f[1].strip().split('\t')[:6]
 
 	x = ['Total_reads', 'Filter_unmapped', 'Filter_low_quality', 'Filter_short', 'Filter_low_count', 'Used_reads']
 	y = cnts
@@ -1005,6 +1006,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 		
 		for mut_n, mut in enumerate(info_sp):
 			
+			print(mut)
 			mut = mut.replace(':', '_').replace('>', '_').split('_')
 			for i_n, i in enumerate(mut):
 				if i.isdigit():
@@ -1588,7 +1590,7 @@ def write_html(plots, control_check, target_check, output_dir, mut_cnt, precise_
 
 
 
-def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summary_file, min_read_cnt, min_read_freq, induced_sequence_path, custom_all_cnt = False):
+def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summary_file, min_read_cnt, min_read_freq, induced_sequence_path, custom_all_cnt = False, out_print=True):
 
 	mut_dict = {}
 	all_cnt = 0
@@ -1648,16 +1650,18 @@ def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summ
 	s1 = ''
 	s2 = ''
 
-	fw.write('\n')
 	print(pre_dict)
-	for i in ['Treated_all_reads','Treated_unmapped','Treated_low_quality','Treated_short', 'all', 'unmapped', 'filted_align_short', 'filted_umi_len', 'used', 'used_with_supple']:
+	for i in ['Treated_all_reads','Treated_unmapped','Treated_low_quality','Treated_short', 'all_reads', 'unmapped', 'low_quality', 'short', 'used_with_supple']:
 		if i  in pre_dict:
 			s1 += i + '\t'
 			s2 += str(pre_dict[i]) + '\t'
 	if 'Treated_used' in pre_dict:
 		s1 += 'Treated_low_cnt_reads\tTreated_used\t'
 		s2 += str(filted_low_cnt) + '\t' + str(int(pre_dict['Treated_used']) - filted_low_cnt) + '\t'
-	
+	elif 'used' in pre_dict:
+		s1 += 'low_cnt_reads\tused\t'
+		s2 += str(filted_low_cnt) + '\t' + str(int(pre_dict['used']) - filted_low_cnt) + '\t'
+
 	if custom_all_cnt:
 		s1 += 'Custom_classified_read\t'
 		s2 += int(custom_all_cnt) + '\t'
@@ -1669,7 +1673,8 @@ def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summ
 		if i  in mut_cnt:
 			s1 += i + '\t'
 			s2 += str(mut_cnt[i]) + '\t'
-			print(i, mut_cnt[i])
+			if out_print:
+				print(i, mut_cnt[i])
 	s1 += '\t'
 	s2 += '\t'
 

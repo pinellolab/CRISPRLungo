@@ -52,6 +52,8 @@ def check_in_window(mutation, window_filter, cv_pos, cv_pos_2, window, check_win
 	mut_st = mutation[1]
 	if mutation[0] == 'insertion':
 		mut_ed = mutation[4]
+	elif mutation[0] == 'substitution':
+		mut_ed = mut_st + mutation[2] - 1
 	else:
 		mut_ed = mut_st + mutation[2]
 
@@ -324,7 +326,7 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 	return mutations_in_reads
 
 
-def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, range_align_end=100, p_limit_value = 0.002, mut_freq_value = 0, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
+def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, range_align_end=100, p_limit_value = 0.002, length_min = 10, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
 
 	# Path to SAM files
 	samfile_path1 = edited
@@ -544,7 +546,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 				outputdict[mutation] = outputdict.get(mutation, 0) + mut_dict[key]
 		return(outputdict)
 
-	def significant_mutations(control_dict, edited_dict, control_reads, edited_reads, p_limit = 0.002, freq_limit = 0):
+	def significant_mutations(control_dict, edited_dict, control_reads, edited_reads, p_limit = 0.002, length_min=10):
 		"""
 		Performs a Fisher's Exact Test on each mutation to compare its frequency between
 		a control and an edited dataset. Returns the keys of the significant mutations.
@@ -593,7 +595,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 			Uses (length-1) with bisect_right to count strictly-longer events.
 			"""
 			mutation = list(mutation)
-			length = mutation[1]
+			length = mutation[2]
 			mtype = mutation[0]
 			
 			if mtype.startswith('substitution'):
@@ -646,16 +648,16 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 		t0 = time.time()
 
 		for idx, (mut, cnt_edit) in enumerate(edit_counts.items(), start=1):
-			p_len = probability_based_on_length(mut, ctrl_ins_sorted, ctrl_del_sorted)#, ctrl_inv_sorted)
+			p_len = probability_based_on_length(mut, ctrl_ins_sorted, ctrl_del_sorted)
 			cnt_ctrl = ctrl_counts.get(mut, 0)
 			p_cnt = probability_based_on_count(mut, ctrl_counts, edit_counts, total_ctrl, total_edit)
 
 			records.append({
-				"mutation":      mut,
-				"prob_length":   p_len,
-				"count_edited":  cnt_edit,
+				"mutation": mut,
+				"prob_length": p_len,
+				"count_edited": cnt_edit,
 				"count_control": cnt_ctrl,
-				"prob_count":    p_cnt
+				"prob_count": p_cnt
 			})
 
 			if idx % interval == 0 or idx == total:
@@ -664,46 +666,84 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 
 		print(f"\nScored {total} mutations in {time.time() - t0:.1f}s")
 
-		# 4) Build output DF, BH on double-min, save CSV
-		t0 = time.time()
-		out_df = pd.DataFrame(records, columns=["mutation","prob_length","count_edited","count_control","prob_count"])
+		# (2) build output records and assign double_min
+		out_records = []
+		len_df = 0
+		for rec in records:
+			mut = rec["mutation"]
+			cnt_ctrl = rec["count_control"]
 
-		# Combine p-values via double-min (capped at 1)
-		out_df['double_min'] = (2 * np.minimum(out_df['prob_length'], out_df['prob_count'])).clip(upper=1.0)
 
-		df = out_df.copy()
-		len_df = len(df)
+			if cnt_ctrl == 0 and mut[2] > length_min:
+				double_min = -1   
+			else:
+				double_min = rec["prob_count"]
+				len_df += 1
 
-		# (1) sort p-values
-		df = df.sort_values("double_min").reset_index(drop=True)
+			rec["double_min"] = double_min
+			rec["bh_threshold"] = None
+			rec["significant_bh"] = False
+	
+			out_records.append(rec)
 
-		# (2) BH thresholds
-		alpha = 0.05
-		df["bh_threshold"] = (np.arange(1, len_df + 1) / len_df) * alpha
+		#len_df = len(out_records)
 
-		# (3) flag significant
-		df["significant_bh"] = df["double_min"] <= df["bh_threshold"]
 
-		# (4) pick cutoff and mark in the original table
-		if df["significant_bh"].any():
-			p_cutoff = df.loc[df["significant_bh"], "double_min"].max()
-			signif_mask = out_df["double_min"] <= p_cutoff
+		valid = [r for r in out_records if r["double_min"] is not None]
+		valid_sorted = sorted(valid, key=lambda x: x["double_min"])
+		alpha = 0.05 
+
+		n = 0
+		for i in sorted(out_records, key= lambda x: x['double_min']):
+			if i['double_min'] == -1:
+				continue
+			n += 1
+			i["bh_threshold"] = (n / len_df) * alpha
+			i["significant_bh"] = (i['double_min'] <= i["bh_threshold"])
+
+		if n != 0:
+			p_cutoff = 0
+			for i in out_records:
+				if i['double_min'] != -1 and i['significant_bh'] == True:
+					if i['double_min'] > p_cutoff:
+						p_cutoff = i['double_min']
+						
+			for i in out_records:
+				if (i["double_min"] != -1 and i["double_min"] <= p_cutoff) or (i["double_min"] == -1):
+					i['significant'] = True
+				else:
+					i['significant'] = False
 		else:
-			signif_mask = np.zeros(len_df, dtype=bool)
+			p_cutoff = None
+			for i in out_records:
+				if (i["double_min"] == -1):
+					i['significant'] = True
+				else:
+					i['significant'] = False
 
+		print(f"p_cutoff: {p_cutoff}")
 
-		signif_mutations = out_df[signif_mask].reset_index(drop=True)
-		df.to_csv(output_dir + "/mutation_pattern_p_values.txt", sep="\t", index=False)
-		significant_keys = signif_mutations['mutation']
-		pvalues = signif_mutations['double_min']
+		significant_keys = [i['mutation'] for i in out_records if i['significant']]
+
 		print(significant_keys[:10])
-		print(pvalues[:10])
+		#df.to_csv(output_dir + "/mutation_pattern_p_values.txt", sep="\t", index=False)
+		#significant_keys = signif_mutations['mutation']
+		#pvalues = signif_mutations['double_min']
+
+		with open(output_dir + "/mutation_pattern_p_values.txt", "w") as fw:	
+			header = ["mutation", "prob_length", "count_edited",
+                      "count_control", "prob_count", "double_min",
+                      "bh_threshold", "significant_bh", 'significant']
+			fw.write("\t".join(header) + "\n")
+			for i in out_records:
+				row = [str(i.get(h, "")) for h in header]
+				fw.write("\t".join(row) + "\n")
 
 
 		print(f"Wrote CSV in {time.time() - t0:.1f}s")
 		print(f"Total runtime: {time.time() - start_total:.1f}s" if 'start_total' in locals() else "Done.")
 
-		return significant_keys, pvalues
+		return significant_keys
 
 
 	# Separate insertion and deletion counts for histogram plotting
@@ -925,7 +965,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 
 	
 	print(window)
-	significant_keys, pvalues = significant_mutations(control1, edited1, control_reads_cnt['used'], edited_reads_cnt['used'], p_limit = p_limit_value, freq_limit = mut_freq_value)
+	significant_keys = significant_mutations(control1, edited1, control_reads_cnt['used'], edited_reads_cnt['used'], p_limit = p_limit_value, length_min = length_min)
 	print("Calculating mutation's significant... Done!			   ")
 
 

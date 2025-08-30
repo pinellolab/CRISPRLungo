@@ -83,11 +83,11 @@ function softClipped(alignOutput, n) {
     var cigarLastLen = parseInt(cigar[cigar.length - 1].slice(0, -1));
 
     var check = false;
-    if (cigar[0].slice(-1) == 'S' && cigarFirstLen > 200) {
+    if (cigar[0].slice(-1) == 'S' && cigarFirstLen > 100) {
       writeLines.push('>' + queryName + '\n' + line[9].slice(0, cigarFirstLen) + '\n');
       check = true;
     }
-    if (cigar[cigar.length - 1].slice(-1) == 'S' && cigarLastLen > 200) {
+    if (cigar[cigar.length - 1].slice(-1) == 'S' && cigarLastLen > 100) {
       writeLines.push('>' + queryName + '\n' + line[9].slice(-cigarLastLen,) + '\n');
       check = true;
     }
