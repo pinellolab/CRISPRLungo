@@ -69,7 +69,7 @@ def visualization_preprocess_regular(sam_file, fasta_file):
 						elif read_base == 'C':
 							read_per_position[ref_idx][3] += 1
 						else:
-							print(ref_idx)
+							#print(ref_idx)
 							break
 	
 	# Output the counts for each position
@@ -1006,7 +1006,6 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 		
 		for mut_n, mut in enumerate(info_sp):
 			
-			print(mut)
 			mut = mut.replace(':', '_').replace('>', '_').split('_')
 			for i_n, i in enumerate(mut):
 				if i.isdigit():
