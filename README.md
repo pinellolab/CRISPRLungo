@@ -155,7 +155,9 @@ CRISPRlungoAllele {analysis_file_dir} {custom_category_file}
 
 ### Example:
 ```bash
-CRISPRlungoAllele regular_output customized_mutation.txt
+ cd data
+ CRISPRlungo Allele_ref.fasta Allele_Cas_treated.fastq Allele_example --control Allele_Mock.fastq --threads 8 --induced_sequence_path induced.fasta actgaaatctgtaagcaggt
+ CRISPRlungoAllele -i Allele_mutations.txt Allele_example
 ```
 
 ---
@@ -194,5 +196,6 @@ Each category subfolder contains:
 * pattern_pie_chart.png
 * percent_of_alleles_pie_chart.png
 * read_classification.txt
+
 
 
