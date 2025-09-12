@@ -22,9 +22,9 @@ var subProportionList = [[],[],[],[]]
 
 var windowRange = Number(document.getElementById("analysisWindow").value);
 var cleavagePosTarget = Number(document.getElementById("cleavageSite").value);
-const largeInsLen = Number(document.getElementById("largeInsertionLen").value);
-const largeDelLen = Number(document.getElementById("largeDeletionLen").value);
-const wholeWindow = Number(document.querySelector('input[name="wholeWindow"]:checked').value)
+var largeInsLen = Number(document.getElementById("largeInsertionLen").value);
+var largeDelLen = Number(document.getElementById("largeDeletionLen").value);
+var wholeWindow = Number(document.querySelector('input[name="wholeWindow"]:checked').value)
 
 
 function reverseComplement(seq) {
@@ -44,6 +44,13 @@ function main() {
     reference = document.getElementById("reference").value.trim().toUpperCase();
     desiredSeq = document.getElementById("desiredSequence").value.trim().toUpperCase();
     treatedFile =   document.getElementById("treatedFile").files[0];
+
+    windowRange = Number(document.getElementById("analysisWindow").value);
+    cleavagePosTarget = Number(document.getElementById("cleavageSite").value);
+    largeInsLen = Number(document.getElementById("largeInsertionLen").value);
+    largeDelLen = Number(document.getElementById("largeDeletionLen").value);
+    wholeWindow = Number(document.querySelector('input[name="wholeWindow"]:checked').value)
+
     if (document.getElementById("controlFile").files.length == 0) {
         controlFile = false;
     } else {
