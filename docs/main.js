@@ -20,8 +20,12 @@ var subProportionList = [[],[],[],[]]
 
 
 
-var windowRange = 5;
-var cleavagePosTarget = 16;
+var windowRange = Number(document.getElementById("analysisWindow").value);
+var cleavagePosTarget = Number(document.getElementById("cleavageSite").value);
+const largeInsLen = Number(document.getElementById("largeInsertionLen").value);
+const largeDelLen = Number(document.getElementById("largeDeletionLen").value);
+const wholeWindow = Number(document.querySelector('input[name="wholeWindow"]:checked').value)
+
 
 function reverseComplement(seq) {
     const complement = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'};
@@ -59,10 +63,10 @@ function main() {
     }
 
     if (reference.includes(target)) {
-        cleavagePos = reference.indexOf(target) + 16;
+        cleavagePos = reference.indexOf(target) + cleavagePosTarget;
         strand = 1;
     } else if (reference.includes(reverseComplement(target))) {
-        cleavagePos = reference.indexOf(reverseComplement(target)) + 2;
+        cleavagePos = reference.indexOf(reverseComplement(target)) + target.length - cleavagePosTarget - 2;
         strand = -1;
     } else {
          alert("Target sequence is not found in the Reference");
@@ -76,15 +80,17 @@ function main() {
             return ;
         }
         if (reference.includes(target2)) {
-            cleavagePos2 = reference.indexOf(target2) + 16;
+            cleavagePos2 = reference.indexOf(target2) + cleavagePosTarget;
             strand2 = 1;
         } else if (reference.includes(reverseComplement(target2))) {
-            cleavagePos2 = reference.indexOf(reverseComplement(target2)) + 2;
+            cleavagePos2 = reference.indexOf(reverseComplement(target2)) + target2.length - cleavagePosTarget - 2;
             strand2 = -1;
         } else {
              alert("Second target sequence is not found in the Reference");
             return ;
         }
+    } else {
+        cleavagePos2 = '';
     }
 
     let status_str = 'Cleavage site is ' + cleavagePos;

@@ -2,7 +2,7 @@ import init, { analyze } from './pkg_v2/CRISPRlungo_regular.js';
 
 self.onmessage = async (e) => {
 
-    const {
+    let {
         controlSamString,
         treatedSamString,
         inducedMutationString,
@@ -14,6 +14,10 @@ self.onmessage = async (e) => {
         filter1,
         windowFilter,
     } = e.data;
+
+    if (cvPos2 == "") {
+        cvPos2 = undefined;
+    }
 
     try {
 

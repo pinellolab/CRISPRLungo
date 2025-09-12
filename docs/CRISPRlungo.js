@@ -57,6 +57,7 @@ async function runAlignDesired() {
         runAlignFiles();
       }
     } else {
+        desiredAlignSam = [];
         runAlignFiles();
     }
   }
@@ -178,10 +179,12 @@ async function runMainAlgorithm() {
     reference: reference,
     cvPos : cleavagePos,
     cvPos2 : cleavagePos2,
-    window : 5,
-    wholeWindow : true,
+    window : windowRange,
+    wholeWindow : wholeWindow,
     filter1 : true,
     windowFilter : true,
+    alpha: 0.05,
+    length_min: 10
   });
 
   mainWorker.onmessage = (event) => {
@@ -252,11 +255,11 @@ function filterMutations() {
     for (i of val[1][0]) {
       if (filteredSigMut.includes(i)) {
         if (i.includes('Del')) {
-          if (Number(i.split('_')[2]) > 100) {
+          if (Number(i.split('_')[2]) > largeDelLen) {
             i = i.replace('Del', 'LargeDel');
           }
         } else if (i.includes('Ins')) {
-          if (i.split('_')[2].length > 20) {
+          if (i.split('_')[2].length > largeInsLen) {
             i = i.replace('Ins', 'LargeIns');
           }
         }
@@ -755,7 +758,19 @@ function drawAllelePlot() {
           .attr("dominant-baseline", "left")
           .text(per + ' % (' + read + ' reads)');
       }
-
+    } else {
+      xPos = drawD3(drawInfo_1, 0);
+      
+      if (read != '') {
+        rowG.append("text")
+          .attr("x", cellSizeWidth * (plotWindow*2 + 10 + 1))
+          .attr("y", cellSizeHeight*0.6)
+          .attr("font-size", 12)
+          .attr("class", "cell-text")
+          .attr("text-anchor", "left")
+          .attr("dominant-baseline", "left")
+          .text(per + ' % (' + read + ' reads)');
+      }
     }
   }
    
