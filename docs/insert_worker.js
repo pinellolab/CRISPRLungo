@@ -2,7 +2,7 @@ importScripts('https://biowasm.com/cdn/v3/aioli.js');
 
 self.onmessage = async function (event) {
 
-    const { treated_read_to_mut, reference } = event.data;
+    var { treated_read_to_mut, reference } = event.data;
 
     var fileLines = [];
     for (i of Object.entries(treated_read_to_mut)) {
@@ -83,7 +83,7 @@ self.onmessage = async function (event) {
                 if (!isNaN(parseInt(i, 10))) {
                     s += i;
                 } else {
-                    s = parseInt(i, 10);
+                    s = parseInt(s, 10);
                     if (i == "M" || i == "D") {
                         align_len += s;
                     } else if (i == 'S' || i == 'H') {

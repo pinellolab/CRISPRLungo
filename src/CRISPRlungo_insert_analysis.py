@@ -62,10 +62,10 @@ def confirm_insertion_seq(mutation_dict, ref_seq, ori_ref_name, possible_ref_pat
     if possible_ref_path != False:
         f_ref = open(possible_ref_path).readlines()
         for i in range(int(len(f_ref)/2)):
-            insref_name = f_ref[i*2]
-            insref_seq = f_ref[i*2+1]
+            insref_name = f_ref[i*2].strip()
+            insref_seq = f_ref[i*2+1].strip()
             ref_dict[insref_name] = insref_seq
-            fw.write(f'>{insref_name}\n{insref_seq}\n')
+            fw.write(f'{insref_name}\n{insref_seq}\n')
     fw.close()
 
     p = Popen(f'minimap2 -d {output_dir}/insert_analysis/reference_for_ins.mmi {output_dir}/insert_analysis/reference_for_ins.fasta', shell=True, stderr=PIPE, stdout=PIPE).communicate()

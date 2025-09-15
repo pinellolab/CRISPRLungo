@@ -885,9 +885,10 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 		' ': 'white',
 	}
 	
-	
-	print("Drawing allele plot : ", show_line, " lines")
-	fig, ax = plt.subplots(figsize=(fig_wide, 3 * (show_line+5)/10))
+	showing_line = mut_list[:show_line]
+
+	print("Drawing allele plot : ", len(showing_line), " lines")
+	fig, ax = plt.subplots(figsize=(fig_wide, 3 * (len(showing_line)+8)/10))
 	
 	fw = open(f'{output_dir}/Allel_table.txt', 'w') 
 	fw.write('ref_seq\tmut_seq\tRaw_count\t%\tCIGAR\tMutation_info\n')
@@ -954,7 +955,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 	ax.text(0.021 * window_ed + 0.02 + add_x, 0.9, f'Reference', fontsize=14, ha='left', va='center')
 	if induced_mutation_str:
 		ax.text(0.021 * window_ed + 0.02 + add_x, 0.6, f'Desired', fontsize=14, ha='left', va='center')
-	showing_line = mut_list[:show_line]
+
 
 	if induced_mutation_str:
 		showing_line = [[induced_mutation_str, '', '', [''], '', '']] + showing_line
@@ -1183,10 +1184,10 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				if right_large_ins_check or left_large_ins_check:
 					if int(info_sp[mut_n - 1].split(':')[0].split('_')[0]) == mut_st:
 						continue
-				#seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])[:plot_window*2]
+				seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])[:plot_window*2]
 				if st_pos + ins_len > window_ed:
-					ins_len = window_ed - st_pos
-				rect = patches.Rectangle((0.008+st_pos*0.021,	y_pos -0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=14) 
+					ins_len = window_ed - st_pos - 1
+				rect = patches.Rectangle((0.008+(st_pos+1)*0.021,	y_pos -0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=14) 
 				ax.add_patch(rect)
 				adjust_ins += ins_len
 			
@@ -1265,7 +1266,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				max_len = len(x)
 		st_pos += max_len/2 + 2
 
-	ax.annotate('', xy=(0.005+(plot_window)*0.021, 1), xytext=(0.01+(plot_window)*0.021, 1 - dash_line/10 -0.4), arrowprops=dict(arrowstyle='-', linestyle='--', color='gray'), zorder=10)
+	ax.annotate('', xy=(0.005+(plot_window+1)*0.021, 1), xytext=(0.01+(plot_window+1)*0.021, 1 - dash_line/10 -0.4), arrowprops=dict(arrowstyle='-', linestyle='--', color='gray'), zorder=10)
 	ax.text(0.021 * plot_window * 2 + 1, y_pos, f'  ', fontsize=12, ha='left', va='center')
 
 	if cv_pos_2 and not show_all_between_allele:

@@ -32,10 +32,10 @@ def main():
 	parser.add_argument('--control', type=str, default=None, help='When a control file is input, background filtering is performed using the control file')
 	parser.add_argument('--induced_sequence_path', type=str, default=None, help='When a desired sequence file is input, additional classification of desired mutations is performed')
 	parser.add_argument('--integration_file', type=str, default=False, help='FASTA file for possible sequences that can be integrated')
-	parser.add_argument('--merge_substitution', action='store_true', help='A continuous substitution is considered as one mutation.')
+	#parser.add_argument('--merge_substitution', action='store_true', help='A continuous substitution is considered as one mutation.')
 
-	parser.add_argument('--largeins_cutlen', default=20, type=int, help='The minimum length for large deletions')
-	parser.add_argument('--largedel_cutlen', default=100, type=int, help='The minimum length for large insertion')
+	parser.add_argument('--largeins_cutlen', default=50, type=int, help='The minimum length for large deletions')
+	parser.add_argument('--largedel_cutlen', default=50, type=int, help='The minimum length for large insertion')
 
 	parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
 	parser.add_argument('--min_read_freq', type=int, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')
@@ -46,7 +46,7 @@ def main():
 	parser.add_argument('--range_both_end_region', type=int, default=100, help='If the reads were not aligned this range from both end, the read is considered as short fragment.')
 
 	parser.add_argument('--align_sa_len_threshold', type=int, default=100, help='FASTA file for induced sequence')
-	parser.add_argument('--p_value_threshold', type=float, default=0.002, help='Statistical threshold')
+	parser.add_argument('--using_all_mutations', action='store_true', help='When comparing with control, use every mutations without filteration')
 	parser.add_argument('--mut_freq_threshold', type=float, default=0, help='muation frequency threshold, if you want more harsh filteration, you can use this')
 	parser.add_argument('-c', '--clust_cutoff', type=int, default=5, help='The minimum of UMI cluster size')
 
@@ -286,7 +286,7 @@ def main():
 				threads=threads, 
 				largeins_cutlen = args.largeins_cutlen,
 				largedel_cutlen = args.largedel_cutlen,
-				p_limit_value=args.p_value_threshold, 
+				use_all_mutations=args.using_all_mutations, 
 				length_min = args.length_min,
 				allowance_value=0,
 				umi_clustered = args.umi)

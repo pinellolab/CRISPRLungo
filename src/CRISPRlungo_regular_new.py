@@ -326,7 +326,7 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 	return mutations_in_reads
 
 
-def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, range_align_end=100, p_limit_value = 0.002, length_min = 10, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
+def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, range_align_end=100, use_all_mutations=False, length_min = 10, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
 
 	# Path to SAM files
 	samfile_path1 = edited
@@ -546,7 +546,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 				outputdict[mutation] = outputdict.get(mutation, 0) + mut_dict[key]
 		return(outputdict)
 
-	def significant_mutations(control_dict, edited_dict, control_reads, edited_reads, p_limit = 0.002, length_min=10):
+	def significant_mutations(control_dict, edited_dict, control_reads, edited_reads, use_all_mutations = None, length_min=10):
 		"""
 		Performs a Fisher's Exact Test on each mutation to compare its frequency between
 		a control and an edited dataset. Returns the keys of the significant mutations.
@@ -709,14 +709,14 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 						p_cutoff = i['double_min']
 						
 			for i in out_records:
-				if (i["double_min"] != -1 and i["double_min"] <= p_cutoff) or (i["double_min"] == -1):
+				if (i["double_min"] != -1 and i["double_min"] <= p_cutoff) or (i["double_min"] == -1) or (use_all_mutations == True):
 					i['significant'] = True
 				else:
 					i['significant'] = False
 		else:
 			p_cutoff = None
 			for i in out_records:
-				if (i["double_min"] == -1):
+				if (i["double_min"] == -1) or (use_all_mutations == True):
 					i['significant'] = True
 				else:
 					i['significant'] = False
@@ -965,7 +965,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 
 	
 	print(window)
-	significant_keys = significant_mutations(control1, edited1, control_reads_cnt['used'], edited_reads_cnt['used'], p_limit = p_limit_value, length_min = length_min)
+	significant_keys = significant_mutations(control1, edited1, control_reads_cnt['used'], edited_reads_cnt['used'], use_all_mutations = use_all_mutations, length_min = length_min)
 	print("Calculating mutation's significant... Done!			   ")
 
 

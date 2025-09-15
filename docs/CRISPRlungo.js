@@ -13,6 +13,7 @@ var partialEditThreshold = 0.8;
 var showAllBetweenAllele = false;
 var minaResult;
 
+
 async function runAlignDesired() {
 
   document.getElementById("inputPage").classList.remove("active");
@@ -263,7 +264,19 @@ function filterMutations() {
             i = i.replace('Ins', 'LargeIns');
           }
         }
-
+        if (val[1][2][0] == true) {
+          var st = Number(i.split('_')[0]);
+          var ed = Number(i.split(':')[0].split('_')[1]);
+          for (x of val[1][2].slice(1,)) {
+            if (x.includes('inversion')) {
+              var inv_st = Number(x.split('_')[1]);
+              var inv_ed = Number(x.split('_')[2]);
+              if (Math.abs(st - inv_st) < 5 && Math.abs(ed - inv_ed) < 5) {
+                i += '_inv';
+              }
+            }
+          }
+        }
         filteredMutStr += i + ',';
       } else {
 
@@ -381,7 +394,7 @@ function drawAllelePlot() {
   var xlimMin = 0;
   var width, height, maxLength;
 
-  function drawD3(drawInfo, xPos) {
+  function drawD3(drawInfo, xPos, section) {
     var subMarker;
 
     if (drawInfo[0].length != 0) {
@@ -431,7 +444,12 @@ function drawAllelePlot() {
           x += 1
         }
         x-=1
+        
         largeDelEd = x;
+        if (section == 0) {
+          largeDelEd -= plotWindow + 1;
+        }
+
         rowG.append("line")
           .attr("x1", xPos + cellSizeWidth * (largeDelSt))   
           .attr("y1", 0 + 0.5*cellSizeHeight)   
@@ -471,11 +489,19 @@ function drawAllelePlot() {
         .style("fill", 'black')
         .text(base);
       
-      if (i[1] == 'I') {
+      if (i[1] == 'I' && ( x == 0 || drawInfo[1][x-1][1] !='I')) {
+        var InsSt = x;
+        var InsEd;
+        for (var InsEd = x; InsEd < drawInfo[1].length; InsEd++) {
+          if (drawInfo[1][InsEd][1] != 'I') {
+            break
+          }
+        }
+        
         rowG.append("rect")
-          .attr("x", xPos)
+          .attr("x", xPos+1)
           .attr("y", 0)
-          .attr("width", 15)
+          .attr("width", 13 * (InsEd - InsSt)+2)
           .attr("height", 17.5)
           .attr("stroke", "red")      
           .attr("fill", "none")
@@ -526,8 +552,12 @@ function drawAllelePlot() {
   function drawLine(mutList, read, per) {
     var aligned = reference.split('');
     var checkMiddleLD = false;
+    var checkMiddleInv = false;
     for (i = 0; i < mutList.length; i++) {
       mutInfo = mutList[i].replace(';Complex','').replace(':', '_').split('_');
+      if (mutList[i].includes('inv') == true) {
+        checkMiddleInv = true;
+      }
       m = mutInfo[2];
       var mutSeq = '';
       var pos = 0;
@@ -545,8 +575,11 @@ function drawAllelePlot() {
         }
         for (x = 0; x < mutSeq; x++) {
           aligned[pos+x] = '-_' + mutSeq + '_' + (x);
+          if (mutList[i].includes('inv') == true) {
+            aligned[pos+x] += '_inv';
+          } 
         }
-      } else if (m == 'Ins' || m == 'LargeIns') {
+      } else if (m == 'Ins' || m == 'LargeIns' || mutList[i].includes('inv') == false) {
         mutSeq = mutInfo[3];
         pos = +mutInfo[0];
         aligned[pos] = aligned[pos]+'I'+mutSeq;
@@ -577,7 +610,7 @@ function drawAllelePlot() {
           }
         }
       } else {
-        if (m.indexOf('I') != -1) {
+        if (m.indexOf('inv') == -1 && m.indexOf('I') != -1) {
           for (x of m.slice(m.indexOf('I')+1,)) {
             drawInfo_1[1].push(x + 'I');
           }
@@ -708,6 +741,9 @@ function drawAllelePlot() {
             .text(middleCigarStr);
         } else {
           var inputStr = checkMiddleLD + ' bp';
+          if (checkMiddleInv) {
+            inputStr += ' (inv)'
+          }
           rowG.append("line")
             .attr("x1", cellSizeWidth * (10 + plotWindow*2))   
             .attr("y1", 0 + 0.5*cellSizeHeight)   
@@ -745,8 +781,8 @@ function drawAllelePlot() {
         drawInfo_1[2] = [];
         drawInfo_2[0] = [];
       }
-      xPos = drawD3(drawInfo_1, 0);
-      xPos = drawD3(drawInfo_2, cellSizeWidth * (plotWindow*2 + 10));
+      xPos = drawD3(drawInfo_1, 0, 0);
+      xPos = drawD3(drawInfo_2, cellSizeWidth * (plotWindow*2 + 10), 1);
       
       if (read != '') {
         rowG.append("text")
@@ -759,7 +795,7 @@ function drawAllelePlot() {
           .text(per + ' % (' + read + ' reads)');
       }
     } else {
-      xPos = drawD3(drawInfo_1, 0);
+      xPos = drawD3(drawInfo_1, 0, 1);
       
       if (read != '') {
         rowG.append("text")
@@ -953,7 +989,7 @@ function drawAllelePlot() {
 
   if (strand == 1) {
     rowG.append("rect")
-      .attr("x", 10 *cellSizeWidth + cellSizeWidth*(target.length - cleavagePosTarget))
+      .attr("x", 10 *cellSizeWidth + cellSizeWidth*(target.length - cleavagePosTarget - 1))
       .attr("y", 2)
       .attr("width", cellSizeWidth * 20)
       .attr("height", 13.5)
@@ -962,7 +998,7 @@ function drawAllelePlot() {
     rowG.append("text")
       .attr("x", 10 *cellSizeWidth + cellSizeWidth*(target.length - cleavagePosTarget - 2))
       .attr("y", cellSizeHeight*0.6)
-      .attr("font-size", 16)
+      .attr("font-size", 14)
       .attr("font-family", "sans-serif")
       .attr("font-weight", "bold")
       .attr("text-anchor", "middle")
@@ -979,7 +1015,7 @@ function drawAllelePlot() {
     rowG.append("text")
       .attr("x", 10 *cellSizeWidth + cellSizeWidth*(cleavagePosTarget - 2))
       .attr("y", cellSizeHeight*0.6)
-      .attr("font-size", 16)
+      .attr("font-size", 14)
       .attr("font-family", "sans-serif")
       .attr("font-weight", "bold")
       .attr("text-anchor", "middle")
@@ -1056,9 +1092,9 @@ function drawAllelePlot() {
 
   if (cleavagePos2 != "") {
     mainG.append("line")
-      .attr("x1", cellSizeWidth*(3*plotWindow + 10+10)+margin.left)   
+      .attr("x1", cellSizeWidth*(3*plotWindow + 10+10+1)+margin.left)   
       .attr("y1", 0 + margin.top)   
-      .attr("x2", cellSizeWidth*(3*plotWindow + 10+10)+margin.left)   
+      .attr("x2", cellSizeWidth*(3*plotWindow + 10+10+1)+margin.left)   
       .attr("y2", cellSizeHeight*(numRows+6) + margin.top)  
       .attr("stroke", "red")              
       .attr("stroke-width", 2)              
