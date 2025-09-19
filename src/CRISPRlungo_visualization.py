@@ -837,6 +837,162 @@ def insertion_count_length(tsv_file, output_dir):
 	fig.write_image(f'{output_dir}/insertion_count_length.png')
 	fig.write_image(f'{output_dir}/insertion_count_length.pdf')
 
+def allele_table(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_dir, cleavage_pos, target, target_2, original_target, min_read_cnt, min_read_freq, plot_window, show_line, induced_mutation_str, show_all_between_allele, group_separate=False):
+	mut_dict = []
+	all_cnt = 0
+	for line in open(input_file).readlines()[1:]:
+		line = line.strip().split('\t')
+		mut_dict.append([line[5], [int(line[1]), float(line[2]), line[3], line[4], line[0]]])
+
+	mut_list = []
+	for i in mut_dict:
+		mut_list.append([i[0], i[1][1], i[1][0], i[1][2].split(','), i[1][3], i[1][4]])
+
+	window_ed = cv_pos + plot_window
+	if cv_pos_2 != False:
+		if show_all_between_allele:
+			window_ed = cv_pos_2 + plot_window
+
+	ref_plot = ref_seq[cv_pos - plot_window: window_ed]
+	ref_len = len(ref_seq)
+
+	data = {"Sequence": [], "Type": [], "Percentage": [], "LargeDel": [], "LargeIns": []}
+	
+	nucleotide_colors = {
+		'A': 'honeydew',
+		'T': 'mistyrose',
+		'G': 'lightyellow',
+		'C': 'aliceblue',
+		'-': 'whitesmoke',
+		'N': 'whitesmoke',
+		' ': 'white',
+	}
+
+	fw = open(f'{output_dir}/Allele_table.txt', 'w') 
+	fw.write('ref_seq\tmut_seq\tRaw_count\t%\tCIGAR\tMutation_info\n')
+
+	seq = ref_plot
+	cleavage_pos += 1
+	status_list = [[],[],[]]
+
+	if cv_pos_2:
+
+		if not show_all_between_allele:
+			ref_plot_2 = ref_seq[cv_pos_2 - plot_window: cv_pos_2 + plot_window]
+			target2_rec_cp = plot_window + 1
+
+		else:
+			add_x = 0
+			target2_rec_cp = plot_window + cv_pos_2 - cv_pos + 1
+
+	if cv_pos_2:
+		window_ed = plot_window * 2 + (cv_pos_2 - cv_pos)
+	else:
+		window_ed = plot_window * 2
+
+	for info_n, info in enumerate(mut_list):
+		seq = ref_plot
+		if group_separate and info_n != 0 and info[5] != mut_list[info_n - 1][5]:
+			group_separate_interval += 1
+		adjust_ins = 0
+
+		if info[0] == 'None':
+			if cv_pos_2:
+				fw.write(f'{ref_seq[cv_pos - plot_window: cv_pos_2 + plot_window]}\t{ref_seq[cv_pos - plot_window: cv_pos_2 + plot_window]}\t{info[2]}\t{info[1]}\t{cv_pos_2 - cv_pos + plot_window*2}M\t{info[0]}\n')
+			else:
+				fw.write(f'{ref_seq[cv_pos - plot_window: cv_pos + plot_window]}\t{ref_seq[cv_pos - plot_window: cv_pos + plot_window]}\t{info[2]}\t{info[1]}\t{plot_window*2}M\t{info[0]}\n')
+			status_list[0].append(f'{info[1]}% ({info[2]} Reads)')
+			status_list[1].append('WT')
+			status_list[2].append(info[5])
+			continue
+		
+		mut_str = ''
+		align_ref = ''
+		align_mut = ''
+		CIGAR_str = ''
+		
+		info_sp = info[0].split(',')
+		ex_mut = info_sp[0].replace(':', '_').replace('>', '_').split('_')
+		ex_mut[1] = int(ex_mut[0]) - plot_window - 1
+		right_large_check = False
+		right_large_ins_check = False
+		left_large_check = False
+		left_large_ins_check = False
+		
+		for mut_n, mut in enumerate(info_sp):
+			mut = mut.replace(':', '_').replace('>', '_').split('_')
+			for i_n, i in enumerate(mut):
+				if i.isdigit():
+					mut[i_n] = int(i)
+
+			if ex_mut[1] + 1 < mut[0]:
+				align_ref += ref_seq[ex_mut[1] + 1: mut[0]]
+				align_mut += ref_seq[ex_mut[1] + 1: mut[0]]
+
+
+			dist = mut[0] - ex_mut[1] - 1
+			if dist > 0:
+				CIGAR_str += str(mut[0] - ex_mut[1] - 1) + 'M'
+			if mut[2] == 'Sub':
+				align_ref += mut[4]
+				align_mut += mut[5]
+				CIGAR_str += f'{mut[3]}='
+			elif 'Del' in mut[2]:
+				align_ref += ref_seq[mut[0]: mut[1] + 1]
+				align_mut += '-'*mut[3]
+				CIGAR_str += f'{mut[3]}D'
+				if int(mut[0]) - (cv_pos - plot_window) + adjust_ins < 0:
+					left_large_check = True
+					left_seq = ref_seq[mut[0] - 10: mut[0]]
+					#left_len_comp = 2 * 0.021 * (1- (mut[0]/ cv_pos_2))
+					left_len_comp = 0
+					xlim_min = -0.005-(11+2)*0.021
+				if int(mut[1]) - (cv_pos - plot_window) + adjust_ins > window_ed:
+					right_large_check = True
+					right_seq = ref_seq[mut[1]-10: mut[1]]
+					right_len_comp = 0
+				if (right_large_check or left_large_check) and len(info_sp) > mut_n + 1:
+						next_mut = info_sp[mut_n + 1].replace(':', '_').replace('>', '_').split('_')
+						if mut[0] == int(next_mut[0]) and 'Ins' in next_mut[2]:
+							ins_len = int(next_mut[3])
+							if right_large_check:
+								right_large_ins_check = True
+							if left_large_check:
+								left_large_ins_check = True
+			elif 'Ins' in mut[2]:
+				align_ref += '-'*mut[3]
+				align_mut += mut[4]
+				CIGAR_str += f'{mut[3]}I'
+				if 'Del' in ex_mut[2]  and ex_mut[0] == mut[0]:
+					mut[1] -= 1
+				else:
+					mut[1] -= 2
+
+			ex_mut = mut
+
+		if mut[1] + plot_window > cv_pos_2 + plot_window:
+			align_ref += ref_seq[mut[1] + 1: mut[1] + plot_window]
+			align_mut += ref_seq[mut[1] + 1: mut[1] + plot_window]
+			CIGAR_str += f'{plot_window}M'
+		else:
+			align_ref += ref_seq[mut[1] + 1: cv_pos_2 + plot_window]
+			align_mut += ref_seq[mut[1] + 1: cv_pos_2 + plot_window]
+			CIGAR_str += f'{cv_pos_2 + plot_window - (mut[1] + 1) + 1}M'
+
+		if not induced_mutation_str or info_n != 0:
+			fw.write(f'{align_ref}\t{align_mut}\t{info[2]}\t{info[1]}\t{CIGAR_str}\t{info[0]}\n')
+
+		bar_st_between = 0
+		bar_ed_between = 10
+
+		inv_info = False
+		for i in info[3]:
+			if i[:9] == 'inversion':
+				i = i[i.find('_')+1:i.find('inSeq')].split('to')
+				inv_info = [int(i[0]), int(i[1])]
+
+		
+
 
 def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_dir, cleavage_pos, target, target_2, original_target, min_read_cnt, min_read_freq, plot_window, show_line, induced_mutation_str, show_all_between_allele, group_separate=False):
 
@@ -884,14 +1040,11 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 		'N': 'whitesmoke',
 		' ': 'white',
 	}
-	
+
 	showing_line = mut_list[:show_line]
 
 	print("Drawing allele plot : ", len(showing_line), " lines")
 	fig, ax = plt.subplots(figsize=(fig_wide, 3 * (len(showing_line)+8)/10))
-	
-	fw = open(f'{output_dir}/Allel_table.txt', 'w') 
-	fw.write('ref_seq\tmut_seq\tRaw_count\t%\tCIGAR\tMutation_info\n')
 
 	#for info_n, info in enumerate(sorted(output_res.items(), key=lambda x: x[1], reverse=True)[:show_line]):
 
@@ -983,7 +1136,6 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				ax.text(x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 					ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
 				x_pos += 0.021 # Adjust spacing between nucleotides
-			fw.write(f'{ref_plot}\t{ref_plot}\t{info[2]}\t{info[1]}\t{plot_window*2}M\t{info[0]}\n')
 			status_list[0].append(f'{info[1]}% ({info[2]} Reads)')
 			status_list[1].append('WT')
 			status_list[2].append(info[5])
@@ -1055,9 +1207,6 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 		align_ref += ref_seq[mut[1] + 1: mut[1] + plot_window]
 		align_mut += ref_seq[mut[1] + 1: mut[1] + plot_window]
 		CIGAR_str += f'{plot_window}M'
-
-		if not induced_mutation_str or info_n != 0:
-			fw.write(f'{align_ref}\t{align_mut}\t{info[2]}\t{info[1]}\t{CIGAR_str}\t{info[0]}\n')
 
 		bar_st_between = 0
 		bar_ed_between = 10
@@ -1291,7 +1440,6 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 					ax.text(x_pos, y_pos, nucleotide, fontsize=14, fontfamily='monospace',
 							ha='left', va='center', bbox=dict(facecolor=nucleotide_colors[nucleotide], edgecolor='none', pad=2))
 					x_pos += 0.021 # Adjust spacing between nucleotides
-				fw.write(f'{ref_plot_2}\t{ref_plot_2}\t{info[2]}\t{info[1]}\t{plot_window*2}M\t{info[0]}\n')
 				rect = patches.Rectangle((0.0075+plot_window*2*0.021,y_pos -0.035), 10 * 0.021, 0.08, linewidth=0, edgecolor='none', facecolor='whitesmoke', zorder=13)
 				ax.add_patch(rect)
 				continue
@@ -1361,10 +1509,6 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			align_ref += ref_seq[mut[1] + 1: mut[1] + plot_window]
 			align_mut += ref_seq[mut[1] + 1: mut[1] + plot_window]
 			CIGAR_str += f'{plot_window}M'
-
-			if not induced_mutation_str or info_n != 0:
-				fw.write(f'{align_ref}\t{align_mut}\t{info[2]}\t{info[1]}\t{CIGAR_str}\t{info[0]}\n')
-
 
 			for mut in info[0].split(','):
 

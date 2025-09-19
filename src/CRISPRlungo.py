@@ -389,6 +389,8 @@ def main():
 	if args.target != None:
 		print('Drawing graphs ... Allele plot                         \r', end='')
 		visual.allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, read_cnt_file, graph_output_dir, args.cleavage_pos, target, target_2, original_target, args.min_read_cnt, args.min_read_freq, allele_plot_window, args.allele_plot_lines, induced_mutation_str, args.show_all_between_allele)
+		visual.allele_table(ref_seq, cv_pos, cv_pos_2, strand, strand_2, read_cnt_file, graph_output_dir, args.cleavage_pos, target, target_2, original_target, args.min_read_cnt, args.min_read_freq, allele_plot_window, args.allele_plot_lines, induced_mutation_str, args.show_all_between_allele)
+
 	print('Drawing graphs ... pie plot                         \r', end='')
 	plots['mutation_pie'], plots['pattern_pie'], plots['allele_pie'] = visual.mutation_pie_chart(read_cnt_file, graph_output_dir)
 	print('Drawing graphs ... indel plot                         \r', end='')

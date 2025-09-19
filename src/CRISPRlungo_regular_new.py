@@ -881,6 +881,7 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 								mutations_in_read.append(tuple(sub))
 									"""
 					if operation == 1:	# Insertion
+						print('b')
 						key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1, query_pos, query_pos+length)
 					elif operation == 2:  # Deletion
 						key = ('deletion', ref_pos, length)
@@ -1232,6 +1233,7 @@ def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, ch
 							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
 								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))	
 				if operation == 1:	# Insertion
+					print('a')
 					key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1, query_pos, query_pos+length)
 				elif operation == 2:  # Deletion
 					key = ('deletion', ref_pos, length)
