@@ -36,8 +36,8 @@ It supports multiple CRISPR platforms (base editors, prime editors) and is compa
 
 ## Installation
 ```bash
-git clone https://github.com/pinellolab/CRISPR-LongReads
-cd CRISPR-LongReads
+git clone https://github.com/pinellolab/CRISPRlungo
+cd CRISPRlungo
 conda env create -n {env_name} -f environment.yml  # use mamba instead of conda if preferred
 conda activate {env_name} # use mamba instead of conda if preferred
 pip install -e .
