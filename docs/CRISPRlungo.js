@@ -13,6 +13,8 @@ var partialEditThreshold = 0.8;
 var showAllBetweenAllele = false;
 var minaResult;
 
+var drawInsAllelePlot = [];
+
 
 async function runAlignDesired() {
 
@@ -420,7 +422,7 @@ function drawAllelePlot() {
         xPos += cellSizeWidth;
       }
       if (drawInfo[0][2] = true) {
-        rowG.append("rect")
+        /*rowG.append("rect")
           .attr("x", xPos)
           .attr("y", 0)
           .attr("width", 2)
@@ -428,7 +430,8 @@ function drawAllelePlot() {
           .attr("class", "out-ins")
           .attr("stroke", "red")      
           .attr("fill", "none")
-          .attr("stroke-width", 2); 
+          .attr("stroke-width", 2);*/
+        drawInsAllelePlot.push([xPos, 2, yPos]);
       }
     } else {
       xPos += 10 * cellSizeWidth;
@@ -498,14 +501,15 @@ function drawAllelePlot() {
           }
         }
         
-        rowG.append("rect")
+        /*rowG.append("rect")
           .attr("x", xPos+1)
           .attr("y", 0)
           .attr("width", 13 * (InsEd - InsSt)+2)
           .attr("height", 17.5)
           .attr("stroke", "red")      
           .attr("fill", "none")
-          .attr("stroke-width", 2); 
+          .attr("stroke-width", 2);*/
+        drawInsAllelePlot.push([xPos+1, 13*(InsEd-InsSt)+2, yPos]);
       }
 
       xPos += cellSizeWidth;
@@ -513,7 +517,7 @@ function drawAllelePlot() {
     }  
     if (drawInfo[2].length != 0) {
       if (drawInfo[2][2] = true) {
-        rowG.append("rect")
+        /*rowG.append("rect")
           .attr("x", xPos-2)
           .attr("y", 0)
           .attr("width", 2)
@@ -521,7 +525,8 @@ function drawAllelePlot() {
           .attr("class", "out-ins")
           .attr("stroke", "red")      
           .attr("fill", "none")
-          .attr("stroke-width", 2); 
+          .attr("stroke-width", 2);*/
+        drawInsAllelePlot.push([xPos-2, 2, yPos]);
       }
       for (i of drawInfo[2][1][0]) {
         base = i[0];
@@ -1100,6 +1105,17 @@ function drawAllelePlot() {
       .attr("stroke-width", 2)              
       .attr("stroke-dasharray", "5,5");
   }
+  // Draw insertion box
+    for (i of drawInsAllelePlot) {
+      mainG.append("rect")
+          .attr("x", margin.left+ i[0])
+          .attr("y", margin.top + i[2] * cellSizeHeight)
+          .attr("width", i[1])
+          .attr("height", 17.5)
+          .attr("stroke", "red")      
+          .attr("fill", "none")
+          .attr("stroke-width", 2);
+    }
   d3.selectAll(".middle-cell-text").raise();
   d3.selectAll(".out-ins").raise();  
 }
