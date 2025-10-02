@@ -125,7 +125,7 @@ def align_count_plot(file_1, file_2, output_dir):
 
 
 	f = open(file_2).readlines()
-	print(file_2, cnts)
+
 	cnts = f[1].strip().split('\t')[:6]
 
 	x = ['Total_reads', 'Filter_unmapped', 'Filter_low_quality', 'Filter_short', 'Filter_low_count', 'Used_reads']
@@ -1794,7 +1794,6 @@ def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summ
 	s1 = ''
 	s2 = ''
 
-	print(pre_dict)
 	for i in ['Treated_all_reads','Treated_unmapped','Treated_low_quality','Treated_short', 'all_reads', 'unmapped', 'low_quality', 'short', 'used_with_supple']:
 		if i  in pre_dict:
 			s1 += i + '\t'

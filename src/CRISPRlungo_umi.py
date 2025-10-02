@@ -836,7 +836,6 @@ def classify_mut_mild(mutations, induced_mutations, largedel_cutoff, largeins_cu
 		else:
 			non_induced_mutations_cnt += 1
 		if mut_type == 'deletion':
-			print(length, largedel_cutoff)
 			if length <= largedel_cutoff:
 				muts += 'Del,'
 				mut_info += f"{pos}_{pos+length-1}:Del_{length},"
@@ -1075,7 +1074,6 @@ def mutation_analysis(reference_sequence, ref_name, cv_pos, strand, cv_pos_2, st
 
 	# Close the SAM file
 	samfile.close()
-	print(cnt_dict)
 
 	fw = open(output_dir + '/preprocess_count.txt', 'w')
 	fw.write('\t'.join(cnt_dict.keys()) + '\n')
