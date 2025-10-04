@@ -441,11 +441,6 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 				
 				SA_reads_muts =  analyze_SA_reads(SA_reads, ori_query_seq, reference_sequence, reference_length, read.query_name, range_align_end)
 
-				if read.query_name.find("1837_QMFKJ") != -1:
-					print(read.query_name)
-					for i in SA_reads_muts:
-						print(i)
-
 				if SA_reads_muts == []:
 					fw.write(read.query_name + '\n')
 					reads_cnt['short'] += 1
@@ -582,8 +577,6 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 
 		# Recompute distributions to guarantee the deletion list
 		ctrl_del_sorted, ctrl_ins_sorted = _lengths_from_control(control_dict)
-		print(ctrl_del_sorted[:10])
-		print(ctrl_del_sorted[-10:])
 
 		def probability_based_on_length(mutation, ins_sorted, del_sorted):#, inv_sorted):
 			"""
@@ -725,7 +718,6 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 
 		significant_keys = [i['mutation'] for i in out_records if i['significant']]
 
-		print(significant_keys[:10])
 		#df.to_csv(output_dir + "/mutation_pattern_p_values.txt", sep="\t", index=False)
 		#significant_keys = signif_mutations['mutation']
 		#pvalues = signif_mutations['double_min']
@@ -881,7 +873,6 @@ def analysis_function(control, edited, refernce, output_dir, cv_pos, cv_pos_2, w
 								mutations_in_read.append(tuple(sub))
 									"""
 					if operation == 1:	# Insertion
-						print('b')
 						key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1, query_pos, query_pos+length)
 					elif operation == 2:  # Deletion
 						key = ('deletion', ref_pos, length)
@@ -1233,7 +1224,6 @@ def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, ch
 							if query_seq[query_pos + x] != reference_sequence[ref_pos + x]:
 								mutations_in_read.append(('substitution', ref_pos+x, 1, reference_sequence[ref_pos + x], query_seq[query_pos + x]))	
 				if operation == 1:	# Insertion
-					print('a')
 					key = ('insertion', ref_pos, length, query_seq[query_pos: query_pos + length], ref_pos + 1, query_pos, query_pos+length)
 				elif operation == 2:  # Deletion
 					key = ('deletion', ref_pos, length)
