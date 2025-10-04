@@ -139,6 +139,6 @@ def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, c
     # remove tmp files
     
     for fn in os.listdir(output_path):
-         if fn[:-10] == '_align.sam' or fn[:-11] == '_soft.fasta':
+         if fn[-10:] == '_align.sam' or fn[-11:] == '_soft.fasta':
             os.system(f'rm {output_path}/{fn}')
 
