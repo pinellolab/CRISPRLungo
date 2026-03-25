@@ -71,6 +71,17 @@
     @media (min-width: 992px){
       .container-narrow { max-width: 980px; }
     }
+    .btn-group .btn-primary.disabled {
+    background-color: var(--bs-primary);
+    color: white;
+    opacity: 1;
+  }
+  .btn-group .border-light {
+    border-color:  #0d6efd !important;
+  }
+  .btn-group .btn-primary:hover:not(.disabled) {
+    background-color: #0b5ed7; /* Bootstrap primary dark color */
+  }
   </style>
     
 </head>
@@ -107,7 +118,8 @@
                 <label for="treatedFile" class="form-label">Treated FASTQ</label>
                 <div class="p-3 file-box">
                   <input class="form-control form-control-sm" id="treatedFile" type="file" accept=".fastq,.fq,.fastq.gz,.fq.gz" />
-                  <div class="form-text">Accepted: .fastq / .fq (optionally .gz)</div>
+                  <div class="form-text">.fastq / .fq / .gz </div>
+                  <div class="form-text">(.fastq /.fq <500Mb, .gz <200Mb)</div>
                 </div>
               </div>
               <div class="col-12 col-md-6">
@@ -115,25 +127,27 @@
                 <div class="p-3 file-box">
                   <input class="form-control form-control-sm" id="controlFile" type="file" accept=".fastq,.fq,.fastq.gz,.fq.gz" />
                   <div class="form-text">Optional for backgorund error filtering</div>
+                  <div class="form-text">(.fastq /.fq <500Mb, .gz <200Mb)</div>
                 </div>
               </div>
 
               <!-- Targets -->
               <div class="col-12 col-lg-6">
                 <label for="targetSequence" class="form-label">Protospacer (w/o PAM)</label>
-                <textarea class="form-control seq" name="targetSequence" id="targetSequence" spellcheck="false" required></textarea>
-                <div class="form-help">e.g. ACTGAAATCTGTAAGCAGGT</div>
+                <textarea class="form-control seq" name="targetSequence" id="targetSequence" spellcheck="false" required>cacttcaatctggcccctct</textarea>
+                <div class="form-help">e.g. GGCGCCCTGGCCAGTCGTCT</div>
               </div>
               <div class="col-12 col-lg-6">
                 <label for="targetSequence2" class="form-label">Additional Protospacer (w/o PAM, Optional)</label>
-                <textarea class="form-control seq" name="targetSequence2" id="targetSequence2" spellcheck="false"></textarea>
+                <textarea class="form-control seq" name="targetSequence2" id="targetSequence2" spellcheck="false">ggcttagatatgacctgggt</textarea>
                 <div class="form-help">Optional for second gRNA.</div>
               </div>
 
               <!-- Reference -->
               <div class="col-12">
                 <label for="reference" class="form-label">Reference</label>
-                <textarea class="form-control seq" name="reference" id="reference" rows="6" spellcheck="false" required></textarea>
+                <textarea class="form-control seq" name="reference" id="reference" rows="6" spellcheck="false" required>ctctcaaagcgctgggattagacacaagccaccacgcccagcctgtattttattttttaagggcgggcgccctcttctgttttataaaaggaacagtcgaattcctactggaagcgacgcgcgcagaggggaaggctttgtagacgccggctcgggtctggaatttaaagaactaaatttcgatgggtgaagacagtgggaaagggcggtggcatgatcctcgttttacagactaggaagtcgagcctcacgggagtgacggggcttctccgcaggctccgcgaagaaagcaaggctgggaggacccagacgaacggccacaacagcctcagcggccacgacagcctcagccgccaactcatgtcagccggcagagagtgcaggaagcgggcagctacagctccgctggggcgtggccttctgacgcaccgtcacggttccctctgtggccgcccattggctccctcttaccgcccttttccggggcaagggaagctagtagcggagccggaagtgaggcaccctcgggctcgagacagcggcgacgtttaaagctgagcgacccagtgccactggagacggtcagcttctccactcaggctcctccagcccgagccagaagaccccctcccccagaattctgggggccgatggaagggagccgagtcagatcgcgaggtacccagagccgacagaccggagcgacagggagttgccagaagccccgcccctaggagtgatcggaaagcctcacccatccgggtgaggaacccggagggaccgcctccgggcggagcccgccgaccatggctacgcccctggtggcgggtcccgcagctctacgcttcgccgccgcggctagctggcaggttgtgcgcggacgctgcgtggaacattttccgcgagtactggagtttctgcgatctctgcgcgctgttgcccctggcttggttcgctaccggcaccacgaacgcctttgtatgggcctaaaggccaaggtattggagcaagtaggacctggaaggggaaagaaagaaaggggcgggatgcgagcacctgacaagggcccacagcttggggatgagactagttggaaaaggtcagcttgccccgaagtggggattctgaattcagtaccgtacaggtggtggtggagctgatcctgcagggccggccttgggcccaagtcctgaaagccctgaatcaccactttccagaatctggacctatagtgcgggatcccaaggctgtgagtaatccccggaacaagccctgaccccagttacacttggtgcagcaaagttgctcctcctgtctactggatgttggtgctaacttctctgtcttctgtatcctcaacagacaaagcaggatctgaggaagattttggaggcacaggaaactttttaccagcaggtgaagcagctgtcagaggctcctgtggatttggcctcgaagctgcaggtgagactggtttgaaggctattatgtggctattttctctaacccatttttttttttttttgaggaatcttgctctgtcgcccaggctggagtgcagtggcacaatctcggctcactgcaacctctgcctcccgggttcaagcgattctcctgcctcagcctcccgagtagctgggattacaaatgcccagctaatttttgtattttagtagagatggggtttcaccatgttggccaggctggtctcgaactcctgacctcaagtgatccgcccacctcggcctcccaaatggccaggattacaggcgtgagccaccgtgcctggccactaacccacttttgacctaatctcccctgctgtaggaacttgaacaagagtatggggaaccctttctggctgccatggaaaagctgctttttgagtacttgtgtcagctggagaaagcactgcctacaccgcaggcacagcaggtttcgctggggcaaaacatgtaagggcagagtgtggggtggctgtttcaaggattgtggtcttcatacctctgtccctgcccacagcttcaggatgtgctgagttggatgcagcctggagtctctatcacctcttctcttgcctggagacaatatggtgtggacatggggtggctgcttccaggtactaggaatttggaggtgtagtgtttagcctgagaccttttgaggcagtccactggaatagttccatgggctccgggcataagaaaccagttattctgttactatctgttctctttataaggggcctcattttctttttcagagtgctctgttactgactcagtgaacctggctgagcccatggaacagaatcctcctcagcaacaaagactagcactccacaatcccctgccaaaagccaagcctggcacacatcttcctcagggaccatcttcaaggacgcacccagaacctctagctggccgacacttcaatctggcccctctaggccgacgaagagttcagtcccaatgggcctccactaggggaggccataaggagcgccccacagtcatgctgtttccctttaggaatctcggctcaccaacccaggtcatatctaagcctgagagcaaggaagaacatgcgatatacacagcagacctagccatgggcacaagagcagcctccactgggaagtctaagagtccatgccagaccctggggggaagggctctgaaggagaacccagttgacttgcctgccacagagcaaaaggagtgagtggaacagagttgcttcttactaggagcacattctttgcctgccttcccttcatcctatcctctttgcttgctctcacctcaggaattgcttggattgctacatggaccccctgagactatcattattacctcctagggccaggaagccaggtaggtagtctgagtcaggattggatcaacagcctcctctcttggggactctcaagagcctgtgttcatctagaagtagtagtttgattctggtttccctcctacagtgtgtcctccgtctctgtgcagctccgtcattaccataggggacttggttttagactctgatgaggaagaaaatggccagggggaaggaaaggtgagtgggaaggagcagaaagctgggaaaggggatgggtagaacaagactgagaaatccacatgcttcagaattcagagggttcagggaatggtttcggatagtaggctctccctgctcccttctctacaggaatctctggaaaactatcagaagacaaagtttgacaccttgatacccactctctgtgaatacctacccccttctggccacggtgccatacctgtttcttcctgtgactgtagagacagttctagacctttgtgatagaactaaaatgctctctgtactctagtctcctgcctcctcagctctgcaagtagtttagtaggaatgaagtggaagtccaggcttggattgcctaactacactgctaaaaatatttgtaatccttaataattaaactttggatttgttaaaatactgccttgatgtgaaggaggggaattaaggtttccataaggtcagcataagtcattccttagaaacagaactggcccttccaaactgaaaggatccctttgcctttttttacttcccttgctaagtgttgttcagctgtgcctaaaagggttagcagggttgaaagcctggaagagaaatgtcctttggtattctggaaatatgtgtcctcaggccagaatatactttgtaaattctcatgctgccagattatctgggtgtggtggcactagaatggagatacttcatgggaataatactcattgttcttgaccccactgggtcagtgctgaccctaccaccacccactctgcagcagcacccagatgctagccttgtacagaaagccccagcatctctttacagtcaatgagctctctctttattgaggtatttcaaatatacaaacacttcagagctttttagatatgtgaaggtccaatttagtgaagcggattaacaaaacatgattctaaaagcctgcctcctctagaccaaggccatgtaaaagatttatgtaccaatcagcatcttttccttttaataatcttcaggatgttgtgttgggtccccagattcccatttgattttcttgcatcattttctcagactgtttgcttccttgcttcctccccagtgagtgccttgggcattttgtgtgtgcagatagagaagtacagagttactgcaggagccctcaggagtgagacaacaggaaatgacaaagtaatacagagctgcagtagctgggatgggtgaggaccccacttgggatgccccatggtagagtactggtgccttgggagggtagaactgctcaggtctagcacgcctcactgaagattggattcacctgctgggtgactcggatgaaggtagttctcctgctcaactctttgagcttagctgctcccacataggtacacgtagagcggatccctcctaggatgtctcggatggtatgttccacatctcctttaaaaggaacttccactgtctttccctctgaggctcttaaagtaggaaaaactttattatcttctccttctggattccttaagcccagggacttttccacagaccctagcattgagccccggttcaccatgcttctctgagaactgtaccatccccctctcagcagccatgagttctgcctccatactattactaagctcctgggcctccacacatacctgtactcagccacgcccccagcatacttcttcatggccatttcagaactcattccatagaagagcttgtacttcttgccatccctctcgatgagctcaccacctgactcactgtgcccagccagcatgccacccagcatcacgaagtcagctcctgcccctgccaccatcatggaggggggaaagagattaatctggccaaggtgctcacatggccaccctcaaaagcaactcacaccatattctcagtcctgacaatgattccagcgtcttcctccttctgcttccctagctgacccacaatccacg</textarea>
+                <div class="form-text">Note: For optimal performance, a reference sequence shorter than 25 kbp is recommended on web tool.</div>
               </div>
 
               <!-- Desired mutation -->
@@ -207,10 +221,25 @@
               </div>
 
               <!-- Submit -->
-              <div class="col-12 d-grid d-md-flex justify-content-md-end">
+              <div class="col-12 d-flex justify-content-between align-items-center">
+                <div class="btn-group border border-primary rounded overflow-hidden" role="group">
+                  <span class="btn btn-primary disabled border-0 px-3 fw-bold">Examples</span>
+                  
+                  <button type="button" class="btn btn-primary border-start border-light" 
+                          onclick="downloadAction()" data-bs-toggle="tooltip" data-bs-placement="top" title="Download dataset">
+                    <i class="bi bi-download text-white"></i>
+                  </button>
+                  
+                  <button type="button" class="btn btn-primary border-start border-light" 
+                          onclick="runAction()" data-bs-toggle="tooltip" data-bs-placement="top" title="Load dataset into form">
+                    <i class="bi bi-play-fill text-white"></i>
+                  </button>
+                </div>
+
                 <button type="button" class="btn btn-primary px-4" onclick="main()">
                   <i class="bi bi-play-fill me-1"></i>Submit
                 </button>
+                
               </div>
             </div>
           </form>
@@ -325,7 +354,11 @@
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://d3js.org/d3.v6.min.js"></script>
     <script>
-
+    
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
     
     function toggleDetails() {
         const rangeBox = document.getElementById("rangeOptions");

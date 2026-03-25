@@ -170,7 +170,7 @@ self.onmessage = async function (event) {
         }]);
       }
 
-      const command = `minimap2 -ax map-ont -p 0.5 reference.fa input.fa -r ` + chainingBandWidth + ',' + longjoinBandWidth;
+      const command = `minimap2 -ax map-ont -z 100 -p 0.5 reference.fa input.fa -r ` + chainingBandWidth + ',' + longjoinBandWidth;
       var output = await CLI.exec(command);
 
       [checkSA, readOut, writeLines] = softClipped(output, n);
@@ -212,12 +212,12 @@ self.onmessage = async function (event) {
 
         read_tags = [];
         for (i of read.slice(11,)) {
-          var ii = i.slice(0,2);
+          var ii = i.slice(0, 2);
           if (ii == 'AS' || ii == 'NM') {
             read_tags.push(i);
           }
         }
-        read = read.slice(0,11).concat(read_tags);
+        read = read.slice(0, 11).concat(read_tags);
 
         if (!alignResDict[queryName]) {
           alignResDict[queryName] = [[read, read[9], read[1]]];
@@ -249,22 +249,22 @@ self.onmessage = async function (event) {
             cigar.push((oriSeq.length - partEnd) + 'H');
           }
           read[5] = cigar.join('');
-          
+
           alignResDict[queryName].push(read);
         }
       }
-      self.postMessage({ type: 1, progress: partIndex*100/totalIndex, alignedCount: alignResDict.length, n: n });
+      self.postMessage({ type: 1, progress: partIndex * 100 / totalIndex, alignedCount: alignResDict.length, n: n });
     }
-  
+
 
     for (var [x, reads] of Object.entries(alignResDict)) {
       var read_n = 0;
       reads[0] = reads[0][0];
       if (reads.length == 1) {
         var tags = reads[0].slice(11,);
-        try{
+        try {
           var filteredTags = tags.filter(tags => tags.slice(0, 2) !== 'SA');
-        } catch(error) {
+        } catch (error) {
           console.log(error);
         }
         reads[0] = reads[0].slice(0, 11).concat(filteredTags);

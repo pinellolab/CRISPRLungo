@@ -4,10 +4,10 @@ import argparse, sys
 import time, os, pysam
 from subprocess import Popen, PIPE
 
-import CRISPRlungo_regular_new as regular_py
+import CRISPRlungo_mutation_analysis as mutation_analysis
 import CRISPRlungo_visualization as visual
 import CRISPRlungo_umi
-import CRISPRlungo_insert_analysis 
+import CRISPRlungo_insert_analysis
 from CRISPRlungo_minimap import *
 
 
@@ -16,46 +16,78 @@ def main():
 
 	start_time = time.time()
 	
-	parser = argparse.ArgumentParser(description='Analysis CRISPR mutaion pattern for Long-read sequencing')
+	parser = argparse.ArgumentParser(
+		description='Analysis of CRISPR mutation pattern for Long-read sequencing',
+		formatter_class=argparse.ArgumentDefaultsHelpFormatter  # 기본값도 함께 출력
+	)
 
-	parser.add_argument('ref', type=str,  help='Reference FASTA file, if your file has UMI, the reference includes UMI sequence and marks UMI using ( and ).')
-	parser.add_argument('treated', type=str,  help='Treated FASTQ file of Long-read sequencing data')
-	parser.add_argument('output_dir', type=str, help='Output directory name')
-	parser.add_argument('target', type=str, help='Target sequence')
 
-	parser.add_argument('--umi', action='store_true', help='If UMI sequencing is used, use this option.')
+	required = parser.add_argument_group('Required arguments')
+	required.add_argument('ref', type=str, help='Reference FASTA file. If it has UMI, mark UMI with ( and ).')
+	required.add_argument('treated', type=str, help='Treated FASTQ file of Long-read sequencing data')
+	required.add_argument('output_dir', type=str, help='Output directory name')
+	required.add_argument('target', type=str, help='Target sequence')
 
-	parser.add_argument('--window', type=int, default=5, help='The range for mutation analysis around cleavage site')
-	parser.add_argument('--whole_window_between_targets', action='store_true', help='Include the region for two targets into window range')
-	parser.add_argument('--cleavage_pos', type=int, default=16, help='Cleavage position in target sequence [default=16]')
-	parser.add_argument('--additional_target', type=str, default=None, help='Addtional target sequence')
-	parser.add_argument('--control', type=str, default=None, help='When a control file is input, background filtering is performed using the control file')
-	parser.add_argument('--induced_sequence_path', type=str, default=None, help='When a desired sequence file is input, additional classification of desired mutations is performed')
-	parser.add_argument('--integration_file', type=str, default=False, help='FASTA file for possible sequences that can be integrated')
-	#parser.add_argument('--merge_substitution', action='store_true', help='A continuous substitution is considered as one mutation.')
+	umi_group = parser.add_argument_group('UMI options')
+	umi_group.add_argument('--umi', action='store_true', help='Use if UMI sequencing is used')
+	umi_group.add_argument('-c', '--clust_cutoff', type=int, default=5, help='Minimum UMI cluster size')
 
-	parser.add_argument('--largeins_cutlen', default=50, type=int, help='The minimum length for large deletions')
-	parser.add_argument('--largedel_cutlen', default=50, type=int, help='The minimum length for large insertion')
+	align_group = parser.add_argument_group('align options')
+	align_group.add_argument('--minimap2_opt', type=str, default='', help='Change minimap2 option')
+	align_group.add_argument('--no_multipass_align', action='store_true', help='Do not use multipass align algorithm')
 
-	parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
-	parser.add_argument('--min_read_freq', type=int, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')
-	parser.add_argument('--length_min', type=float, default=10, help='Mutations that are longer than this value and that are not in control will be considered as significant mutation.')	
-	parser.add_argument('--mix_tag', type=bool, default=False, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
-	parser.add_argument('--min_mut_freq_no_control_refmut', type=float, default = 0.5, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
-	parser.add_argument('--induced_paritial_similiarity', type=float, default=0.8, help='The If the mutation pattern similarity is higher than this value, but not completely identical, it is considered partially induced.')
-	parser.add_argument('--range_both_end_region', type=int, default=100, help='If the reads were not aligned this range from both end, the read is considered as short fragment.')
+	target_group = parser.add_argument_group('Cleavage and target options')
+	target_group.add_argument('--window', type=int, default=5, help='The range for mutation analysis around cleavage site')
+	target_group.add_argument('--whole_window_between_targets', action='store_true', help='Include the region for two targets into window range')
+	target_group.add_argument('--cleavage_pos', type=int, default=16, help='Cleavage position in target sequence [default=16]')
+	target_group.add_argument('--additional_target', type=str, default=None, help='Addtional target sequence')
 
-	parser.add_argument('--align_sa_len_threshold', type=int, default=100, help='FASTA file for induced sequence')
-	parser.add_argument('--using_all_mutations', action='store_true', help='When comparing with control, use every mutations without filteration')
-	parser.add_argument('--mut_freq_threshold', type=float, default=0, help='muation frequency threshold, if you want more harsh filteration, you can use this')
-	parser.add_argument('-c', '--clust_cutoff', type=int, default=5, help='The minimum of UMI cluster size')
+	control_group = parser.add_argument_group('Control and filtering')
+	control_group.add_argument('--control', type=str, default=None, help='When a control file is input, background filtering is performed using the control file')
+	control_group.add_argument('--using_all_mutations', action='store_true', help='When comparing with control, use every mutations without filteration')
+	control_group.add_argument('--mut_freq_threshold', type=float, default=0, help='muation frequency threshold, if you want more harsh filteration, you can use this')
+	control_group.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
+	control_group.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')
+	control_group.add_argument('--min_mut_freq_no_control_refmut', type=float, default=0.5, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
+	control_group.add_argument('--length_min', type=float, default=10, help='Mutations that are longer than this value and that are not in control will be considered as significant mutation.')
+	control_group.add_argument('--run_simulation', type=str, default=None, help='Generate control simulation data using Badread. The vluae should be one of pacbio, ont_sup, ont_hac, and ont_fast. Not support --umi')
+	control_group.add_argument('--mutation_length_threshold_pval', type=float, default=-1, help='Mutation length threshold based on p-value')
 
-	parser.add_argument('--just_visualization', action='store_true', help='If you just want to analyze mutation and the consensus generation is already done using CRISPRlungo, use this option [default: False]')
-	parser.add_argument('--allele_plot_window', type=int, default=20, help='Window for allele plot, [default: window + 10]')
-	parser.add_argument('--allele_plot_lines', type=int, default=20, help='Window for allele plot, [default: window + 10]')
-	parser.add_argument('--show_all_between_allele', action='store_true', help='Draw all sequences between two targets in an allele plot')
 
-	parser.add_argument('-t', '--threads', type=int, default=8, help='Output file name')
+	induced_group = parser.add_argument_group('Induced sequence and integration')
+	induced_group.add_argument('--induced_sequence_path', type=str, default=None, help='When a desired sequence file is input, additional classification of desired mutations is performed')
+	induced_group.add_argument('--induced_mutation_patterns', type=str, default=None, help='When a desired mutation file is input, additional classification of desired mutations is performed')
+	induced_group.add_argument('--integration_file', type=str, default=False, help='FASTA file for possible sequences that can be integrated')
+	induced_group.add_argument('--induced_paritial_similiarity', type=float, default=0.8, help='The If the mutation pattern similarity is higher than this value, but not completely identical, it is considered partially induced.')
+	induced_group.add_argument('--only_consider_desired_mutation', action='store_true', help='Only consider the desired mutation and exclude other mutation patterns')
+
+	mut_group = parser.add_argument_group('Mutation classification')
+	mut_group.add_argument('--largeins_cutlen', default=50, type=int, help='The minimum length for large deletions')
+	mut_group.add_argument('--largedel_cutlen', default=50, type=int, help='The minimum length for large insertion')
+	mut_group.add_argument('--mix_tag', type=bool, default=False, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
+	mut_group.add_argument('--large_induced_insertion', type=str, default=None, help=(
+        'When analyzing large insertions at induced_sequqence, sequencing errors within the inserted region '
+        'can cause misclassification of precise editing. '
+        'If this option is set, only the flanking anchor regions that align to the reference '
+        'on both sides of the insertion are validated. '
+        'The inserted sequence body is ignored for precision assessment.'))
+	
+
+	viz_group = parser.add_argument_group('Visualization options')
+	viz_group.add_argument('--just_visualization', action='store_true', help='If you just want to analyze mutation and the consensus generation is already done using CRISPRlungo, use this option [default: False]')
+	viz_group.add_argument('--allele_plot_window', type=int, default=20, help='Window for allele plot, [default: window + 10]')
+	viz_group.add_argument('--allele_plot_lines', type=int, default=20, help='Window for allele plot, [default: window + 10]')
+	viz_group.add_argument('--show_all_between_allele', action='store_true', help='Draw all sequences between two targets in an allele plot')
+	viz_group.add_argument('--remove_large_mutations_in_plot', type=int, default=-1, help="Remove reads with large deletions in allele plot. "
+     "Set to a number (>= 100) to remove deletions ≥ that length; "
+     "default False disables filtering.")
+
+	align_group = parser.add_argument_group('Read and alignment quality')
+	align_group.add_argument('--range_both_end_region', type=int, default=100, help='If the reads were not aligned this range from both end, the read is considered as short fragment.')
+	align_group.add_argument('--align_sa_len_threshold', type=int, default=100, help='FASTA file for induced sequence')
+
+	system_group = parser.add_argument_group('System options')
+	system_group.add_argument('-t', '--threads', type=int, default=8, help='Number of threads')
 
 	args = parser.parse_args()
 	read_res_cnt = {'fastq': 0, 'filtered': 0, 'aligned': 0}
@@ -70,9 +102,14 @@ def main():
 	output_dir = args.output_dir
 	threads = args.threads
 	treated_file_path = args.treated
+
 	if args.control:
 		control_file_path = args.control
 	
+	if args.remove_large_mutations_in_plot != -1:
+		if args.remove_large_mutations_in_plot < 100:
+			print('ERROR: remove_large_mutations_in_plot option should be larger than 100')
+			sys.exit()
 
 
 	create_dir(output_dir)
@@ -82,6 +119,11 @@ def main():
 	if args.additional_target == None and args.whole_window_between_targets == True:
 		print('ERROR: whole_window_between_targets is declared, but additional_target is not declared.')
 		sys.exit()
+
+	if args.run_simulation:
+		if args.control or args.umi:
+			print('ERROR: The options --control or --umi and --run_simulation cannot be used together.')
+			sys.exit()
 
 	if args.allele_plot_window == 0:
 		allele_plot_window = args.window + 10
@@ -96,7 +138,7 @@ def main():
 	create_dir(ref_dir)
 
 	range_align_end = args.range_both_end_region
-
+	args.anchor_validation_only = False
 	
 	if args.umi:
 
@@ -185,11 +227,93 @@ def main():
 	# get induced mutation patterns
 
 	if args.induced_sequence_path:
-		run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', args.induced_sequence_path,  output_dir + '/induced_mutation_reference.sam', longjoin_bandwidth, chaining_bandwidth, 1, len_cutoff=args.align_sa_len_threshold)
-		induced_mutations, induced_mutation_str = regular_py.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, args.whole_window_between_targets, range_align_end, args.largedel_cutlen, args.largeins_cutlen)
+
+		run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', 
+			args.induced_sequence_path,  
+			output_dir + '/induced_mutation_reference.sam', 
+			longjoin_bandwidth, 
+			chaining_bandwidth, 
+			1, 
+			args.minimap2_opt, 
+			len_cutoff=args.align_sa_len_threshold, 
+			fasta_check=True)
+
+		induced_mutations, induced_mutation_str, anchor_information = mutation_analysis.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', 
+			ref_file, 
+			cv_pos, 
+			cv_pos_2, 
+			args.window, 
+			args.whole_window_between_targets, 
+			range_align_end, 
+			args.largedel_cutlen, 
+			args.largeins_cutlen)
+
 	else:
 		induced_mutations = []
 		induced_mutation_str = False
+		anchor_information = []
+
+	if args.induced_mutation_patterns:
+		mod_pos = 0
+		induced_mutation_str = ''
+		for i in open(args.induced_mutation_patterns).readlines():
+			i = i.strip()
+			if i == '': continue
+			if ':SUB' in i.upper():
+				try:
+					pos_st, pos_ed, mut_type, mut_len, ref_nt, mut_nt = i.replace(':', '_').split('_')
+					pos_st = int(pos_st)
+					pos_ed = int(pos_ed)
+					mut_len = int(mut_len)
+					if ref_seq[pos_st - 1] != ref_nt or pos_ed -1 > ref_len:
+						print('ERROR: can not recognize induced mutation pattern !!! '+ i)
+						sys.exit()	
+					induced_mutations.append(('substitution', pos_st - 1, mut_len, ref_nt, mut_nt))
+					if i.count('_') == 4:
+						parts = i.rsplit('_', 1)
+						fix_pat_i = '>'.join(parts)
+					induced_mutation_str += fix_pat_i + ','
+				except Exception as e:
+					print(e)
+					print('ERROR: can not recognize induced mutation pattern !!! '+ i)
+					sys.exit()
+			elif 'DEL' in i.upper():
+				try:
+					pos_st, pos_ed, mut_type, mut_len = i.replace(':', '_').split('_')
+					pos_st = int(pos_st)
+					pos_ed = int(pos_ed)
+					mut_len = int(mut_len)
+					if pos_ed - 1 > ref_len:
+						print('ERROR: can not recognize induced mutation pattern !!! '+ i)
+						sys.exit()	
+					induced_mutations.append(('deletion', pos_st, mut_len ))
+					induced_mutation_str += i + ','
+					mod_pos -= mut_len
+				except Exception as e:
+					print(e)
+					print('ERROR: can not recognize induced mutation pattern !!! '+ i)
+					sys.exit()
+			elif 'INS' in i.upper():
+				try:
+					pos_st, pos_ed, mut_type, mut_len, mut_seq = i.replace(':', '_').split('_')
+					pos_st = int(pos_st)
+					pos_ed = int(pos_ed)
+					mut_len = int(mut_len)
+					if pos_ed - 1 > ref_len:
+						print('ERROR: can not recognize induced mutation pattern !!! '+ i)
+						sys.exit()	
+					induced_mutations.append(('insertion', pos_st, mut_len, mut_seq, pos_ed, pos_st + mod_pos, pos_st+mod_pos+mut_len ))
+					induced_mutation_str += i + ','
+					mod_pos += mut_len
+				except Exception as e:
+					print(e)
+					print('ERROR: can not recognize induced mutation pattern !!! '+ i)
+					sys.exit()
+		induced_mutation_str = induced_mutation_str[:-1]
+			
+	anchor_information.insert(0, args.anchor_validation_only)
+
+
 
 	create_dir(output_dir + '/align')
 
@@ -211,12 +335,24 @@ def main():
 		if args.just_visualization == False:
 
 			# Align recieved FASTQ file
-			run_triple_minimap2(ref_dir + "/ref.mmi", treated_file_path,  output_dir + '/align/input_fastq_align_to_umiref.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold)
+			run_triple_minimap2(ref_dir + "/ref.mmi", 
+				treated_file_path,  
+				output_dir + '/align/input_fastq_align_to_umiref.sam', 
+				longjoin_bandwidth, 
+				chaining_bandwidth, 
+				threads, 
+				args.minimap2_opt, 
+				len_cutoff=args.align_sa_len_threshold)
 
 			# Get UMI sequence
 			create_dir(f'{output_dir}/demultiplexing')
 
-			CRISPRlungo_umi.extract_index_umi(output_dir + '/align/input_fastq_align_to_umiref.sam', ref_file_w_umi, output_dir, umi_pos[0], umi_pos[1], index_information='treated,NNNNNNNNNN')
+			CRISPRlungo_umi.extract_index_umi(output_dir + '/align/input_fastq_align_to_umiref.sam', 
+				ref_file_w_umi, 
+				output_dir, 
+				umi_pos[0], 
+				umi_pos[1], 
+				index_information='treated,NNNNNNNNNN')
 
 			# Clustering UMI sequence
 
@@ -229,7 +365,12 @@ def main():
 			create_dir(f'{output_dir}/clustering/treated/medaka_input')
 			create_dir(f'{output_dir}/consensus/treated')
 
-			CRISPRlungo_umi.clustering_umi( f'{output_dir}/demultiplexing/umi_treated.fasta', umi_len, f'{output_dir}/clustering/treated', f'{output_dir}/consensus/treated', threads, args.clust_cutoff)
+			CRISPRlungo_umi.clustering_umi( f'{output_dir}/demultiplexing/umi_treated.fasta', 
+				umi_len, 
+				f'{output_dir}/clustering/treated', 
+				f'{output_dir}/consensus/treated', 
+				threads, 
+				args.clust_cutoff)
 
 			treated_file_path = f'{output_dir}/consensus/treated/consensus.fasta'
 
@@ -237,11 +378,22 @@ def main():
 				
 				print('Generating control consensus file...')
 
-				run_triple_minimap2(ref_dir + "/ref.mmi", args.control,  output_dir + '/align/control_fastq_align_to_umiref.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold)
+				run_triple_minimap2(ref_dir + "/ref.mmi", 
+				args.control,  output_dir + '/align/control_fastq_align_to_umiref.sam', 
+					longjoin_bandwidth, 
+					chaining_bandwidth, 
+					threads, 
+					args.minimap2_opt, 
+					len_cutoff=args.align_sa_len_threshold)
 
 				# Get UMI sequence
 
-				CRISPRlungo_umi.extract_index_umi(output_dir + '/align/control_fastq_align_to_umiref.sam', ref_file_w_umi, output_dir, umi_pos[0], umi_pos[1], index_information='control,NNNNNNNNNN')
+				CRISPRlungo_umi.extract_index_umi(output_dir + '/align/control_fastq_align_to_umiref.sam', 
+					ref_file_w_umi, 
+					output_dir, 
+					umi_pos[0], 
+					umi_pos[1], 
+					index_information='control,NNNNNNNNNN')
 
 				# Clustering UMI sequence
 				
@@ -251,7 +403,12 @@ def main():
 				create_dir(f'{output_dir}/clustering/control/medaka_input')
 				create_dir(f'{output_dir}/consensus/control')
 
-				CRISPRlungo_umi.clustering_umi( f'{output_dir}/demultiplexing/umi_control.fasta', umi_len, f'{output_dir}/clustering/control', f'{output_dir}/consensus/control', threads, args.clust_cutoff)
+				CRISPRlungo_umi.clustering_umi( f'{output_dir}/demultiplexing/umi_control.fasta', 
+					umi_len, 
+					f'{output_dir}/clustering/control', 
+					f'{output_dir}/consensus/control', 
+					threads, 
+					args.clust_cutoff)
 
 				control_file_path = f'{output_dir}/consensus/control/consensus.fasta'
 			
@@ -261,18 +418,99 @@ def main():
 	create_dir(f'{output_dir}/results/')
 	create_dir(f'{output_dir}/css/')
 
+	if args.control == None and args.run_simulation:
+		
+		# Confirm badread
+		print('Generate control simulation data...')
+		try:
+			p = Popen(["badread", "--help"], stdout=PIPE, stderr=PIPE)
+			p.communicate()
+		except FileNotFoundError:
+			print('ERROR!: need to install badread')
+			sys.exit()
+
+		create_dir(f'{output_dir}/simulation/')
+
+		fw = open(f'{output_dir}/simulation/control_simul.fasta', 'w')
+
+		badread_identity = False
+		badread_model = False
+
+		if args.run_simulation == 'pacbio':
+			badread_model = 'pacbio2021' 
+			badread_identity = '30,3'
+		elif args.run_simulation == 'ont_sup':
+			badread_model = 'nanopore2023' 
+			badread_identity = '98.5,99.5,1'
+		elif args.run_simulation == 'ont_hac':
+			badread_model = 'nanopore2023' 
+			badread_identity = '97.5,99,2.5'
+		elif args.run_simulation == 'ont_fast':
+			badread_model = 'nanopore2023' 
+			badread_identity = '95,99,5'
+		else:
+			print('ERROR: --run_simulation value should be among pacbio, ont_sup, ont_hac, ont_fast')
+			sys.exit()
+		
+		for i in range(10000): fw.write(f'>{i}\n{ref_seq}\n')
+
+		cmd = ["badread", "simulate",
+		 "--reference", f'{output_dir}/simulation/control_simul.fasta',
+		 "--quantity", "1x",
+		 "--error_model", badread_model,
+		 "--qscore_model", badread_model,
+		 "--identity", badread_identity]
+		
+		with open(f'{output_dir}/simulation/control_simul.fastq', "w") as outfile:
+			proc = Popen(cmd, stdout=outfile, stderr=PIPE, text=True)
+
+			print('')
+			for line in proc.stderr:
+				print(line.strip(), end="\r")
+
+			proc.wait()
+		
+		if proc.returncode == 0:
+			print("Badread simulation completed.")
+		else:
+			print("Badread error:")
+			print(proc.stderr.decode())
+		
+
+		args.control = f'{output_dir}/simulation/control_simul.fastq'
+		control_file_path = args.control 
+			
 	if args.control:
 
 		print('Start filtering module ...')
 
 		if args.just_visualization == False:
 			
-			run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', control_file_path,  output_dir + '/align/Control_alignment.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold, fasta_check=True)
-			run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', treated_file_path,  output_dir + '/align/Treated_alignment.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold, fasta_check=True)
+			"""run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', 
+				control_file_path,  
+				output_dir + '/align/Control_alignment.sam', 
+				longjoin_bandwidth, 
+				chaining_bandwidth, 
+				threads, 
+				args.minimap2_opt, 
+				len_cutoff=args.align_sa_len_threshold, 
+				fasta_check=True
+			)
+
+			#run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', 
+				treated_file_path,  
+				output_dir + '/align/Treated_alignment.sam', 
+				longjoin_bandwidth, 
+				chaining_bandwidth, 
+				threads, 
+				args.minimap2_opt, 
+				len_cutoff=args.align_sa_len_threshold, 
+				fasta_check=True
+			)"""
 
 			# Run Statistical anlaysis.py
 
-			edited_dictionary, controll_dictionary, List_of_valid_IDs, control_reads_cnt, edited_reads_cnt = regular_py.analysis_function(
+			edited_dictionary, controll_dictionary, List_of_valid_IDs, control_reads_cnt, edited_reads_cnt = mutation_analysis.analysis_function_with_control(
 				output_dir + '/align/Control_alignment.sam', 
 				output_dir + '/align/Treated_alignment.sam', 
 				f'{ref_dir}/ref_wo_umi.fasta', 
@@ -282,6 +520,8 @@ def main():
 				args.window, 
 				args.whole_window_between_targets, 
 				induced_mutations, 
+				anchor_information,
+				args.mutation_length_threshold_pval,
 				range_align_end = range_align_end,
 				threads=threads, 
 				largeins_cutlen = args.largeins_cutlen,
@@ -289,33 +529,84 @@ def main():
 				use_all_mutations=args.using_all_mutations, 
 				length_min = args.length_min,
 				allowance_value=0,
-				umi_clustered = args.umi)
+				umi_clustered = args.umi
+			)
 
 			edited_dictionary = CRISPRlungo_insert_analysis.confirm_insertion_seq(edited_dictionary, ref_seq, ref_name, args.integration_file, output_dir, threads)
 
-			regular_py.process_mutations(edited_dictionary, 
+			if args.large_induced_insertion:
+				create_dir(f'{output_dir}/simulation/')
+				create_dir(f'{output_dir}/simulation/induced_ins/')
+
+				CRISPRlungo_insert_analysis.confirm_induced_ins_with_simulation(edited_dictionary,
+					List_of_valid_IDs,
+					ref_seq, 
+					args.induced_sequence_path,
+					args.large_induced_insertion,
+					output_dir,
+					threads,
+					cv_pos,
+					cv_pos_2,
+					args.window,
+					induced_mutations
+				)
+
+			visual.make_visualization_sam(edited_dictionary, output_dir + '/results')
+			
+			mutation_analysis.process_mutations(edited_dictionary, 
 				f'{output_dir}/results/read_classification.txt', 
 				List_of_valid_IDs, 
 				induced_mutations, 
-				args.induced_paritial_similiarity, args.largeins_cutlen, args.largedel_cutlen,)
-			regular_py.write_cnt_file(control_reads_cnt, edited_reads_cnt, f'{output_dir}/results/preprocess_count.txt')
+				anchor_information,
+				args.induced_paritial_similiarity, 
+				args.largeins_cutlen, 
+				args.largedel_cutlen, 
+				ref_seq
+			)
+
+			mutation_analysis.write_cnt_file(control_reads_cnt, edited_reads_cnt, f'{output_dir}/results/preprocess_count.txt')
 	
 	else:
 		ref_index = ref_dir + '/ref_wo_umi.mmi'
-		run_triple_minimap2(ref_index, final_mutation_analysis_file, f'{output_dir}/align/Treated_alignment.sam', longjoin_bandwidth, chaining_bandwidth, threads, len_cutoff=args.align_sa_len_threshold, fasta_check=True)
+
+		run_triple_minimap2(ref_index,
+			final_mutation_analysis_file, 
+			f'{output_dir}/align/Treated_alignment.sam', 
+			longjoin_bandwidth, 
+			chaining_bandwidth, 
+			threads, 
+			args.minimap2_opt, 
+			len_cutoff=args.align_sa_len_threshold, 
+			fasta_check=True
+		)
+
 		if not args.umi and not args.control:
 			write_cnt = True
 		else:
 			write_cnt = False
-		CRISPRlungo_umi.mutation_analysis(ref_seq, ref_name, cv_pos, strand, cv_pos_2, strand_2, args.window, 
+
+		mutation_analysis.analysis_function_without_control(ref_seq, 
+			ref_name, 
+			cv_pos, 
+			strand, 
+			cv_pos_2, 
+			strand_2, 
+			args.window, 
 			f'{output_dir}/align/Treated_alignment.sam', 
 			f'{output_dir}/results', 
-			args.whole_window_between_targets, induced_mutations, current_dir,
-			threads=threads, mix_tag=args.mix_tag, 
+			args.whole_window_between_targets, 
+			induced_mutations, 
+			current_dir, 
+			anchor_information,
+			args.only_consider_desired_mutation,
+			threads=threads, 
+			mix_tag=args.mix_tag, 
 			write_cnt = write_cnt, partial_induce_cutoff=args.induced_paritial_similiarity, 
 			range_align_end=range_align_end, 
 			largeins_cutlen = args.largeins_cutlen,
-			largedel_cutlen = args.largedel_cutlen)
+			largedel_cutlen = args.largedel_cutlen
+		)
+
 		edited_reads_cnt = {}
 
 		f = open(f'{output_dir}/results/preprocess_count.txt').readlines()
@@ -388,8 +679,44 @@ def main():
 	#read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'
 	if args.target != None:
 		print('Drawing graphs ... Allele plot                         \r', end='')
-		visual.allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, read_cnt_file, graph_output_dir, args.cleavage_pos, target, target_2, original_target, args.min_read_cnt, args.min_read_freq, allele_plot_window, args.allele_plot_lines, induced_mutation_str, args.show_all_between_allele)
-		visual.allele_table(ref_seq, cv_pos, cv_pos_2, strand, strand_2, read_cnt_file, graph_output_dir, args.cleavage_pos, target, target_2, original_target, args.min_read_cnt, args.min_read_freq, allele_plot_window, args.allele_plot_lines, induced_mutation_str, args.show_all_between_allele)
+		visual.allele_plot(ref_seq, 
+			cv_pos, 
+			cv_pos_2, 
+			strand, 
+			strand_2, 
+			read_cnt_file, 
+			graph_output_dir, 
+			args.cleavage_pos, 
+			target, 
+			target_2, 
+			original_target, 
+			args.min_read_cnt, 
+			args.min_read_freq, 
+			allele_plot_window, 
+			args.allele_plot_lines, 
+			induced_mutation_str, 
+			args.show_all_between_allele, 
+			args.remove_large_mutations_in_plot
+		)
+
+		visual.allele_table(ref_seq, 
+			cv_pos, 
+			cv_pos_2, 
+			strand, 
+			strand_2, 
+			read_cnt_file, 
+			graph_output_dir, 
+			args.cleavage_pos, 
+			target, 
+			target_2, 
+			original_target, 
+			args.min_read_cnt, 
+			args.min_read_freq, 
+			allele_plot_window, 
+			args.allele_plot_lines, 
+			induced_mutation_str, 
+			args.show_all_between_allele
+		)
 
 	print('Drawing graphs ... pie plot                         \r', end='')
 	plots['mutation_pie'], plots['pattern_pie'], plots['allele_pie'] = visual.mutation_pie_chart(read_cnt_file, graph_output_dir)

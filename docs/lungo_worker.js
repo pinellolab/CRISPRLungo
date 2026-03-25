@@ -1,4 +1,4 @@
-import init, { analyze } from './pkg_v2/CRISPRlungo_regular.js';
+import init, { analyze } from './pkg_v5/CRISPRlungo_regular.js';
 
 self.onmessage = async (e) => {
 
@@ -21,7 +21,7 @@ self.onmessage = async (e) => {
 
     try {
 
-        await init('./pkg_v2/CRISPRlungo_regular_bg.wasm');
+        await init('./pkg_v5/CRISPRlungo_regular_bg.wasm');
 
         const result = analyze(
             controlSamString,
@@ -39,7 +39,7 @@ self.onmessage = async (e) => {
         );
 
 
-        self.postMessage({ type: 'success',  result});
+        self.postMessage({ type: 'success', result });
     } catch (error) {
         self.postMessage({ type: 'error_run', message: error.message, stack: error.stack });
     }

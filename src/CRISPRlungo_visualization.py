@@ -17,6 +17,7 @@ from collections import Counter
 from importlib import resources
 from pathlib import Path
 import shutil
+import subprocess
 
 
 def visualization_preprocess_regular(sam_file, fasta_file):
@@ -113,7 +114,7 @@ def align_count_plot(file_1, file_2, output_dir):
 		margin=dict(l=40, r=40, t=40, b=40),  # Adjust margins if needed
 		plot_bgcolor='white',
 		width=500,
-    	height=400,
+		height=400,
 	)
 	
 	# Show the plot
@@ -306,7 +307,7 @@ def base_proportion(result, output_dir, reference, cv_pos, cv_pos_2, plot_window
 		xaxis_rangeslider_visible=True,	# Adds a range slider at the bottom
 		height = 400,
 		plot_bgcolor='white',    
-    	paper_bgcolor='white'    
+		paper_bgcolor='white'    
 	)
 	
 	# Show the figure
@@ -332,6 +333,8 @@ def regular_accuracy_plot(reference, result, output_dir):
 			correct_score.append(result[ref_idx][2]/sum(result[ref_idx]))
 		elif read_base == 'C':
 			correct_score.append(result[ref_idx][3]/sum(result[ref_idx]))
+		elif read_base == 'N':
+			correct_score.append(0)
 	
 	plt.scatter(x_vals, correct_score, color='red')
 	theta = math.pi
@@ -994,7 +997,13 @@ def allele_table(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output
 		
 
 
-def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_dir, cleavage_pos, target, target_2, original_target, min_read_cnt, min_read_freq, plot_window, show_line, induced_mutation_str, show_all_between_allele, group_separate=False):
+def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, 
+				input_file, output_dir, cleavage_pos, target, target_2, 
+				original_target, min_read_cnt, min_read_freq, plot_window, 
+				show_line, induced_mutation_str, 
+				show_all_between_allele, 
+				remove_large_mutations_in_plot,
+				group_separate=False):
 
 	mut_dict = []
 	all_cnt = 0
@@ -1041,7 +1050,16 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 		' ': 'white',
 	}
 
-	showing_line = mut_list[:show_line]
+
+	showing_line = []
+	for i in mut_list:
+		if remove_large_mutations_in_plot != -1:
+			isp = i[0].split(',')
+			if len(isp) == 1 and isp[0].find('LargeDel') != -1 and int(isp[0].split('_')[2]) >= remove_large_mutations_in_plot:
+				continue
+		showing_line.append(i)
+		if len(showing_line) >= show_line:
+			break
 
 	print("Drawing allele plot : ", len(showing_line), " lines")
 	fig, ax = plt.subplots(figsize=(fig_wide, 3 * (len(showing_line)+8)/10))
@@ -1229,9 +1247,9 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				st_pos = mut_st - (cv_pos - plot_window) + adjust_ins
 				ed_pos = mut_ed - (cv_pos - plot_window) + adjust_ins
 		
-	
 			mut_type = mut.split(':')[1].split('_')[0]
-			
+			large_complex = False
+
 			if st_pos > window_ed:
 				if mut_type == 'Sub':
 					mut_str += f'{mut.split(":")[1].split("_")[1]}Sub,'
@@ -1279,7 +1297,11 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			elif mut_type == 'Ins':
 				ins_len = int(mut.split(':')[1].split('_')[1])
 				if out_of_range == False:
-					rect = patches.Rectangle((0.008+st_pos*0.021,	y_pos -0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=10)
+					if ins_len + st_pos > window_ed:
+						draw_len = window_ed - st_pos
+					else:
+						draw_len = ins_len
+					rect = patches.Rectangle((0.008+st_pos*0.021,	y_pos -0.04), draw_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=10)
 					ax.add_patch(rect)
 					seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])[:window_ed]
 					adjust_ins += ins_len
@@ -1309,6 +1331,13 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 						ax.annotate('', xy=(-0.005-left_len_comp, y_pos), xytext=(0.01+(ed_pos+1+add_len_between+0.05)*0.021, y_pos), arrowprops=dict(arrowstyle='-'), zorder=9) 	
 					elif right_large_check:
 						ax.annotate('', xy=(0.005+(st_pos+adjust_ins)*0.021, y_pos), xytext=(0.005+(window_ed+add_large_cv2)*0.021+right_len_comp, y_pos), arrowprops=dict(arrowstyle='-'), zorder=9) 	
+						if mut_n + 1 < len(info_sp):
+							tmp = info_sp[mut_n + 1].replace(':', '_').split('_')
+							if tmp[2] == 'LargeIns':
+								if mut_st == int(tmp[0]) and mut_ed + 1 == int(tmp[1]):
+									inv_str += f" ({tmp[3]}bp Ins)"
+									rect = patches.Rectangle((0.005+(st_pos+adjust_ins)*0.021, y_pos -0.045), 0.01+(window_ed+add_large_cv2-1)*0.021+right_len_comp, 0.09, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
+									ax.add_patch(rect)
 					if left_large_ins_check:
 						rect = patches.Rectangle((-0.005-left_len_comp, y_pos -0.04), 0.005, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=9)
 						ax.add_patch(rect)
@@ -1509,9 +1538,10 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 			align_ref += ref_seq[mut[1] + 1: mut[1] + plot_window]
 			align_mut += ref_seq[mut[1] + 1: mut[1] + plot_window]
 			CIGAR_str += f'{plot_window}M'
+			ins_in_window = 0
 
-			for mut in info[0].split(','):
-
+			for mut_n, mut in enumerate(info[0].split(',')):
+				
 				mut_st = int(mut.split(':')[0].split('_')[0])
 				mut_ed = int(mut.split(':')[0].split('_')[1])
 
@@ -1524,14 +1554,14 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 		
 				mut_type = mut.split(':')[1].split('_')[0]
 				
-				if st_pos > 60:
+				if st_pos + ins_in_window> 60:
 					continue
 				
 				out_of_range = False
 				if st_pos < 0:
 					st_pos = 0
 					out_of_range = True
-				if ed_pos >= plot_window*2:
+				if ed_pos + ins_in_window > plot_window*2:
 					ed_pos = plot_window*2 - 1
 				
 				if mut_type == 'Del':
@@ -1550,7 +1580,12 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 				
 				elif mut_type == 'Ins':
 					ins_len = int(mut.split(':')[1].split('_')[1])
+					ins_in_window += ins_len
 					if out_of_range == False:
+						if ins_len + st_pos > window_ed:
+							draw_len = window_ed - st_pos
+						else:
+							draw_len = ins_len
 						rect = patches.Rectangle((0.008+add_x+st_pos*0.021, y_pos - 0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=11)
 						ax.add_patch(rect)
 						seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])
@@ -1572,6 +1607,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 						ax.annotate('', xy=(0.005+add_x+st_pos*0.021, y_pos), xytext=(0.01+add_x+(ed_pos+1)*0.021 + right_len_comp, y_pos), arrowprops=dict(arrowstyle='-'), zorder=11)
 					else:
 						ax.annotate('', xy=(0.005+add_x+(st_pos - add_len_between)*0.021, y_pos), xytext=(0.01+add_x+(ed_pos+1)*0.021, y_pos), arrowprops=dict(arrowstyle='-'), zorder=11)
+
 					if right_large_ins_check:
 						rect = patches.Rectangle((0.01+add_x+(ed_pos+1)*0.021 + right_len_comp- 0.006, y_pos -0.04), 0.006, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
 						ax.add_patch(rect)
@@ -1588,6 +1624,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 					seq = (seq[:st_pos] + mut.split('_')[3] + seq[st_pos:])[:plot_window*2]
 					if st_pos + ins_len > plot_window *2:
 						ins_len = plot_window*2 - st_pos
+						ins_in_window += ins_len
 					rect = patches.Rectangle((0.008+add_x+st_pos*0.021, y_pos - 0.04), ins_len*0.021, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
 					ax.add_patch(rect)
 					adjust_ins += ins_len
@@ -1600,6 +1637,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output_
 							seq = seq[:mut_st - (cv_pos_2 - plot_window)] + nt.lower() + seq[mut_st - (cv_pos_2 - plot_window)+1:]
 						if cv_pos + plot_window <= mut_st + n < cv_pos_2 - plot_window:
 							ax.annotate('', xy=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos-0.05), xytext=((plot_window*2 + (mut_st-cv_pos-plot_window)*10/(cv_pos_2-cv_pos-plot_window*2))*0.021, y_pos+0.05), arrowprops=dict(arrowstyle='-', color='black'), zorder=15)		
+
 
 			seq = seq[:plot_window*2]
 					
@@ -1812,6 +1850,8 @@ def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summ
 	s1 += '\t'
 	s2 += '\t'
 
+	print('')
+	
 	for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv', 'Complex', 'ComplexWithLargeMut']:
 		if i  in mut_cnt:
 			s1 += i + '\t'
@@ -1833,7 +1873,224 @@ def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summ
 	return mut_cnt, precise_cnt
 
 
+def make_visualization_sam(dict_of_reads, out_dir):
+
+	fw = open(f'{out_dir}/visualization.sam','w')
+
+	ref_dir = '/'.join(out_dir.split('/')[:-1]) + '/ref_seq' 
+	ref_file = open(f'{ref_dir}/ref_wo_umi.fasta').readlines()
+	ref_name = ref_file[0].strip().split('>')[1]
+	ref_seq = ref_file[1].strip().upper()
+	fw.write('@HD\tVN:1.0\tSO:coordinate\n')
+	fw.write('@SQ\tSN:' + ref_name + '\tLN:' + str(len(ref_seq)) + '\n')
+
+	for read_n, read_info in dict_of_reads.items():
+
+		ref_st, ref_ed, read_id = read_info[2]
+		mutation_info = read_info[0]
+
+		query_seq = ''
+		CIGAR = []
+		ref_pos = ref_st
+		query_st = ref_st
+		SA_tag = False
+		align_list = []
+		front_clip = 0
+		stack_len = 0
+		for i in range(len(mutation_info)):
+			mut = mutation_info[i]
+			mut_type = mut[0]
+			mut_pos = mut[1]
+			mut_len = mut[2]
+
+			dist = mut_pos - ref_pos
+			if dist > 0:
+				query_seq += ref_seq[ref_pos: mut_pos]
+				CIGAR.append(f"{dist}M")
+				ref_pos = mut_pos 
+				stack_len += dist
+			if mut_type == 'deletion':
+				CIGAR.append(f"{mut_len}D")
+				ref_pos += mut_len
+			elif mut_type == 'insertion':
+				if i > 0 and mutation_info[i-1][0] == 'deletion' and mutation_info[i-1][1] == mut_pos:
+					inv_check = False
+					if len(mut) > 7:
+						for j in mut[7]:
+							if j[0] == 'inversion':
+								inv_check = True
+								break
+					if inv_check:
+						if front_clip != 0:
+							CIGAR = [f'{front_clip}H'] + CIGAR
+						align_list.append([query_seq, CIGAR[:-1], query_st, '+', SA_tag, ''])
+						front_clip = stack_len
+						query_seq = mut[3]
+						color_tag = ''
+						strand = '+'
+						inv_check = False
+						if len(mut) > 7:
+							for j in mut[7]:
+								if j[0] == 'inversion':
+									query_seq = ref_seq[j[3] - 1: j[4]]
+									color_tag = "YC:Z:107,189,69"
+									mut_pos = j[3] - 1
+									strand = '-'
+									inv_check = True
+									break
+						align_list.append([query_seq, [f'{front_clip}H', f'{len(query_seq)}M'], mut_pos, strand, True, color_tag])
+						stack_len += len(query_seq)	
+						front_clip = stack_len			
+						query_seq = ''
+						CIGAR = []
+						query_st = mutation_info[i-1][1] + mutation_info[i-1][2]
+						SA_tag = True
+					else:
+						query_seq += mut[3]
+						CIGAR.append(f"{mut_len}I")
+						stack_len += mut_len
+				else:
+					query_seq += mut[3]
+					CIGAR.append(f"{mut_len}I")
+					stack_len += mut_len
+			elif mut_type == 'substitution':
+				query_seq += mut[4]
+				CIGAR.append(f"{mut_len}M")
+				ref_pos += 1
+				stack_len += 1
+
+		remaining = ref_ed - ref_pos
+		if remaining > 0:
+			query_seq += ref_seq[ref_pos : ref_ed]
+			CIGAR.append(f"{remaining}M")
+			stack_len += remaining
+
+		if SA_tag:
+			CIGAR = [f"{front_clip}H"] + CIGAR
+
+		align_list.append([query_seq, CIGAR, query_st, '+', SA_tag, ''])
+
+		if len(align_list) > 1:
+			
+			for i in range(len(align_list)-1):
+				cigar = align_list[i][1]
+				l = 0
+				for x in cigar:
+					if x[-1] in 'SIMH':
+						l += int(x[:-1])
+				align_list[i][1].append(f"{stack_len - l}H")
+
+			sa_tags = [] 
+			
+			for i in range(len(align_list)):
+				current_sa_parts = []
+				
+				for j in range(len(align_list)):
+					if i == j: continue
+					
+					target = align_list[j]
+					t_rname = ref_name
+					t_pos = target[2] + 1     
+					t_strand = target[3]
+					t_cigar = "".join(target[1])
+					t_mapq = 60
+					t_nm = 0
+					
+					sa_str = f"{t_rname},{t_pos},{t_strand},{t_cigar},{t_mapq},{t_nm}"
+					current_sa_parts.append(sa_str)
+				
+				full_tag = "SA:Z:" + ";".join(current_sa_parts) + ";"
+				sa_tags.append(full_tag)
+		else:
+			sa_tags = [""] * len(align_list)
+
+		for idx, item in enumerate(align_list):
+			curr_seq = item[0]
+			curr_cigar = "".join(item[1])
+			curr_pos = item[2] + 1 
+			curr_strand = item[3]
+			curr_is_sa = item[4]
+			
+			flag = 0
+			if curr_strand == '-': flag += 16
+			if curr_is_sa: flag += 2048
+			
+			qual = 'I' * len(curr_seq)
+
+			line = f'{read_id}\t{flag}\t{ref_name}\t{curr_pos}\t60\t{curr_cigar}\t*\t0\t0\t{curr_seq}\t{qual}'
+			if sa_tags[idx]:
+				line += f'\t{sa_tags[idx]}'
+			fw.write(line + '\n')
+
+
+	subprocess.run(f"samtools sort {out_dir}/visualization.sam -o {out_dir}/visualization.sorted.bam", shell=True, check=True)
+	subprocess.run(f"samtools index {out_dir}/visualization.sorted.bam", shell=True, check=True) 
+	subprocess.run(f"samtools faidx {ref_dir}/ref_wo_umi.fasta", shell=True, check=True) 
+
+	xml_filename = f"{'/'.join(out_dir.split('/')[:-1])}/Lungo_IGV_Session.xml"
 	
+	ref_path = f"ref_seq/ref_wo_umi.fasta" 
+	bam_path = f"results/visualization.sorted.bam"
+	coverage_id = f"{bam_path}_coverage"
+
+	xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Session genome="{ref_path}" hasGeneTrack="false" hasSequenceTrack="true" version="8">
+    <Resources>
+        <Resource path="{bam_path}"/>
+    </Resources>
+    
+    <Panel height="800" name="DataPanel" width="1200">
+        
+        <Track 
+            id="{coverage_id}" 
+            name="Coverage" 
+            clazz="org.broad.igv.track.CoverageTrack" 
+            autoScale="true" 
+            viewLimits="0:50" 
+            showReference="false" 
+            snpThreshold="0.2">
+             <DataRange baseline="0.0" drawBaseline="true" flipAxis="false" maximum="50.0" minimum="0.0" type="LINEAR"/>
+        </Track>
+
+        <Track 
+            id="{bam_path}" 
+            name="Lungo Filtered Reads" 
+            clazz="org.broad.igv.track.AlignmentTrack" 
+            
+            colorMode="READ_STRAND" 
+            displayMode="EXPANDED" 
+            experimentType="OTHER"
+            
+            downsampleReads="false"
+            filterSupplementaryAlignments="false" 
+            filterSecondaryAlignments="false"
+            filterDuplicateReads="false"
+            
+            showSpliceJunctions="false">
+        </Track>
+
+    </Panel>
+</Session>
+"""
+
+	with open(xml_filename, 'w') as f:
+		f.write(xml_content)
+	
+	print(f"[Done] Created IGV Session File: {xml_filename}")
+	print(f"       (User can open this single file to load everything)")
+
+
+	fw.close()
+			
+
+
+			
+
+			
+		
+
+		
+		
 	
 	
 		

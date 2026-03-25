@@ -14,6 +14,7 @@ var showAllBetweenAllele = false;
 var minaResult;
 
 var drawInsAllelePlot = [];
+var plotWidth = 0;
 
 
 async function runAlignDesired() {
@@ -442,13 +443,14 @@ function drawAllelePlot() {
       var largeDelSt, largeDelEd;
       if (i[0] == '-' && i.split('_')[1] * 1 > 100) {
         largeDelSt = 0;
-       while(i[0] == '-' && x < plotWindow*2) {
+        largeDelEd = 0;
+        while(i[0] == '-' && x < plotWindow*2) {
           i = drawInfo[1][x];
-          x += 1
+          x += 1;
+          largeDelEd += 1;
         }
         x-=1
         
-        largeDelEd = x;
         if (section == 0) {
           largeDelEd -= plotWindow + 1;
         }
@@ -627,7 +629,7 @@ function drawAllelePlot() {
         var mDel = m.split('_');
         drawInfo_1[2] = [[],[],[]]
         drawInfo_1[2][0] = mDel[2] - mDel[1];
-        drawInfo_1[2][1].push(aligned.slice(pos + drawInfo_1[2][0], pos - drawInfo_1[2][0] + 10));
+        drawInfo_1[2][1].push(aligned.slice(pos - drawInfo_1[2][0], pos - drawInfo_1[2][0] + 10));
         drawInfo_1[2][2] = false;
         if (m.indexOf('I') != -1) {
           drawInfo_1[2][2] = true;
@@ -804,7 +806,7 @@ function drawAllelePlot() {
       
       if (read != '') {
         rowG.append("text")
-          .attr("x", cellSizeWidth * (plotWindow*2 + 10 + 1))
+          .attr("x", cellSizeWidth * (plotWindow*2 + 10*2 + 1))
           .attr("y", cellSizeHeight*0.6)
           .attr("font-size", 12)
           .attr("class", "cell-text")
@@ -815,7 +817,7 @@ function drawAllelePlot() {
     }
   }
    
-  var plotWidth
+
   windowStart = cleavagePos - plotWindow;
   if (numRows > Object.values(filteredTreatedReads).length) {
     numRows = Object.values(filteredTreatedReads).length;
@@ -831,7 +833,7 @@ function drawAllelePlot() {
       windowStart2 = cleavagePos2 - plotWindow;
       windowEnd2 = cleavagePos2 + plotWindow;
     } else {
-      maxLength = 2*plotRef;
+      maxLength = 2*plotWindow;
     }
     plotWidth = cellSizeWidth * maxLength + margin.left + margin.right;
   }
@@ -856,8 +858,8 @@ function drawAllelePlot() {
   var width = parseInt(d3.select("#allelePlot").style("width"));
   height = cellSizeHeight * (numRows+5) + margin.top  + margin.bottom ; 
 
-  var initialScale = width/plotWidth * 0.8;
-  var translateX = (width - width * initialScale);
+  var initialScale = width/plotWidth * 0.6;
+  var translateX = (width - width * initialScale) - 100;
   var translateY = (height - height * initialScale) / 2;
 
 

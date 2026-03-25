@@ -1,6 +1,6 @@
 import sys, argparse, os
 import CRISPRlungo_visualization as visual
-import CRISPRlungo_regular as regular_py
+import CRISPRlungo_mutation_analysis as mutation_analysis
 from CRISPRlungo_minimap import *
 from itertools import combinations
 
@@ -72,7 +72,7 @@ def main():
         if input_file[input_file.rfind('.')+1:].upper() in ['FASTA', 'FNA', 'FA']:
             create_dir(analysis_res_dir + '/custom_results/align')
             run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', args.induced_sequence_path,  f'{analysis_res_dir}/custom_results/align/induced_mutation_reference.sam', longjoin_bandwidth, chaining_bandwidth, 1, len_cutoff=args.align_sa_len_threshold)
-            induced_mutations, induced_mutation_str = regular_py.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, window_between, range_align_end)
+            induced_mutations, induced_mutation_str = mutation_analysis.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, window_between, range_align_end)
         else:
             with open(input_file) as f:
                 mut_type = False
@@ -173,7 +173,7 @@ def main():
             else:
                 chain = 500
             run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', f'{analysis_res_dir}/custom_results/align/{read_id}.fasta',  f'{analysis_res_dir}/custom_results/align/{read_id}.sam', longjoin, chain, 1, len_cutoff=100)
-            mutations, mutation_str = regular_py.get_induced_mutation(f'{analysis_res_dir}/custom_results/align/{read_id}.sam', f'{analysis_res_dir}/ref_seq/ref_wo_umi.fasta', cv_pos, False, window, False, 100, largedel_cutlen, largeins_cutlen, full_window=True)
+            mutations, mutation_str = mutation_analysis.get_induced_mutation(f'{analysis_res_dir}/custom_results/align/{read_id}.sam', f'{analysis_res_dir}/ref_seq/ref_wo_umi.fasta', cv_pos, False, window, False, 100, largedel_cutlen, largeins_cutlen, full_window=True)
 
             mutation_side = [[],[]]
 

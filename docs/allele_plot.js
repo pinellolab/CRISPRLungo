@@ -81,12 +81,13 @@ function drawAllelePlot() {
       var largeDelSt, largeDelEd;
       if (i[0] == '-' && i.split('_')[1] * 1 > 100) {
         largeDelSt = 0;
+        largeDelEd = 0;
        while(i[0] == '-' && x < plotWindow*2) {
           i = drawInfo[1][x];
-          x += 1
+          x += 1;
+          largeDelEd += 1;
         }
         x-=1
-        largeDelEd = x;
         rowG.append("line")
           .attr("x1", xPos + cellSizeWidth * (largeDelSt))   
           .attr("y1", 0 + 0.5*cellSizeHeight)   
@@ -244,7 +245,7 @@ function drawAllelePlot() {
         var mDel = m.split('_');
         drawInfo_1[2] = [[],[],[]]
         drawInfo_1[2][0] = mDel[2] - mDel[1];
-        drawInfo_1[2][1].push(aligned.slice(pos + drawInfo_1[2][0], pos - drawInfo_1[2][0] + 10));
+        drawInfo_1[2][1].push(aligned.slice(pos - drawInfo_1[2][0], pos - drawInfo_1[2][0] + 10));
         drawInfo_1[2][2] = false;
         if (m.indexOf('I') != -1) {
           drawInfo_1[2][2] = true;

@@ -1,8 +1,8 @@
-# CRISPRlungo
+# CRISPRLungo
 
 ![Logo](https://github.com/pinellolab/CRISPR-LongReads/blob/main/docs/title_icon.png)
 
-**CRISPRlungo** is a software pipeline designed to analyze genome editing outcomes using long-read sequencing data.  
+**CRISPRLungo** is a software pipeline designed to analyze genome editing outcomes using long-read sequencing data.  
 It supports multiple CRISPR platforms (base editors, prime editors) and is compatible with various sequencing methods such as amplicon sequencing, UMI-tagged long-read sequencing, and nCATS.
 
 
@@ -13,12 +13,12 @@ It supports multiple CRISPR platforms (base editors, prime editors) and is compa
 2. If UMIs are used, cluster UMI-tagged reads and generate consensus sequences.
 3. If control samples are provided, perform background error filtering using statistical analysis.
 4. Quantify small indels, large indels, and inversions.
-5. Use the submodule **CRISPRlungoAllele** to classify allele groups and identify PCR-induced chimeric reads.
+5. Use the submodule **CRISPRLungoAllele** to classify allele groups and identify PCR-induced chimeric reads.
 
 
 ---
 
-## What can CRISPRlungo do?
+## What can CRISPRLungo do?
 - Filtering of low-quality reads  
 - Identification and removal of chimeric reads generated during library preparation  
 - Alignment using an optimized pipeline to detect structural variants and inversions  
@@ -36,8 +36,8 @@ It supports multiple CRISPR platforms (base editors, prime editors) and is compa
 
 ## Installation
 ```bash
-git clone https://github.com/pinellolab/CRISPRlungo
-cd CRISPRlungo
+git clone https://github.com/pinellolab/CRISPRLungo
+cd CRISPRLungo
 conda env create -n {env_name} -f environment.yml  # use mamba instead of conda if preferred
 conda activate {env_name} # use mamba instead of conda if preferred
 pip install -e .
@@ -48,7 +48,7 @@ CRISPRlungo -h
 ---
 ## Usage
 
-CRISPRlungo has **4 usage modes**:
+CRISPRLungo has **4 usage modes**:
 
 ### 1. Default
 ```bash
@@ -138,8 +138,8 @@ CRISPRlungo --umi PD1_umi.fasta --control Nanopore_umi_Run_test_control_wo_chi.f
 * Read_classification.txt – mutation classification per read
 
 ---
-## Subanalysis Tool - CRISPRlungoAllele
-**CRISPRlungoAllele** performs post-analysis of CRISPRlungo results by classifying alleles into multiple groups based on mutation type.
+## Subanalysis Tool - CRISPRLungoAllele
+**CRISPRLungoAllele** performs post-analysis of CRISPRLungo results by classifying alleles into multiple groups based on mutation type.
 
 This enables:
 * Identification of mutation patterns within alleles
@@ -150,7 +150,7 @@ This enables:
 ```bash
 CRISPRlungoAllele {analysis_file_dir} {custom_category_file}
 ```
-* analysis_file_dir : output directory from CRISPRlungo run
+* analysis_file_dir : output directory from CRISPRLungo run
 * custom_category_file : tab-separated file with mutation conditions
 
 ### Example:
@@ -174,7 +174,7 @@ CRISPRlungoAllele {analysis_file_dir} {custom_category_file}
 
 
 ---
-## CRISPRlungoAllele Options
+## CRISPRLungoAllele Options
 * --min_read_cnt : Minimum read count
 * --min_read_freq : Minimum read frequency
 * --allele_plot_window : Window size for allele plots (default: window+10)
@@ -182,7 +182,7 @@ CRISPRlungoAllele {analysis_file_dir} {custom_category_file}
 
 
 ---
-## CRISPRlungoAllele Result Files
+## CRISPRLungoAllele Result Files
 
 Located in custom_results/ inside the analysis directory:
 * allele_plot.png
