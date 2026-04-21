@@ -486,7 +486,7 @@ def main():
 
 		if args.just_visualization == False:
 			
-			"""run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', 
+			run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', 
 				control_file_path,  
 				output_dir + '/align/Control_alignment.sam', 
 				longjoin_bandwidth, 
@@ -497,7 +497,7 @@ def main():
 				fasta_check=True
 			)
 
-			#run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', 
+			run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', 
 				treated_file_path,  
 				output_dir + '/align/Treated_alignment.sam', 
 				longjoin_bandwidth, 
@@ -506,7 +506,7 @@ def main():
 				args.minimap2_opt, 
 				len_cutoff=args.align_sa_len_threshold, 
 				fasta_check=True
-			)"""
+			)
 
 			# Run Statistical anlaysis.py
 
