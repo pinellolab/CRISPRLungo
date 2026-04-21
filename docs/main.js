@@ -142,8 +142,8 @@ async function runAction() {
     referenceInput.dispatchEvent(new Event('input', { bubbles: true }));
 
     const files = [
-        { id: 'treatedFile', path: '../data/Example_Treated.fastq', name: 'Example_Treated.fastq' },
-        { id: 'controlFile', path: '../data/Example_Control.fastq', name: 'Example_Control.fastq' }
+        { id: 'treatedFile', path: 'data/Example_Treated.fastq', name: 'Example_Treated.fastq' },
+        { id: 'controlFile', path: 'data/Example_Control.fastq', name: 'Example_Control.fastq' }
     ];
 
     try {
@@ -170,8 +170,8 @@ async function runAction() {
 
 async function downloadAction() {
     const files = [
-        { path: '../data/Example_Treated.fastq', name: 'Example_Treated.fastq' },
-        { path: '../data/Example_Control.fastq', name: 'Example_Control.fastq' }
+        { path: 'data/Example_Treated.fastq', name: 'Example_Treated.fastq' },
+        { path: 'data/Example_Control.fastq', name: 'Example_Control.fastq' }
     ];
 
     try {
