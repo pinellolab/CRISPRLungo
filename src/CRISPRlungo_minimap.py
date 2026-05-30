@@ -72,6 +72,9 @@ def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, c
 			fastq_file = output_path + f'/{n}_soft.{file_format}'
 
 		run_minimap2(ref_file, fastq_file, output_path + f'/{n}_align.sam' , longjoin_bandwidth, chaining_bandwidth, threads, minimap2_opt)
+		if not os.path.exists(output_path + f'/{n}_align.sam'):
+			print("[ERROR] Fail to generate alignment file!!")
+			sys.exit(1)
 		check_SA, read_out = soft_clipped(output_path + f'/{n}_align.sam', output_path + f'/{n+1}_soft.{file_format}', len_cutoff, fasta_check)
 		for read in read_out:
 			query_name = read.query_name
