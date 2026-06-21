@@ -8,13 +8,12 @@ setup(
     packages=find_packages(where='src'),
     include_package_data=True,
 	py_modules=['CRISPRlungo', 
-		'CRISPRlungo_custom_mutation', 
 		'CRISPRlungo_umi', 
 		'CRISPRlungo_insert_analysis', 
-		'CRISPRlungo_regular', 
 		'CRISPRlungo_visualization', 
 		'CRISPRlungo_minimap', 
 		'CRISPRlungo_single_map',
+        'CRISPRlungo_mutation_analysis',
         'CRISPRlungoAllele'],   
     package_data={
         "CRISPRlungo_assets": [
