@@ -24,47 +24,47 @@ async function runAlignDesired() {
   document.body.style.backgroundColor = "#fdfdfd";
 
 
-    if (desiredSeq !== "") {
+  if (desiredSeq !== "") {
 
-      const minimap2Worker_desired = new Worker('minimap2_worker_prog.js');
-      minimap2Worker_desired.postMessage({
-        fastqFile: ">desired\n" + desiredSeq,
-        reference: reference,
-        longjoinBandWidth: longjoinBandWidth,
-        chainingBandWidth: chainingBandWidth,
-        fileType: "String"
-      });
-  
-      const desiredPromise = new Promise((resolve, reject) => {
-        minimap2Worker_desired.onmessage = function(event) {
-          if (event.data.error) {
-            reject(event.data.error);
-          } else {
-            if (event.data.type === 0) {
-              a = 1;
-            }  else if (event.data.type === 1) {
-              b = 1;
-            } else if (event.data.type === 2) {
-              resolve(event.data.result);
-            }
+    const minimap2Worker_desired = new Worker('minimap2_worker_prog.js');
+    minimap2Worker_desired.postMessage({
+      fastqFile: ">desired\n" + desiredSeq,
+      reference: reference,
+      longjoinBandWidth: longjoinBandWidth,
+      chainingBandWidth: chainingBandWidth,
+      fileType: "String"
+    });
+
+    const desiredPromise = new Promise((resolve, reject) => {
+      minimap2Worker_desired.onmessage = function (event) {
+        if (event.data.error) {
+          reject(event.data.error);
+        } else {
+          if (event.data.type === 0) {
+            a = 1;
+          } else if (event.data.type === 1) {
+            b = 1;
+          } else if (event.data.type === 2) {
+            resolve(event.data.result);
           }
-        };
-      });
-  
-      try {
-        desiredAlignSam = await desiredPromise;
-        console.log("Worker 완료됨:", desiredAlignSam);
-      } catch (error) {
-        console.error("Worker 처리 중 에러 발생:", error);
-      } finally {
-        minimap2Worker_desired.terminate();
-        runAlignFiles();
-      }
-    } else {
-        desiredAlignSam = [];
-        runAlignFiles();
+        }
+      };
+    });
+
+    try {
+      desiredAlignSam = await desiredPromise;
+      console.log("Worker 완료됨:", desiredAlignSam);
+    } catch (error) {
+      console.error("Worker 처리 중 에러 발생:", error);
+    } finally {
+      minimap2Worker_desired.terminate();
+      runAlignFiles();
     }
+  } else {
+    desiredAlignSam = [];
+    runAlignFiles();
   }
+}
 
 async function runAlignFiles() {
 
@@ -73,11 +73,11 @@ async function runAlignFiles() {
 
   minimap2Worker_treated = new Worker('minimap2_worker_prog.js');
   minimap2Worker_treated.postMessage({
-      fastqFile : treatedFile,
-      reference: reference,
-      longjoinBandWidth : longjoinBandWidth,
-      chainingBandWidth : chainingBandWidth,
-      fileType : "file"
+    fastqFile: treatedFile,
+    reference: reference,
+    longjoinBandWidth: longjoinBandWidth,
+    chainingBandWidth: chainingBandWidth,
+    fileType: "file"
   });
 
   var progress_max = 1;
@@ -85,11 +85,11 @@ async function runAlignFiles() {
   if (controlFile !== false) {
     minimap2Worker_control = new Worker('minimap2_worker_prog.js');
     minimap2Worker_control.postMessage({
-      fastqFile : controlFile,
+      fastqFile: controlFile,
       reference: reference,
-      longjoinBandWidth : longjoinBandWidth,
-      chainingBandWidth : chainingBandWidth,
-      fileType : "file"
+      longjoinBandWidth: longjoinBandWidth,
+      chainingBandWidth: chainingBandWidth,
+      fileType: "file"
     });
     progress_max = 0.5;
   }
@@ -99,40 +99,40 @@ async function runAlignFiles() {
   var alignProgressControl = 0;
 
   const treatedPromise = new Promise((resolve, reject) => {
-      minimap2Worker_treated.onmessage = function(event) {
+    minimap2Worker_treated.onmessage = function (event) {
       if (event.data.error) {
-          console.error("Error:", event.data.error);
+        console.error("Error:", event.data.error);
       } else {
-          if (event.data.type === 0) {
+        if (event.data.type === 0) {
           statusElem.innerHTML = "Treated file has " + event.data.fileLen + " lines";
-          }  else if (event.data.type === 1) {
-            alignProgressTreat = event.data.progress;
-            progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat)*progress_max).toFixed(1) + '%';
-            progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat)*progress_max).toFixed(1) + '%';
+        } else if (event.data.type === 1) {
+          alignProgressTreat = event.data.progress;
+          progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
+          progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
           console.log("Mapping result:", event.data.stdout);
-          } else if (event.data.type === 2) {
-              resolve(event.data.result);
-          }
+        } else if (event.data.type === 2) {
+          resolve(event.data.result);
         }
-      };
+      }
+    };
   });
 
   let controlPromise
   if (minimap2Worker_control) {
     controlPromise = new Promise((resolve, reject) => {
-        minimap2Worker_control.onmessage = function(event) {
+      minimap2Worker_control.onmessage = function (event) {
         if (event.data.error) {
-            console.error("Error:", event.data.error);
+          console.error("Error:", event.data.error);
         } else {
-            if (event.data.type === 0) {
+          if (event.data.type === 0) {
             statusElem.innerHTML = "Control file has " + event.data.fileLen + " lines";
-            }  else if (event.data.type === 1) {
-              alignProgressControl = event.data.progress;
-              progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat)*progress_max).toFixed(1) + '%';
-              progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat)*progress_max).toFixed(1) + '%';
-            } else if (event.data.type === 2) {
+          } else if (event.data.type === 1) {
+            alignProgressControl = event.data.progress;
+            progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
+            progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
+          } else if (event.data.type === 2) {
             resolve(event.data.result);
-            }
+          }
         }
       };
     });
@@ -142,20 +142,20 @@ async function runAlignFiles() {
 
   Promise.all([treatedPromise, controlPromise])
     .then(([x, y]) => {
-    treatedAlignSam = x;
-    controlAlignSam = y;
-    console.log("두 워커 모두 완료됨");
-    console.log("Treated result:", treatedAlignSam);
-    console.log("Control result:", controlAlignSam);
-    minimap2Worker_treated.terminate();
-    if (controlFile == false) { 
-      //minimap2Worker_control.terminate();
-      controlAlignSam = [];
-    }
-    runMainAlgorithm();
+      treatedAlignSam = x;
+      controlAlignSam = y;
+      console.log("두 워커 모두 완료됨");
+      console.log("Treated result:", treatedAlignSam);
+      console.log("Control result:", controlAlignSam);
+      minimap2Worker_treated.terminate();
+      if (controlFile == false) {
+        //minimap2Worker_control.terminate();
+        controlAlignSam = [];
+      }
+      runMainAlgorithm();
     })
     .catch(error => {
-    console.error("워커 처리 중 에러 발생:", error);
+      console.error("워커 처리 중 에러 발생:", error);
     });
 
 }
@@ -174,19 +174,19 @@ async function runMainAlgorithm() {
 
   const mainWorker = new Worker('lungo_worker.js', { type: 'module' });
   document.getElementById("progress_1").innerHTML =
-  '<i class="bi bi-caret-right-fill"></i> Analyzing mutations ... <i class="bi bi-caret-left-fill"></i>';
+    '<i class="bi bi-caret-right-fill"></i> Analyzing mutations ... <i class="bi bi-caret-left-fill"></i>';
 
   mainWorker.postMessage({
-    controlSamString : controlAlignSam.join('\n'),
-    treatedSamString : treatedAlignSam.join('\n'),
-    inducedMutationString : desiredAlignSam.join('\n'),
+    controlSamString: controlAlignSam.join('\n'),
+    treatedSamString: treatedAlignSam.join('\n'),
+    inducedMutationString: desiredAlignSam.join('\n'),
     reference: reference,
-    cvPos : cleavagePos,
-    cvPos2 : cleavagePos2,
-    window : windowRange,
-    wholeWindow : wholeWindow,
-    filter1 : true,
-    windowFilter : true,
+    cvPos: cleavagePos,
+    cvPos2: cleavagePos2,
+    window: windowRange,
+    wholeWindow: wholeWindow,
+    filter1: true,
+    windowFilter: true,
     alpha: 0.05,
     length_min: 10
   });
@@ -201,7 +201,7 @@ async function runMainAlgorithm() {
       confirmInsertion();
     }
   };
-  
+
   mainWorker.onerror = (event) => {
     console.error("Worker 에러 발생 (onerror):", event);
   };
@@ -224,14 +224,14 @@ async function confirmInsertion() {
       console.error("Stack:", event.data.stack);
     } else if (event.data.type == 1) {
       alignProgressControl = event.data.progress;
-      progressBarUpdate.style.width = (alignProgressControl).toFixed(1) + '%' ;
+      progressBarUpdate.style.width = (alignProgressControl).toFixed(1) + '%';
       progressBarUpdate.textContent = (alignProgressControl).toFixed(1) + '%';
     } else if (event.data.type == 2) {
       mainResult.treated_read_to_mut = event.data.result
       filterMutations();
     }
   };
-  
+
   insertWorker.onerror = (event) => {
     console.error("Worker 에러 발생 (onerror):", event);
   };
@@ -287,7 +287,7 @@ function filterMutations() {
     }
 
 
-    
+
     liens_res.push(val[0] + ': ' + filteredMutStr);
 
     if (filteredMutStr == "") {
@@ -321,7 +321,7 @@ function filterMutations() {
       mutTypeCnt[mutType] += cnt;
       mainResult.treated_read_to_mut[val[0]].push(filteredMutStr);
       mainResult.treated_read_to_mut[val[0]].push(mutType);
-      filteredMutStr = filteredMutStr.slice(0,-1); //+ "_" + mutType;
+      filteredMutStr = filteredMutStr.slice(0, -1); //+ "_" + mutType;
     }
     preciseMutCnt = 0
     for (mut of filteredMutStr.split(',')) {
@@ -350,26 +350,26 @@ function filterMutations() {
     cnt = filteredTreatedReads[key];
     all_cnt += cnt
     for (i of key.split(',')) {
-      i = i.replace(':','_').replace('>','_').split('_');
+      i = i.replace(':', '_').replace('>', '_').split('_');
       if (i[0] == 'WT') {
         continue
       } else if (i[2] == 'Sub') {
-        for (x = 0; x < i[3].length; x ++) {
-          subPosList[Number(i[0])+x] += cnt;
-          subProportionList[Number(i[0])+x]['ATGCN'.indexOf(i[4][x])] += cnt;
+        for (x = 0; x < i[3].length; x++) {
+          subPosList[Number(i[0]) + x] += cnt;
+          subProportionList[Number(i[0]) + x]['ATGCN'.indexOf(i[4][x])] += cnt;
         }
       } else if (i[2].indexOf('Del') != -1) {
         delPlotList[0].push(Number(i[0]));
         delPlotList[1].push(Number(i[3]));
-        delPlotList[2].push((cnt/mainResult.treated_align_cnt.Used).toFixed(2))
-        for (x = 0; x < i[3]; x ++) {
-          delPosList[Number(i[0])+x] += cnt;
-          subProportionList[Number(i[0])+x][5] += cnt;
+        delPlotList[2].push((cnt / mainResult.treated_align_cnt.Used).toFixed(2))
+        for (x = 0; x < i[3]; x++) {
+          delPosList[Number(i[0]) + x] += cnt;
+          subProportionList[Number(i[0]) + x][5] += cnt;
         }
       } else if (i[2].indexOf('Ins') != -1) {
         insPlotList[0].push(Number(i[0]));
         insPlotList[1].push(i[3].length);
-        insPlotList[2].push((cnt/mainResult.treated_align_cnt.Used).toFixed(2))
+        insPlotList[2].push((cnt / mainResult.treated_align_cnt.Used).toFixed(2))
         insPosList[Number(i[0])] += cnt;
         subProportionList[Number(i[0])][6] += cnt;
       }
@@ -377,13 +377,13 @@ function filterMutations() {
   }
 
   for (i = 0; i < reference.length; i++) {
-    subPosList[i] = (subPosList[i]*100/all_cnt).toFixed(2);
-    insPosList[i] = (insPosList[i]*100/all_cnt).toFixed(2);
-    delPosList[i] = (delPosList[i]*100/all_cnt).toFixed(2);
+    subPosList[i] = (subPosList[i] * 100 / all_cnt).toFixed(2);
+    insPosList[i] = (insPosList[i] * 100 / all_cnt).toFixed(2);
+    delPosList[i] = (delPosList[i] * 100 / all_cnt).toFixed(2);
   }
 
   document.getElementById("progressPage").classList.remove("active");
-  document.getElementById("resultsPage").classList.add("active"); 
+  document.getElementById("resultsPage").classList.add("active");
   document.body.style.backgroundColor = "#ffffff";
 
   runVisualization()
@@ -411,8 +411,8 @@ function drawAllelePlot() {
           .attr("fill", backgroundColor[base]);
 
         rowG.append("text")
-          .attr("x", xPos + cellSizeWidth/2)
-          .attr("y", cellSizeHeight*0.6)
+          .attr("x", xPos + cellSizeWidth / 2)
+          .attr("y", cellSizeHeight * 0.6)
           .attr("font-size", 12)
           .attr("class", "cell-text")
           .attr("text-anchor", "middle")
@@ -437,58 +437,60 @@ function drawAllelePlot() {
     } else {
       xPos += 10 * cellSizeWidth;
     }
-    for (x=0; x<drawInfo[1].length; x++) {
+    for (x = 0; x < drawInfo[1].length; x++) {
       i = drawInfo[1][x];
       base = i[0];
       var largeDelSt, largeDelEd;
       if (i[0] == '-' && i.split('_')[1] * 1 > 100) {
         largeDelSt = 0;
         largeDelEd = 0;
-        while(x < plotWindow*2 && drawInfo[1][x][0] == '-') {
+        while (x < plotWindow * 2 && drawInfo[1][x][0] == '-') {
           x += 1;
           largeDelEd += 1;
         }
-        x-=1
-        
+        x -= 1
+
         // (removed: 'largeDelEd -= plotWindow + 1' for section 0 — it shrank the
         //  left-window deletion line to a stub, leaving a gap before the 'X bp' label)
 
         rowG.append("line")
-          .attr("x1", xPos + cellSizeWidth * (largeDelSt))   
-          .attr("y1", 0 + 0.5*cellSizeHeight)   
-          .attr("x2", xPos + cellSizeWidth * (largeDelEd+5))   
-          .attr("y2", 0 + 0.5*cellSizeHeight)  
-          .attr("stroke", "black")              
+          .attr("x1", xPos + cellSizeWidth * (largeDelSt))
+          .attr("y1", 0 + 0.5 * cellSizeHeight)
+          .attr("x2", xPos + cellSizeWidth * (largeDelEd + 5))
+          .attr("y2", 0 + 0.5 * cellSizeHeight)
+          .attr("stroke", "black")
           .attr("stroke-width", 1);
         xPos += cellSizeWidth * largeDelEd;
         continue;
-      } 
-      
-      if (i[1] == 'S'){
+      }
+
+      if (i[1] == 'S') {
         subMarker = 'bold';
       } else {
         subMarker = 'normal';
       }
 
-      rowG.append("rect")
-        .attr("x", xPos)
-        .attr("y", 0)
-        .attr("width", 13)
-        .attr("height", 17.5)
-        .attr("fill", backgroundColor[base]);
+      if (i[0] != " ") {
+        rowG.append("rect")
+          .attr("x", xPos)
+          .attr("y", 0)
+          .attr("width", 13)
+          .attr("height", 17.5)
+          .attr("fill", backgroundColor[base]);
 
-      rowG.append("text")
-        .attr("x", xPos + cellSizeWidth/2)
-        .attr("y", cellSizeHeight*0.6)
-        .attr("font-size", 12)
-        .attr("class", "cell-text")
-        .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "middle")
-        .style("font-weight", subMarker)
-        .style("fill", 'black')
-        .text(base);
-      
-      if (i[1] == 'I' && ( x == 0 || drawInfo[1][x-1][1] !='I')) {
+        rowG.append("text")
+          .attr("x", xPos + cellSizeWidth / 2)
+          .attr("y", cellSizeHeight * 0.6)
+          .attr("font-size", 12)
+          .attr("class", "cell-text")
+          .attr("text-anchor", "middle")
+          .attr("dominant-baseline", "middle")
+          .style("font-weight", subMarker)
+          .style("fill", 'black')
+          .text(base);
+      }
+
+      if (i[1] == 'I' && (x == 0 || drawInfo[1][x - 1][1] != 'I')) {
         var InsSt = x;
         var InsEd;
         for (var InsEd = x; InsEd < drawInfo[1].length; InsEd++) {
@@ -496,7 +498,7 @@ function drawAllelePlot() {
             break
           }
         }
-        
+
         /*rowG.append("rect")
           .attr("x", xPos+1)
           .attr("y", 0)
@@ -505,12 +507,28 @@ function drawAllelePlot() {
           .attr("stroke", "red")      
           .attr("fill", "none")
           .attr("stroke-width", 2);*/
-        drawInsAllelePlot.push([xPos+1, 13*(InsEd-InsSt)+2, yPos]);
+        if (base == ' ') {
+          // inversion: red box spans to the end of the inverted region (match Python).
+          // +10 cells accounts for the left-flank reserve offset drawD3 adds per section.
+          var invRightEdge = cleavagePos2 ? cellSizeWidth * (4 * plotWindow + 20) : cellSizeWidth * (2 * plotWindow + 10);
+          // continuous deletion line through the box, drawn in rowG so the 'Xbp (inv)'
+          // white label (raised later) covers it instead of the line crossing the text.
+          rowG.append("line")
+            .attr("x1", xPos + 1)
+            .attr("y1", 0.5 * cellSizeHeight)
+            .attr("x2", invRightEdge)
+            .attr("y2", 0.5 * cellSizeHeight)
+            .attr("stroke", "black")
+            .attr("stroke-width", 1);
+          drawInsAllelePlot.push([xPos + 1, invRightEdge - (xPos + 1), yPos]);
+        } else {
+          drawInsAllelePlot.push([xPos + 1, 13 * (InsEd - InsSt) + 2, yPos]);
+        }
       }
 
       xPos += cellSizeWidth;
-      
-    }  
+
+    }
     if (drawInfo[2].length != 0) {
       if (drawInfo[2][2] = true) {
         /*rowG.append("rect")
@@ -522,7 +540,7 @@ function drawAllelePlot() {
           .attr("stroke", "red")      
           .attr("fill", "none")
           .attr("stroke-width", 2);*/
-        drawInsAllelePlot.push([xPos-2, 2, yPos]);
+        drawInsAllelePlot.push([xPos - 2, 2, yPos]);
       }
       for (i of drawInfo[2][1][0]) {
         base = i[0];
@@ -534,8 +552,8 @@ function drawAllelePlot() {
           .attr("fill", backgroundColor[base]);
 
         rowG.append("text")
-          .attr("x", xPos + cellSizeWidth/2)
-          .attr("y", cellSizeHeight*0.6)
+          .attr("x", xPos + cellSizeWidth / 2)
+          .attr("y", cellSizeHeight * 0.6)
           .attr("font-size", 12)
           .attr("class", "cell-text")
           .attr("text-anchor", "middle")
@@ -545,7 +563,7 @@ function drawAllelePlot() {
 
         xPos += cellSizeWidth;
       }
-      
+
     }
   }
 
@@ -555,7 +573,7 @@ function drawAllelePlot() {
     var checkMiddleLD = false;
     var checkMiddleInv = false;
     for (i = 0; i < mutList.length; i++) {
-      mutInfo = mutList[i].replace(';Complex','').replace(':', '_').split('_');
+      mutInfo = mutList[i].replace(';Complex', '').replace(':', '_').split('_');
       if (mutList[i].includes('inv') == true) {
         checkMiddleInv = true;
       }
@@ -571,32 +589,36 @@ function drawAllelePlot() {
       } else if (m == 'Del' || m == 'LargeDel') {
         mutSeq = +mutInfo[3];
         pos = +mutInfo[0];
-        if (pos < cleavagePos + plotWindow && mutInfo[1]*1 > cleavagePos2 - plotWindow) {
+        if (pos < cleavagePos + plotWindow && mutInfo[1] * 1 > cleavagePos2 - plotWindow) {
           checkMiddleLD = mutSeq;
         }
         for (x = 0; x < mutSeq; x++) {
-          aligned[pos+x] = '-_' + mutSeq + '_' + (x);
+          aligned[pos + x] = '-_' + mutSeq + '_' + (x);
           if (mutList[i].includes('inv') == true) {
-            aligned[pos+x] += '_inv';
-          } 
+            aligned[pos + x] += '_inv';
+          }
         }
       } else if (m == 'Ins' || m == 'LargeIns' || mutList[i].includes('inv') == false) {
         mutSeq = mutInfo[3];
         pos = +mutInfo[0];
-        aligned[pos-1] = aligned[pos-1]+'I'+mutSeq;   // insertion belongs BEFORE reference[pos]
+        if (mutList[i].includes('inv')) {
+          // inversion: show an empty red box (+ 'Xbp (inv)' label), not the inverted bases
+          mutSeq = ' '.repeat(mutSeq.length);
+        }
+        aligned[pos - 1] = aligned[pos - 1] + 'I' + mutSeq;   // insertion belongs BEFORE reference[pos]
       }
     }
-    
+
     var drawInfo_1 = [[], [], [], [false, false]]; //[front_info, middle, back_info, LD]
     var m, mDel;
-    for (i = 0; i < plotWindow*2; i ++) {
-      pos = cleavagePos + i - plotWindow+1;
-      m = aligned[pos];  
+    for (i = 0; i < plotWindow * 2; i++) {
+      pos = cleavagePos + i - plotWindow + 1;
+      m = aligned[pos];
       if (i == 0 && m[0] == '-') {
         var mDel = m.split('_');
-        drawInfo_1[0] = [[],[],[]]
+        drawInfo_1[0] = [[], [], []]
         drawInfo_1[0][0] = mDel[2];
-        drawInfo_1[0][1].push(aligned.slice(pos - drawInfo_1[0][0] - 10 ,pos - drawInfo_1[0][0]));
+        drawInfo_1[0][1].push(aligned.slice(pos - drawInfo_1[0][0] - 10, pos - drawInfo_1[0][0]));
         drawInfo_1[0][2] = false;
         if (m.indexOf('I') != -1) {
           drawInfo_1[0][2] = true;
@@ -606,24 +628,24 @@ function drawAllelePlot() {
       if (m[0] != '-') {
         if (m[1] == 'I') {
           drawInfo_1[1].push(m[0] + ' ');   // base itself is NOT inserted -> no red box
-          for (x of m.slice(2,)){
+          for (x of m.slice(2,)) {
             drawInfo_1[1].push(x + 'I');
           }
         } else {
-          drawInfo_1[1].push(m.slice(0,2));
+          drawInfo_1[1].push(m.slice(0, 2));
         }
       } else {
         if (m.indexOf('inv') == -1 && m.indexOf('I') != -1) {
-          for (x of m.slice(m.indexOf('I')+1,)) {
+          for (x of m.slice(m.indexOf('I') + 1,)) {
             drawInfo_1[1].push(x + 'I');
           }
         }
         drawInfo_1[1].push(m);
       }
-      drawInfo_1[1] = drawInfo_1[1].slice(0,plotWindow*2);
-      if (i == plotWindow*2-1 && m[0] == '-') {
+      drawInfo_1[1] = drawInfo_1[1].slice(0, plotWindow * 2);
+      if (i == plotWindow * 2 - 1 && m[0] == '-') {
         var mDel = m.split('_');
-        drawInfo_1[2] = [[],[],[]]
+        drawInfo_1[2] = [[], [], []]
         drawInfo_1[2][0] = mDel[2] - mDel[1];
         drawInfo_1[2][1].push(aligned.slice(pos - drawInfo_1[2][0], pos - drawInfo_1[2][0] + 10));
         drawInfo_1[2][2] = false;
@@ -636,14 +658,14 @@ function drawAllelePlot() {
 
     if (cleavagePos2 != "") {
       var drawInfo_2 = [[], [], [], [false, false]];
-      for (i = 0; i < plotWindow*2; i ++) {
+      for (i = 0; i < plotWindow * 2; i++) {
         pos = cleavagePos2 + i - plotWindow;
-        m = aligned[pos];  
+        m = aligned[pos];
         if (i == 0 && m[0] == '-') {
           var mDel = m.split('_');
-          drawInfo_2[0] = [[],[],[]];
+          drawInfo_2[0] = [[], [], []];
           drawInfo_2[0][0] = mDel[2];
-          drawInfo_2[0][1].push(aligned.slice(pos-drawInfo_2[0][0] - 10 ,pos - drawInfo_2[0][0]));
+          drawInfo_2[0][1].push(aligned.slice(pos - drawInfo_2[0][0] - 10, pos - drawInfo_2[0][0]));
           drawInfo_2[0][2] = false;
           if (m.indexOf('I') != -1) {
             drawInfo_1[0][2] = true;
@@ -653,24 +675,24 @@ function drawAllelePlot() {
         if (m[0] != '-') {
           if (m[1] == 'I') {
             drawInfo_2[1].push(m[0] + ' ');   // base itself is NOT inserted -> no red box
-            for (x of m.slice(2,)){
+            for (x of m.slice(2,)) {
               drawInfo_2[1].push(x + 'I');
             }
           } else {
-            drawInfo_2[1].push(m.slice(0,2));
+            drawInfo_2[1].push(m.slice(0, 2));
           }
         } else {
           if (m.indexOf('I') != -1) {
-            for (x of m.slice(m.indexOf('I')+1,)) {
+            for (x of m.slice(m.indexOf('I') + 1,)) {
               drawInfo_2[1].push(x + 'I');
             }
           }
           drawInfo_2[1].push(m);
         }
-        drawInfo_2[1] = drawInfo_2[1].slice(0,plotWindow*2);
-        if (i == plotWindow*2-1 && m[0] == '-') {
+        drawInfo_2[1] = drawInfo_2[1].slice(0, plotWindow * 2);
+        if (i == plotWindow * 2 - 1 && m[0] == '-') {
           var mDel = m.split('_');
-          drawInfo_2[2] = [[],[],[]];
+          drawInfo_2[2] = [[], [], []];
           drawInfo_2[2][0] = mDel[1] - mDel[2];
           drawInfo_2[2][1].push(aligned.slice(pos + drawInfo_2[2][0], pos + drawInfo_2[2][0] + 10));
           drawInfo_2[2][2] = false;
@@ -680,11 +702,11 @@ function drawAllelePlot() {
           drawInfo_2[3][1] = true;
         }
       }
-      
+
       if (cleavagePos2 != "") {
         var middleCigar = [];
-        var middleCigarSum = {"S": 0, "D": 0, "I": 0};
-        for (pos = cleavagePos-plotWindow; pos < cleavagePos2+plotWindow; pos++) {
+        var middleCigarSum = { "S": 0, "D": 0, "I": 0 };
+        for (pos = cleavagePos - plotWindow; pos < cleavagePos2 + plotWindow; pos++) {
           mutInfo = aligned[pos];
           if (mutInfo[0] != '-') {
             if (mutInfo[1] == 'S') {
@@ -692,14 +714,14 @@ function drawAllelePlot() {
                 middleCigar.push(0);
                 middleCigar.push('S');
               }
-              middleCigar[middleCigar.length-2] += 1;
+              middleCigar[middleCigar.length - 2] += 1;
               middleCigarSum['S'] += 1;
             } else {
               if (middleCigar.slice(-1) != 'M') {
                 middleCigar.push(0);
                 middleCigar.push('M');
               }
-              middleCigar[middleCigar.length-2] += 1
+              middleCigar[middleCigar.length - 2] += 1
             }
             if (mutInfo[1] == 'I') {
               middleCigar.push(mutInfo.slice(2,).length);
@@ -716,7 +738,7 @@ function drawAllelePlot() {
               middleCigar.push(0);
               middleCigar.push('D');
             }
-            middleCigar[middleCigar.length-2] += 1;
+            middleCigar[middleCigar.length - 2] += 1;
             middleCigarSum['D'] += 1;
           }
         }
@@ -729,16 +751,16 @@ function drawAllelePlot() {
             }
           }
           rowG.append("rect")
-            .attr("x", cellSizeWidth * (plotWindow*2 + 10))
+            .attr("x", cellSizeWidth * (plotWindow * 2 + 10))
             .attr("y", 2)
-            .attr("width", cellSizeWidth*10)
+            .attr("width", cellSizeWidth * 10)
             .attr("class", "middle-cell-text")
             .attr("height", 13.5)
             .attr("fill", '#F5F5F5');
 
           rowG.append("text")
-            .attr("x", cellSizeWidth * (plotWindow*2 + 10) + cellSize*(10-2)/2)
-            .attr("y", cellSizeHeight*0.6)
+            .attr("x", cellSizeWidth * (plotWindow * 2 + 10) + cellSize * (10 - 2) / 2)
+            .attr("y", cellSizeHeight * 0.6)
             .attr("font-size", 12)
             .attr("class", "middle-cell-text")
             .attr("text-anchor", "middle")
@@ -750,16 +772,16 @@ function drawAllelePlot() {
             inputStr += ' (inv)'
           }
           rowG.append("line")
-            .attr("x1", cellSizeWidth * (10 + plotWindow*2))   
-            .attr("y1", 0 + 0.5*cellSizeHeight)   
-            .attr("x2", cellSizeWidth * (10 + plotWindow*2 + 10))   
-            .attr("y2", 0 + 0.5*cellSizeHeight)  
+            .attr("x1", cellSizeWidth * (10 + plotWindow * 2))
+            .attr("y1", 0 + 0.5 * cellSizeHeight)
+            .attr("x2", cellSizeWidth * (10 + plotWindow * 2 + 10))
+            .attr("y2", 0 + 0.5 * cellSizeHeight)
             .attr("class", "middle-cell-text")
-            .attr("stroke", "black")              
+            .attr("stroke", "black")
             .attr("stroke-width", 1);
           var textElement = rowG.append("text")
-            .attr("x", cellSizeWidth * (plotWindow*2 + 10) + cellSize*(10-2)/2)
-            .attr("y", cellSizeHeight*0.6)
+            .attr("x", cellSizeWidth * (plotWindow * 2 + 10) + cellSize * (10 - 2) / 2)
+            .attr("y", cellSizeHeight * 0.6)
             .attr("font-size", 12)
             .attr("class", "middle-cell-text")
             .attr("text-anchor", "middle")
@@ -768,31 +790,31 @@ function drawAllelePlot() {
           bbox = textElement.node().getBBox();
           textWidth = bbox.width + 20;
           rowG.append("rect")
-              .attr("x", cellSizeWidth * (plotWindow*2 + 10) + cellSize*(10-2)/2 - textWidth/2)
-              .attr("y", 0)
-              .attr("width", textWidth)
-              .attr("class", "middle-cell-text")
-              .attr("height", 17.5)
-              .attr("fill", 'white');
+            .attr("x", cellSizeWidth * (plotWindow * 2 + 10) + cellSize * (10 - 2) / 2 - textWidth / 2)
+            .attr("y", 0)
+            .attr("width", textWidth)
+            .attr("class", "middle-cell-text")
+            .attr("height", 17.5)
+            .attr("fill", 'white');
           rowG.append("text")
-              .attr("x", cellSizeWidth * (plotWindow*2 + 10) + cellSize*(10-2)/2)
-              .attr("y", cellSizeHeight*0.6)
-              .attr("font-size", 12)
-              .attr("class", "middle-cell-text")
-              .attr("text-anchor", "middle")
-              .attr("dominant-baseline", "middle")
-              .text(inputStr);
+            .attr("x", cellSizeWidth * (plotWindow * 2 + 10) + cellSize * (10 - 2) / 2)
+            .attr("y", cellSizeHeight * 0.6)
+            .attr("font-size", 12)
+            .attr("class", "middle-cell-text")
+            .attr("text-anchor", "middle")
+            .attr("dominant-baseline", "middle")
+            .text(inputStr);
         }
         drawInfo_1[2] = [];
         drawInfo_2[0] = [];
       }
       xPos = drawD3(drawInfo_1, 0, 0);
-      xPos = drawD3(drawInfo_2, cellSizeWidth * (plotWindow*2 + 10), 1);
-      
+      xPos = drawD3(drawInfo_2, cellSizeWidth * (plotWindow * 2 + 10), 1);
+
       if (read != '') {
         rowG.append("text")
-          .attr("x", cellSizeWidth * (plotWindow*4 + 10*3 + 1))
-          .attr("y", cellSizeHeight*0.6)
+          .attr("x", cellSizeWidth * (plotWindow * 4 + 10 * 3 + 1))
+          .attr("y", cellSizeHeight * 0.6)
           .attr("font-size", 12)
           .attr("class", "cell-text")
           .attr("text-anchor", "left")
@@ -801,11 +823,11 @@ function drawAllelePlot() {
       }
     } else {
       xPos = drawD3(drawInfo_1, 0, 1);
-      
+
       if (read != '') {
         rowG.append("text")
-          .attr("x", cellSizeWidth * (plotWindow*2 + 10*2 + 1))
-          .attr("y", cellSizeHeight*0.6)
+          .attr("x", cellSizeWidth * (plotWindow * 2 + 10 * 2 + 1))
+          .attr("y", cellSizeHeight * 0.6)
           .attr("font-size", 12)
           .attr("class", "cell-text")
           .attr("text-anchor", "left")
@@ -814,7 +836,7 @@ function drawAllelePlot() {
       }
     }
   }
-   
+
 
   windowStart = cleavagePos - plotWindow;
   if (numRows > Object.values(filteredTreatedReads).length) {
@@ -822,80 +844,80 @@ function drawAllelePlot() {
   }
   if (showAllBetweenAllele) {
     windowEnd = cleavagePos2 + plotWindow;
-    maxLength = cleavagePos2 - cleavagePos + 2*plotWindow;
+    maxLength = cleavagePos2 - cleavagePos + 2 * plotWindow;
     plotWidth = cellSizeWidth * maxLength + margin.left + margin.right;
   } else {
     windowEnd = cleavagePos + plotWindow;
     if (cleavagePos2) {
-      maxLength = 4*plotWindow + 10;
+      maxLength = 4 * plotWindow + 10;
       windowStart2 = cleavagePos2 - plotWindow;
       windowEnd2 = cleavagePos2 + plotWindow;
     } else {
-      maxLength = 2*plotWindow;
+      maxLength = 2 * plotWindow;
     }
     plotWidth = cellSizeWidth * maxLength + margin.left + margin.right;
   }
 
-  var plotRef = reference.slice(cleavagePos - plotWindow + 1, windowEnd+1);
+  var plotRef = reference.slice(cleavagePos - plotWindow + 1, windowEnd + 1);
   if (cleavagePos2 != "" && showAllBetweenAllele == false) {
     var plotRef2 = reference.slice(cleavagePos2 - plotWindow, cleavagePos2 + plotWindow);
   }
 
   var backgroundColor = {
-      "A": "#F0FFF0",
-      "T": "#FFE4E1",
-      "G": "#FFFFE0",
-      "C": "#F0F8FF",
-      "-": "#F5F5F5",
-      "N": "#F5F5F5",
-      ' ': "#FFFFFF"
+    "A": "#F0FFF0",
+    "T": "#FFE4E1",
+    "G": "#FFFFE0",
+    "C": "#F0F8FF",
+    "-": "#F5F5F5",
+    "N": "#F5F5F5",
+    ' ': "#FFFFFF"
   };
 
 
-  
-  var width = parseInt(d3.select("#allelePlot").style("width"));
-  height = cellSizeHeight * (numRows+5) + margin.top  + margin.bottom ; 
 
-  var initialScale = width/plotWidth * 0.6;
+  var width = parseInt(d3.select("#allelePlot").style("width"));
+  height = cellSizeHeight * (numRows + 5) + margin.top + margin.bottom;
+
+  var initialScale = width / plotWidth * 0.6;
   var translateX = (width - width * initialScale) - 100;
   var translateY = (height - height * initialScale) / 2;
 
 
   const svg = d3.select("#allelePlot")
     .append("svg")
-    .attr("viewBox", `0 0 ${width} ${height+100}`)
+    .attr("viewBox", `0 0 ${width} ${height + 100}`)
     .attr("preserveAspectRatio", "xMidYMid meet")
-    .style("width", "100%") 
+    .style("width", "100%")
     .style("height", "auto");
 
   const mainG = svg.append("g")
-      .attr("class", "main-container");
+    .attr("class", "main-container");
 
- var zoom = d3.zoom()
-    .scaleExtent([0.1, 10]) 
+  var zoom = d3.zoom()
+    .scaleExtent([0.1, 10])
     .on("zoom", (event) => {
-        mainG.attr("transform", event.transform);
-        d3.select("#zoomSlider").property("value", event.transform.k);
+      mainG.attr("transform", event.transform);
+      d3.select("#zoomSlider").property("value", event.transform.k);
     });
 
   svg.call(zoom);
 
   svg.call(zoom.transform, d3.zoomIdentity.translate(0, translateY).scale(initialScale));
-  
-  d3.select("#zoomSlider").property("value", initialScale);
-  
 
-  d3.select("#zoomSlider").on("input", function() {
+  d3.select("#zoomSlider").property("value", initialScale);
+
+
+  d3.select("#zoomSlider").on("input", function () {
     const newScale = +this.value;
     var currentTransform = d3.zoomTransform(svg.node());
     var newTransform = d3.zoomIdentity
-                            .translate(currentTransform.x, currentTransform.y)
-                            .scale(newScale);
+      .translate(currentTransform.x, currentTransform.y)
+      .scale(newScale);
     svg.call(zoom.transform, newTransform);
   })
- 
 
-  var xPos = 10 *cellSizeWidth;
+
+  var xPos = 10 * cellSizeWidth;
   var betweenX = 0;
   var seq = plotRef;
 
@@ -904,42 +926,42 @@ function drawAllelePlot() {
   }
 
   var rowG = mainG.append("g")
-  .attr("transform", `translate(${margin.left}, ${margin.top + 1 * cellSizeHeight})`);
+    .attr("transform", `translate(${margin.left}, ${margin.top + 1 * cellSizeHeight})`);
 
   // Reference line
 
   rowG.append("text")
-      .attr("x", 8 * cellSizeWidth)
-      .attr("y", cellSizeHeight*0.6)
-      .attr("font-size", 16)
-      .attr("font-weight", "bold")
-      .attr("font-family", "sans-serif")
-      .attr("text-anchor", "middle")
-      .attr("dominant-baseline", "middle")
-      .text("Ref.");
+    .attr("x", 8 * cellSizeWidth)
+    .attr("y", cellSizeHeight * 0.6)
+    .attr("font-size", 16)
+    .attr("font-weight", "bold")
+    .attr("font-family", "sans-serif")
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .text("Ref.");
 
-  for (i = 0; i < plotRef.length; i ++ ) {
+  for (i = 0; i < plotRef.length; i++) {
 
-      let base = plotRef[i];
+    let base = plotRef[i];
 
-      rowG.append("rect")
+    rowG.append("rect")
       .attr("x", xPos)
       .attr("y", 0)
       .attr("width", 13)
       .attr("height", 17.5)
       .attr("fill", backgroundColor[base]);
 
-      rowG.append("text")
-          .attr("x", xPos + cellSizeWidth/2)
-          .attr("y", cellSizeHeight*0.6)
-          .attr("font-size", 12)
-          .attr("class", "cell-text")
-          .attr("text-anchor", "middle")
-          .attr("dominant-baseline", "middle")
-          .style("fill", 'black')
-          .text(base);
+    rowG.append("text")
+      .attr("x", xPos + cellSizeWidth / 2)
+      .attr("y", cellSizeHeight * 0.6)
+      .attr("font-size", 12)
+      .attr("class", "cell-text")
+      .attr("text-anchor", "middle")
+      .attr("dominant-baseline", "middle")
+      .style("fill", 'black')
+      .text(base);
 
-      xPos += cellSizeWidth;
+    xPos += cellSizeWidth;
   }
 
   if (cleavagePos2 != "" && showAllBetweenAllele == false) {
@@ -947,46 +969,46 @@ function drawAllelePlot() {
     rowG.append("rect")
       .attr("x", xPos)
       .attr("y", 2)
-      .attr("width", cellSizeWidth*10)
+      .attr("width", cellSizeWidth * 10)
       .attr("height", 13.5)
       .attr("fill", '#F5F5F5');
-    
+
     rowG.append("text")
-      .attr("x", xPos + cellSize*4)
-      .attr("y", cellSizeHeight*0.6)
+      .attr("x", xPos + cellSize * 4)
+      .attr("y", cellSizeHeight * 0.6)
       .attr("font-size", 12)
       .attr("class", "cell-text")
       .attr("text-anchor", "middle")
       .attr("dominant-baseline", "middle")
-      .text((cleavagePos2 - cleavagePos - plotWindow*2) + " bp");
+      .text((cleavagePos2 - cleavagePos - plotWindow * 2) + " bp");
 
     xPos += cellSizeWidth * 10;
 
-    for (i = 0; i < plotRef2.length; i ++ ) {
+    for (i = 0; i < plotRef2.length; i++) {
 
       let base = plotRef2[i];
 
       rowG.append("rect")
-      .attr("x", xPos)
-      .attr("y", 0)
-      .attr("width", 13)
-      .attr("height", 17.5)
-      .attr("fill", backgroundColor[base]);
+        .attr("x", xPos)
+        .attr("y", 0)
+        .attr("width", 13)
+        .attr("height", 17.5)
+        .attr("fill", backgroundColor[base]);
 
       rowG.append("text")
-          .attr("x", xPos + cellSizeWidth/2)
-          .attr("y", cellSizeHeight*0.6)
-          .attr("font-size", 12)
-          .attr("class", "cell-text")
-          .attr("text-anchor", "middle")
-          .attr("dominant-baseline", "middle")
-          .style("fill", 'black')
-          .text(base);
+        .attr("x", xPos + cellSizeWidth / 2)
+        .attr("y", cellSizeHeight * 0.6)
+        .attr("font-size", 12)
+        .attr("class", "cell-text")
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "middle")
+        .style("fill", 'black')
+        .text(base);
 
       xPos += cellSizeWidth;
     }
   }
-  
+
   // Target visual line
   rowG = mainG.append("g").attr("transform", `translate(${margin.left}, ${margin.top + 2 * cellSizeHeight})`);
 
@@ -994,15 +1016,15 @@ function drawAllelePlot() {
 
   if (strand == 1) {
     rowG.append("rect")
-      .attr("x", 10 *cellSizeWidth + cellSizeWidth*(target.length - cleavagePosTarget - 1))
+      .attr("x", 10 * cellSizeWidth + cellSizeWidth * (target.length - cleavagePosTarget - 1))
       .attr("y", 2)
       .attr("width", cellSizeWidth * 20)
       .attr("height", 13.5)
       .attr("fill", '#C9C9C9');
 
     rowG.append("text")
-      .attr("x", 10 *cellSizeWidth + cellSizeWidth*(target.length - cleavagePosTarget - 2))
-      .attr("y", cellSizeHeight*0.6)
+      .attr("x", 10 * cellSizeWidth + cellSizeWidth * (target.length - cleavagePosTarget - 2))
+      .attr("y", cellSizeHeight * 0.6)
       .attr("font-size", 14)
       .attr("font-family", "sans-serif")
       .attr("font-weight", "bold")
@@ -1011,15 +1033,15 @@ function drawAllelePlot() {
       .text("sg1");
   } else {
     rowG.append("rect")
-      .attr("x", 10 *cellSizeWidth + cellSizeWidth*(cleavagePosTarget))
+      .attr("x", 10 * cellSizeWidth + cellSizeWidth * (cleavagePosTarget))
       .attr("y", 2)
       .attr("width", cellSizeWidth * target.length)
       .attr("height", 13.5)
       .attr("fill", '#C9C9C9');
 
     rowG.append("text")
-      .attr("x", 10 *cellSizeWidth + cellSizeWidth*(cleavagePosTarget - 2))
-      .attr("y", cellSizeHeight*0.6)
+      .attr("x", 10 * cellSizeWidth + cellSizeWidth * (cleavagePosTarget - 2))
+      .attr("y", cellSizeHeight * 0.6)
       .attr("font-size", 14)
       .attr("font-family", "sans-serif")
       .attr("font-weight", "bold")
@@ -1030,15 +1052,15 @@ function drawAllelePlot() {
   if (cleavagePos2 != "") {
     if (strand2 == 1) {
       rowG.append("rect")
-        .attr("x", 10 *cellSizeWidth + cellSizeWidth*(plotWindow*3 + 10 - cleavagePosTarget))
+        .attr("x", 10 * cellSizeWidth + cellSizeWidth * (plotWindow * 3 + 10 - cleavagePosTarget))
         .attr("y", 2)
         .attr("width", cellSizeWidth * target.length)
         .attr("height", 13.5)
         .attr("fill", '#C9C9C9');
 
       rowG.append("text")
-        .attr("x", 10 *cellSizeWidth + cellSizeWidth*(plotWindow*3 + 10 - cleavagePosTarget - 2))
-        .attr("y", cellSizeHeight*0.6)
+        .attr("x", 10 * cellSizeWidth + cellSizeWidth * (plotWindow * 3 + 10 - cleavagePosTarget - 2))
+        .attr("y", cellSizeHeight * 0.6)
         .attr("font-size", 16)
         .attr("font-family", "sans-serif")
         .attr("font-weight", "bold")
@@ -1047,15 +1069,15 @@ function drawAllelePlot() {
         .text("sg2");
     } else {
       rowG.append("rect")
-        .attr("x", 10 *cellSizeWidth + cellSizeWidth*(plotWindow*2 + 10 + cleavagePosTarget))
+        .attr("x", 10 * cellSizeWidth + cellSizeWidth * (plotWindow * 2 + 10 + cleavagePosTarget))
         .attr("y", 2)
         .attr("width", cellSizeWidth * 20)
         .attr("height", 13.5)
         .attr("fill", '#C9C9C9');
 
       rowG.append("text")
-        .attr("x", 10 *cellSizeWidth + cellSizeWidth*(plotWindow*2 + 10 + cleavagePosTarget - 3))
-        .attr("y", cellSizeHeight*0.6)
+        .attr("x", 10 * cellSizeWidth + cellSizeWidth * (plotWindow * 2 + 10 + cleavagePosTarget - 3))
+        .attr("y", cellSizeHeight * 0.6)
         .attr("font-size", 16)
         .attr("font-family", "sans-serif")
         .attr("font-weight", "bold")
@@ -1077,9 +1099,9 @@ function drawAllelePlot() {
     if (n == numRows) {
       break
     }
-    n ++;
+    n++;
     read = filteredTreatedReads[mutStr];
-    per = read/totalRead*100;
+    per = read / totalRead * 100;
     per = per.toFixed(2);
     rowG = mainG.append("g").attr("transform", `translate(${margin.left}, ${margin.top + yPos * cellSizeHeight})`);
     drawLine(mutStr.split(','), read, per);
@@ -1087,37 +1109,37 @@ function drawAllelePlot() {
   }
 
   mainG.append("line")
-    .attr("x1", cellSizeWidth*(+plotWindow + 10)+margin.left)   
-    .attr("y1", 0 + margin.top)   
-    .attr("x2", cellSizeWidth*(plotWindow + 10)+margin.left)   
-    .attr("y2", cellSizeHeight*(numRows+6) + margin.top)  
-    .attr("stroke", "black")              
-    .attr("stroke-width", 2)              
+    .attr("x1", cellSizeWidth * (+plotWindow + 10) + margin.left)
+    .attr("y1", 0 + margin.top)
+    .attr("x2", cellSizeWidth * (plotWindow + 10) + margin.left)
+    .attr("y2", cellSizeHeight * (numRows + 6) + margin.top)
+    .attr("stroke", "black")
+    .attr("stroke-width", 2)
     .attr("stroke-dasharray", "5,5");
 
   if (cleavagePos2 != "") {
     mainG.append("line")
-      .attr("x1", cellSizeWidth*(3*plotWindow + 10+10+1)+margin.left)   
-      .attr("y1", 0 + margin.top)   
-      .attr("x2", cellSizeWidth*(3*plotWindow + 10+10+1)+margin.left)   
-      .attr("y2", cellSizeHeight*(numRows+6) + margin.top)  
-      .attr("stroke", "red")              
-      .attr("stroke-width", 2)              
+      .attr("x1", cellSizeWidth * (3 * plotWindow + 10 + 10 + 1) + margin.left)
+      .attr("y1", 0 + margin.top)
+      .attr("x2", cellSizeWidth * (3 * plotWindow + 10 + 10 + 1) + margin.left)
+      .attr("y2", cellSizeHeight * (numRows + 6) + margin.top)
+      .attr("stroke", "red")
+      .attr("stroke-width", 2)
       .attr("stroke-dasharray", "5,5");
   }
   // Draw insertion box
-    for (i of drawInsAllelePlot) {
-      mainG.append("rect")
-          .attr("x", margin.left+ i[0])
-          .attr("y", margin.top + i[2] * cellSizeHeight)
-          .attr("width", i[1])
-          .attr("height", 17.5)
-          .attr("stroke", "red")      
-          .attr("fill", "none")
-          .attr("stroke-width", 2);
-    }
+  for (i of drawInsAllelePlot) {
+    mainG.append("rect")
+      .attr("x", margin.left + i[0])
+      .attr("y", margin.top + i[2] * cellSizeHeight)
+      .attr("width", i[1])
+      .attr("height", 17.5)
+      .attr("stroke", "red")
+      .attr("fill", "none")
+      .attr("stroke-width", 2);
+  }
   d3.selectAll(".middle-cell-text").raise();
-  d3.selectAll(".out-ins").raise();  
+  d3.selectAll(".out-ins").raise();
 }
 
 
@@ -1128,7 +1150,7 @@ function runVisualization() {
   var table = document.createElement("table");
   table.className = "table table-bordered table-striped w-100 result-table";
 
-  var headers = ["Total reads", "Reads used in analysis", "WT", "Ins", "Del", "Sub", "LargeDel", "LargeIns", "Inversion", "Complex",  "Precisely induced editing", "Partially induced editing"];
+  var headers = ["Total reads", "Reads used in analysis", "WT", "Ins", "Del", "Sub", "LargeDel", "LargeIns", "Inversion", "Complex", "Precisely induced editing", "Partially induced editing"];
 
   var colgroup = document.createElement("colgroup");
   for (let i = 0; i < headers.length; i++) {
@@ -1156,16 +1178,16 @@ function runVisualization() {
   var data = [
     mainResult.treated_align_cnt.All_reads,
     mainResult.treated_align_cnt.Used,
-    mutTypeCnt.WT + ' (' + (mutTypeCnt.WT*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Ins + ' (' + (mutTypeCnt.Ins*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Del + ' (' + (mutTypeCnt.Del*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Sub + ' (' + (mutTypeCnt.Sub*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.LargeDel + ' (' + (mutTypeCnt.LargeDel*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.LargeIns + ' (' + (mutTypeCnt.LargeIns*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Inv + ' (' + (mutTypeCnt.Inv*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Complex + ' (' + (mutTypeCnt.Complex*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Precise + ' (' + (mutTypeCnt.Precise*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Partial + ' (' + (mutTypeCnt.Partial*100/mainResult.treated_align_cnt.Used).toFixed(1) + ' %)'
+    mutTypeCnt.WT + ' (' + (mutTypeCnt.WT * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Ins + ' (' + (mutTypeCnt.Ins * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Del + ' (' + (mutTypeCnt.Del * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Sub + ' (' + (mutTypeCnt.Sub * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.LargeDel + ' (' + (mutTypeCnt.LargeDel * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.LargeIns + ' (' + (mutTypeCnt.LargeIns * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Inv + ' (' + (mutTypeCnt.Inv * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Complex + ' (' + (mutTypeCnt.Complex * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Precise + ' (' + (mutTypeCnt.Precise * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
+    mutTypeCnt.Partial + ' (' + (mutTypeCnt.Partial * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)'
   ];
 
   data.forEach(value => {
@@ -1187,26 +1209,26 @@ function runVisualization() {
     x.push(Math.log10(i));
   }
   var histogram = d3.histogram()
-  .domain([d3.min(x), d3.max(x)])
-  .thresholds(30);
+    .domain([d3.min(x), d3.max(x)])
+    .thresholds(30);
   var bins = histogram(x);
-  var binCenters = bins.map(function(bin) {
+  var binCenters = bins.map(function (bin) {
     return (bin.x0 + bin.x1) / 2;
   });
-  var counts = bins.map(function(bin) {
-      return bin.length;
+  var counts = bins.map(function (bin) {
+    return bin.length;
   });
   var trace = {
-      x: binCenters,
-      y: counts,
-      mode: 'lines',
-      type: 'scatter',
-      name: 'Frequency Polygon'
+    x: binCenters,
+    y: counts,
+    mode: 'lines',
+    type: 'scatter',
+    name: 'Frequency Polygon'
   };
   var layout = {
     title: 'p-value distribution',
     xaxis: { title: 'p-value (log)' },
-    yaxis: { title: 'Accumulation count'},
+    yaxis: { title: 'Accumulation count' },
     shapes: [
       {
         type: 'line',
@@ -1215,7 +1237,7 @@ function runVisualization() {
         y0: 0,
         y1: 1,
         xref: 'x',
-        yref: 'paper',  
+        yref: 'paper',
         line: {
           color: 'red',
           width: 2,
@@ -1226,7 +1248,7 @@ function runVisualization() {
     annotations: [
       {
         x: threshold,
-        y: 1,  
+        y: 1,
         xref: 'x',
         yref: 'paper',
         text: 'Threshold',
@@ -1250,26 +1272,26 @@ function runVisualization() {
     x.push(i);
   }
   var histogram = d3.histogram()
-  .domain([d3.min(x), d3.max(x)])
-  .thresholds(30);
+    .domain([d3.min(x), d3.max(x)])
+    .thresholds(30);
   var bins = histogram(x);
-  var binCenters = bins.map(function(bin) {
+  var binCenters = bins.map(function (bin) {
     return (bin.x0 + bin.x1) / 2;
   });
-  var counts = bins.map(function(bin) {
-      return bin.length;
+  var counts = bins.map(function (bin) {
+    return bin.length;
   });
   var trace = {
-      x: binCenters,
-      y: counts,
-      mode: 'lines',
-      type: 'scatter',
-      name: 'Frequency Polygon'
+    x: binCenters,
+    y: counts,
+    mode: 'lines',
+    type: 'scatter',
+    name: 'Frequency Polygon'
   };
   var layout = {
     title: 'frequency distribution',
     xaxis: { title: 'frequency' },
-    yaxis: { title: 'Accumulation count'},
+    yaxis: { title: 'Accumulation count' },
     shapes: [
       {
         type: 'line',
@@ -1278,7 +1300,7 @@ function runVisualization() {
         y0: 0,
         y1: 1,
         xref: 'x',
-        yref: 'paper',  
+        yref: 'paper',
         line: {
           color: 'red',
           width: 2,
@@ -1286,14 +1308,14 @@ function runVisualization() {
         }
       }
     ],
-      }
+  }
   //Plotly.newPlot('freqDistPlot', [trace], layout);
 
 
   // Align summary plot
 
   var alignSum = mainResult.treated_align_cnt;
-  var data = {'All reads':alignSum.All_reads, 'Aligned':alignSum.All_reads-alignSum.Unmapped, 'Used':alignSum.Used};
+  var data = { 'All reads': alignSum.All_reads, 'Aligned': alignSum.All_reads - alignSum.Unmapped, 'Used': alignSum.Used };
   var keys = Object.keys(data);
   var values = Object.values(data);
 
@@ -1301,7 +1323,7 @@ function runVisualization() {
     x: keys,
     y: values,
     type: 'bar',
-    marker: {color: 'gray'}
+    marker: { color: 'gray' }
   };
   var layout = {
     title: 'Alignment Summary',
@@ -1310,7 +1332,7 @@ function runVisualization() {
   };
   Plotly.newPlot('alignSumPlot', [trace], layout);
 
- 
+
   // Mutation count pie plot
 
   var labels = Object.keys(mutTypeCnt);
@@ -1349,13 +1371,13 @@ function runVisualization() {
 
   // Mutation distribution line plot
 
-  var x = Array.from({length: reference.length}, (_, i) => i);
+  var x = Array.from({ length: reference.length }, (_, i) => i);
   var trace1 = { x, y: insPosList, mode: 'lines', name: 'Ins' };
   var trace2 = { x, y: delPosList, mode: 'lines', name: 'Del' };
   var trace3 = { x, y: subPosList, mode: 'lines', name: 'Sub' };
-  
+
   var data = [trace1, trace2, trace3];
-  
+
   var layout = {
     title: 'Mutation distributin line plot',
     xaxis: {
@@ -1368,7 +1390,7 @@ function runVisualization() {
       range: [0, 100]
     }
   };
-  
+
   Plotly.newPlot('combinedPlot', data, layout);
 
   // CV line
@@ -1376,34 +1398,34 @@ function runVisualization() {
   shapes = [
     {
       type: 'line',
-      xref: 'x',         
-      yref: 'paper',     
+      xref: 'x',
+      yref: 'paper',
       x0: cleavagePos,
-      y0: 0,             
+      y0: 0,
       x1: cleavagePos,
-      y1: 1,             
+      y1: 1,
       line: {
-        color: 'black',  
-        width: 2,        
-        dash: 'dash'     
+        color: 'black',
+        width: 2,
+        dash: 'dash'
       }
     }
   ]
 
   if (cleavagePos2 != '') {
     shapes.push({
-        type: 'line',
-        xref: 'x',         
-        yref: 'paper',     
-        x0: cleavagePos2,
-        y0: 0,             
-        x1: cleavagePos2,
-        y1: 1,             
-        line: {
-          color: 'red',  
-          width: 2,        
-          dash: 'dash'     
-        }
+      type: 'line',
+      xref: 'x',
+      yref: 'paper',
+      x0: cleavagePos2,
+      y0: 0,
+      x1: cleavagePos2,
+      y1: 1,
+      line: {
+        color: 'red',
+        width: 2,
+        dash: 'dash'
+      }
     })
   }
 
@@ -1415,13 +1437,13 @@ function runVisualization() {
     y: insPlotList[1],
     mode: 'markers',
     type: 'scatter',
-    marker: {            
-      color: insPlotList[2],        
-      colorscale: 'Viridis',         
-      showscale: true               
+    marker: {
+      color: insPlotList[2],
+      colorscale: 'Viridis',
+      showscale: true
     }
   };
-  
+
   var maxy = insPlotList[1].reduce((max, current) => {
     return current > max ? current : max;
   }, -Infinity);
@@ -1432,7 +1454,7 @@ function runVisualization() {
     yaxis: { title: 'Inseriton position' },
     shapes: shapes
   };
-  
+
   Plotly.newPlot('insertionsPlot', [trace], layout);
 
 
@@ -1443,13 +1465,13 @@ function runVisualization() {
     y: delPlotList[1],
     mode: 'markers',
     type: 'scatter',
-    marker: {            
-      color: delPlotList[2],        
-      colorscale: 'Viridis',         
-      showscale: true               
+    marker: {
+      color: delPlotList[2],
+      colorscale: 'Viridis',
+      showscale: true
     }
   };
-  
+
   var maxy = delPlotList[1].reduce((max, current) => {
     return current > max ? current : max;
   }, -Infinity);
@@ -1460,25 +1482,25 @@ function runVisualization() {
     yaxis: { title: 'Deletion length' },
     shapes: shapes
   };
-  
+
   Plotly.newPlot('deletionsPlot', [trace], layout);
 
 
   //Substitution plot
 
   var windowStart = cleavagePos - plotWindow
-	var windowEnd = cleavagePos + plotWindow
+  var windowEnd = cleavagePos + plotWindow
 
-	if (cleavagePos2 != '') { windowEnd = cleavagePos2 + plotWindow; } 
+  if (cleavagePos2 != '') { windowEnd = cleavagePos2 + plotWindow; }
 
-	var baseProportions = {'A': [], 'T': [], 'G': [], 'C': [], 'N': [], 'Del': []};
-  var refProportions = {'A': [], 'T': [], 'G': [], 'C': [], 'N': []}
+  var baseProportions = { 'A': [], 'T': [], 'G': [], 'C': [], 'N': [], 'Del': [] };
+  var refProportions = { 'A': [], 'T': [], 'G': [], 'C': [], 'N': [] }
   var positions = [];
 
-	
-	for (i=0; i<reference.length; i++) {
-		if (windowStart > i || windowEnd <= i) {
-			continue
+
+  for (i = 0; i < reference.length; i++) {
+    if (windowStart > i || windowEnd <= i) {
+      continue
     }
 
     var sumCnt = 0;
@@ -1493,24 +1515,25 @@ function runVisualization() {
     }
     positions.push(i);
     baseProportions['Del'].push(subProportionList[i][5] * 100 / mainResult.treated_align_cnt.Used);
-		baseProportions[reference[i]].push(100 - sumCnt);
+    baseProportions[reference[i]].push(100 - sumCnt);
     refProportions[reference[i]].push(-1);
-  
+
   }
-	
-	var baseColors = {'A': 'honeydew',
-		'T': 'mistyrose',
-		'G': 'lightyellow',
-		'C': 'aliceblue',
+
+  var baseColors = {
+    'A': 'honeydew',
+    'T': 'mistyrose',
+    'G': 'lightyellow',
+    'C': 'aliceblue',
     'N': 'lightgray',
     'Del': 'black'
   };
 
   var data = [];
-  var minx =  Math.min(...positions);
-  var maxx =  Math.max(...positions);
+  var minx = Math.min(...positions);
+  var maxx = Math.max(...positions);
 
-  for (i of ['A', 'T', 'G','C', 'N']){
+  for (i of ['A', 'T', 'G', 'C', 'N']) {
     data.push({
       x: positions,
       y: baseProportions[i],
@@ -1521,9 +1544,9 @@ function runVisualization() {
     });
   }
 
-	var layout = {
+  var layout = {
     barmode: 'stack',
-    bargap: 0, 
+    bargap: 0,
     xaxis: {
       title: 'Position',
       rangeslider: {

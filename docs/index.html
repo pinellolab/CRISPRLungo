@@ -1,15 +1,17 @@
-
 <!DOCTYPE html>
 
 <html lang="en">
+
 <head>
-    <meta charset="utf-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CRISPRlungo</title>
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
 
   <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -18,32 +20,54 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
 
   <style>
-    :root{
+    :root {
       --border: #e5e7eb;
       --mut-muted: #f8f9fa;
       --mut-bg: #ffffff;
       --mut-page: #fbfbfb;
       --mut-text: #111827;
     }
-    html, body { height: 100%; }
-    .page{ display: none; }.active{ display: block; }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .active {
+      display: block;
+    }
+
     body {
       background: var(--mut-page);
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       color: var(--mut-text);
     }
-    .navbar-brand span { font-weight: 700; letter-spacing: .2px; }
+
+    .navbar-brand span {
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+
     .hero {
       padding: 2rem 0 0.5rem;
       text-align: center;
     }
-    .hero img { max-width: 640px; width: 100%; height: auto; }
+
+    .hero img {
+      max-width: 640px;
+      width: 100%;
+      height: auto;
+    }
 
     .app-card {
       border: 1px solid var(--border);
       background: var(--mut-bg);
       border-radius: 16px;
-      box-shadow: 0 6px 16px rgba(0,0,0,.04);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .04);
     }
 
     .seq {
@@ -54,9 +78,14 @@
       white-space: pre-wrap;
     }
 
-    .form-help { color: #6b7280; font-size: .9rem; }
+    .form-help {
+      color: #6b7280;
+      font-size: .9rem;
+    }
 
-    .range-value { font-variant-numeric: tabular-nums; }
+    .range-value {
+      font-variant-numeric: tabular-nums;
+    }
 
     .file-box {
       border: 1px dashed var(--border);
@@ -64,144 +93,174 @@
       border-radius: 12px;
       transition: border-color .2s ease, background .2s ease;
     }
-    .file-box:focus-within { border-color: #0d6efd; background: #f5f9ff; }
 
-    .section-title { font-weight: 600; }
-
-    @media (min-width: 992px){
-      .container-narrow { max-width: 980px; }
+    .file-box:focus-within {
+      border-color: #0d6efd;
+      background: #f5f9ff;
     }
+
+    .section-title {
+      font-weight: 600;
+    }
+
+    @media (min-width: 992px) {
+      .container-narrow {
+        max-width: 980px;
+      }
+    }
+
     .btn-group .btn-primary.disabled {
-    background-color: var(--bs-primary);
-    color: white;
-    opacity: 1;
-  }
-  .btn-group .border-light {
-    border-color:  #0d6efd !important;
-  }
-  .btn-group .btn-primary:hover:not(.disabled) {
-    background-color: #0b5ed7; /* Bootstrap primary dark color */
-  }
+      background-color: var(--bs-primary);
+      color: white;
+      opacity: 1;
+    }
+
+    .btn-group .border-light {
+      border-color: #0d6efd !important;
+    }
+
+    .btn-group .btn-primary:hover:not(.disabled) {
+      background-color: #0b5ed7;
+      /* Bootstrap primary dark color */
+    }
   </style>
-    
+
 </head>
-<body>
-    
-<body>
-  <nav class="navbar bg-white border-bottom sticky-top">
-    <div class="container container-narrow">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-        <i class="bi bi-bezier"></i>
-        <span>Mutation Analysis</span>
-      </a>
-      <div class="text-secondary small">v1</div>
-    </div>
-  </nav>
 
-  
-  <section class="hero">
-    <div class="container container-narrow">
-      <img src="title_icon.png" alt="App banner" class="img-fluid" />
-    </div>
-  </section>
+<body>
 
-  <div id="inputPage" class="page active">
-    <section class="py-3 py-md-4">
+  <body>
+    <nav class="navbar bg-white border-bottom sticky-top">
       <div class="container container-narrow">
-        <div class="app-card p-3 p-md-4">
-          <form id="analysisForm" novalidate>
-            <div class="row g-3 g-md-4">
-              <div class="col-12 section-title">Inputs</div>
+        <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+          <i class="bi bi-bezier"></i>
+          <span>CRISPRLungo</span>
+        </a>
+        <div class="text-secondary small">v1</div>
+      </div>
+    </nav>
 
-              <!-- Files -->
-              <div class="col-12 col-md-6">
-                <label for="treatedFile" class="form-label">Treated FASTQ</label>
-                <div class="p-3 file-box">
-                  <input class="form-control form-control-sm" id="treatedFile" type="file" accept=".fastq,.fq,.fastq.gz,.fq.gz" />
-                  <div class="form-text">.fastq / .fq / .gz </div>
-                  <div class="form-text">(.fastq /.fq <500Mb, .gz <200Mb)</div>
-                </div>
-              </div>
-              <div class="col-12 col-md-6">
-                <label for="controlFile" class="form-label">Control FASTQ</label>
-                <div class="p-3 file-box">
-                  <input class="form-control form-control-sm" id="controlFile" type="file" accept=".fastq,.fq,.fastq.gz,.fq.gz" />
-                  <div class="form-text">Optional for backgorund error filtering</div>
-                  <div class="form-text">(.fastq /.fq <500Mb, .gz <200Mb)</div>
-                </div>
-              </div>
 
-              <!-- Targets -->
-              <div class="col-12 col-lg-6">
-                <label for="targetSequence" class="form-label">Protospacer (w/o PAM)</label>
-                <textarea class="form-control seq" name="targetSequence" id="targetSequence" spellcheck="false" required></textarea>
-                <div class="form-help">e.g. GGCGCCCTGGCCAGTCGTCT</div>
-              </div>
-              <div class="col-12 col-lg-6">
-                <label for="targetSequence2" class="form-label">Additional Protospacer (w/o PAM, Optional)</label>
-                <textarea class="form-control seq" name="targetSequence2" id="targetSequence2" spellcheck="false"></textarea>
-                <div class="form-help">Optional for second gRNA.</div>
-              </div>
+    <section class="hero">
+      <div class="container container-narrow">
+        <img src="title_icon.png" alt="App banner" class="img-fluid" />
+      </div>
+    </section>
 
-              <!-- Reference -->
-              <div class="col-12">
-                <label for="reference" class="form-label">Reference</label>
-                <textarea class="form-control seq" name="reference" id="reference" rows="6" spellcheck="false" required></textarea>
-                <div class="form-text">Note: For optimal performance, a reference sequence shorter than 25 kbp is recommended on web tool.</div>
-              </div>
+    <div id="inputPage" class="page active">
+      <section class="py-3 py-md-4">
+        <div class="container container-narrow">
+          <div class="app-card p-3 p-md-4">
+            <form id="analysisForm" novalidate>
+              <div class="row g-3 g-md-4">
+                <div class="col-12 section-title">Inputs</div>
 
-              <!-- Desired mutation -->
-              <div class="col-12">
-                <label for="desiredSequence" class="form-label">Intended edit (Optional)</label>
-                <textarea class="form-control seq" name="desiredSequence" id="desiredSequence" rows="6" spellcheck="false"></textarea>
-              </div>
+                <!-- Files -->
+                <div class="col-12 col-md-6">
+                  <label for="treatedFile" class="form-label">Treated FASTQ</label>
+                  <div class="p-3 file-box">
+                    <input class="form-control form-control-sm" id="treatedFile" type="file"
+                      accept=".fastq,.fq,.fastq.gz,.fq.gz" />
+                    <div class="form-text">.fastq / .fq / .gz </div>
+                    <div class="form-text">(.fastq /.fq <500Mb, .gz <200Mb)</div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label for="controlFile" class="form-label">Control FASTQ</label>
+                    <div class="p-3 file-box">
+                      <input class="form-control form-control-sm" id="controlFile" type="file"
+                        accept=".fastq,.fq,.fastq.gz,.fq.gz" />
+                      <div class="form-text">Optional for backgorund error filtering</div>
+                      <div class="form-text">(.fastq /.fq <500Mb, .gz <200Mb)</div>
+                      </div>
+                    </div>
 
-              <!-- Advanced options toggle -->
-              <div class="col-12">
-                <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-between" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false" aria-controls="advancedOptions">
-                  <span class="fw-semibold">Detailed options</span>
-                  <i class="bi bi-chevron-down"></i>
-                </button>
-                <div class="collapse mt-3" id="advancedOptions">
-                  <div class="p-3 p-md-4 border rounded-3 bg-white">
-                    <div class="row g-3 g-md-4">
-                      <div class="row g-3">
-                        <!-- Analysis window -->
-                        <div class="col-12 col-md-6">
-                          <label for="analysisWindow" class="form-label">Analysis window (nt)</label>
-                          <input type="number" class="form-control validate-number" id="analysisWindow" name="analysisWindow" value="5" min="1" step="1">
-                        </div>
+                    <!-- Targets -->
+                    <div class="col-12 col-lg-6">
+                      <label for="targetSequence" class="form-label">Protospacer (w/o PAM)</label>
+                      <textarea class="form-control seq" name="targetSequence" id="targetSequence" spellcheck="false"
+                        required></textarea>
+                      <div class="form-help">e.g. GGCGCCCTGGCCAGTCGTCT</div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                      <label for="targetSequence2" class="form-label">Additional Protospacer (w/o PAM, Optional)</label>
+                      <textarea class="form-control seq" name="targetSequence2" id="targetSequence2"
+                        spellcheck="false"></textarea>
+                      <div class="form-help">Optional for second gRNA.</div>
+                    </div>
 
-                        <!-- Whole window between targets -->
-                        <div class="col-12 col-md-6">
-                          <label class="form-label d-block">Whole window between targets</label>
-                          <div class="btn-group" role="group" aria-label="Whole window between targets">
-                            <input type="radio" class="btn-check" name="wholeWindow" id="wholeWindowTrue" value="true" autocomplete="off" checked>
-                            <label class="btn btn-outline-primary" for="wholeWindowTrue">True</label>
-                            <input type="radio" class="btn-check" name="wholeWindow" id="wholeWindowFalse" value="false" autocomplete="off">
-                            <label class="btn btn-outline-primary" for="wholeWindowFalse">False</label>
-                          </div>
-                        </div>
+                    <!-- Reference -->
+                    <div class="col-12">
+                      <label for="reference" class="form-label">Reference</label>
+                      <textarea class="form-control seq" name="reference" id="reference" rows="6" spellcheck="false"
+                        required></textarea>
+                      <div class="form-text">Note: For optimal performance, a reference sequence shorter than 25 kbp is
+                        recommended on web tool.</div>
+                    </div>
 
-                        <!-- Cleavage site in target -->
-                        <div class="col-12 col-md-6">
-                          <label for="cleavageSite" class="form-label">Cleavage site in target (nt)</label>
-                          <input type="number" class="form-control validate-number" id="cleavageSite" name="cleavageSite" value="16" min="1" step="1">
-                        </div>
+                    <!-- Desired mutation -->
+                    <div class="col-12">
+                      <label for="desiredSequence" class="form-label">Intended edit (Optional)</label>
+                      <textarea class="form-control seq" name="desiredSequence" id="desiredSequence" rows="6"
+                        spellcheck="false"></textarea>
+                    </div>
 
-                        <!-- Large insertion length -->
-                        <div class="col-12 col-md-6">
-                          <label for="largeInsertionLen" class="form-label">Large insertion length cutoff (nt)</label>
-                          <input type="number" class="form-control validate-number" id="largeInsertionLen" name="largeInsertionLen" value="50" min="1" step="1">
-                        </div>
+                    <!-- Advanced options toggle -->
+                    <div class="col-12">
+                      <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-between"
+                        type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false"
+                        aria-controls="advancedOptions">
+                        <span class="fw-semibold">Detailed options</span>
+                        <i class="bi bi-chevron-down"></i>
+                      </button>
+                      <div class="collapse mt-3" id="advancedOptions">
+                        <div class="p-3 p-md-4 border rounded-3 bg-white">
+                          <div class="row g-3 g-md-4">
+                            <div class="row g-3">
+                              <!-- Analysis window -->
+                              <div class="col-12 col-md-6">
+                                <label for="analysisWindow" class="form-label">Analysis window (nt)</label>
+                                <input type="number" class="form-control validate-number" id="analysisWindow"
+                                  name="analysisWindow" value="5" min="1" step="1">
+                              </div>
 
-                        <!-- Large deletion length -->
-                        <div class="col-12 col-md-6">
-                          <label for="largeDeletionLen" class="form-label">Large deletion length cutoff (nt)</label>
-                          <input type="number" class="form-control validate-number" id="largeDeletionLen" name="largeDeletionLen" value="50" min="1" step="1">
-                        </div>
+                              <!-- Whole window between targets -->
+                              <div class="col-12 col-md-6">
+                                <label class="form-label d-block">Whole window between targets</label>
+                                <div class="btn-group" role="group" aria-label="Whole window between targets">
+                                  <input type="radio" class="btn-check" name="wholeWindow" id="wholeWindowTrue"
+                                    value="true" autocomplete="off" checked>
+                                  <label class="btn btn-outline-primary" for="wholeWindowTrue">True</label>
+                                  <input type="radio" class="btn-check" name="wholeWindow" id="wholeWindowFalse"
+                                    value="false" autocomplete="off">
+                                  <label class="btn btn-outline-primary" for="wholeWindowFalse">False</label>
+                                </div>
+                              </div>
 
-                        <!-- 
+                              <!-- Cleavage site in target -->
+                              <div class="col-12 col-md-6">
+                                <label for="cleavageSite" class="form-label">Cleavage site in target (nt)</label>
+                                <input type="number" class="form-control validate-number" id="cleavageSite"
+                                  name="cleavageSite" value="16" min="1" step="1">
+                              </div>
+
+                              <!-- Large insertion length -->
+                              <div class="col-12 col-md-6">
+                                <label for="largeInsertionLen" class="form-label">Large insertion length cutoff
+                                  (nt)</label>
+                                <input type="number" class="form-control validate-number" id="largeInsertionLen"
+                                  name="largeInsertionLen" value="50" min="1" step="1">
+                              </div>
+
+                              <!-- Large deletion length -->
+                              <div class="col-12 col-md-6">
+                                <label for="largeDeletionLen" class="form-label">Large deletion length cutoff
+                                  (nt)</label>
+                                <input type="number" class="form-control validate-number" id="largeDeletionLen"
+                                  name="largeDeletionLen" value="50" min="1" step="1">
+                              </div>
+
+                              <!-- 
                         <div class="col-12 col-md-6">
                           <label for="readCountMin" class="form-label">Read count minimum</label>
                           <input type="number" class="form-control validate-number" id="readCountMin" name="readCountMin" value="0" min="0" step="1">
@@ -212,138 +271,159 @@
                           <label for="readFreqMin" class="form-label">Read frequency minimum (0 ~ 1)</label>
                           <input type="number" class="form-control validate-number" id="readFreqMin" name="readFreqMin" value="0" min="0" max="1" step="0.01">
                         </div>-->
+                            </div>
+
+
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="col-12 d-flex justify-content-between align-items-center">
+                      <div class="btn-group border border-primary rounded overflow-hidden" role="group">
+                        <span class="btn btn-primary disabled border-0 px-3 fw-bold">Examples</span>
+
+                        <button type="button" class="btn btn-primary border-start border-light"
+                          onclick="downloadAction()" data-bs-toggle="tooltip" data-bs-placement="top"
+                          title="Download dataset">
+                          <i class="bi bi-download text-white"></i>
+                        </button>
+
+                        <button type="button" class="btn btn-primary border-start border-light" onclick="runAction()"
+                          data-bs-toggle="tooltip" data-bs-placement="top" title="Load dataset into form">
+                          <i class="bi bi-play-fill text-white"></i>
+                        </button>
                       </div>
 
-                  
+                      <button type="button" class="btn btn-primary px-4" onclick="main()">
+                        <i class="bi bi-play-fill me-1"></i>Submit
+                      </button>
+
                     </div>
                   </div>
-                </div>
-              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    </div>
 
-              <!-- Submit -->
-              <div class="col-12 d-flex justify-content-between align-items-center">
-                <div class="btn-group border border-primary rounded overflow-hidden" role="group">
-                  <span class="btn btn-primary disabled border-0 px-3 fw-bold">Examples</span>
-                  
-                  <button type="button" class="btn btn-primary border-start border-light" 
-                          onclick="downloadAction()" data-bs-toggle="tooltip" data-bs-placement="top" title="Download dataset">
-                    <i class="bi bi-download text-white"></i>
-                  </button>
-                  
-                  <button type="button" class="btn btn-primary border-start border-light" 
-                          onclick="runAction()" data-bs-toggle="tooltip" data-bs-placement="top" title="Load dataset into form">
-                    <i class="bi bi-play-fill text-white"></i>
-                  </button>
-                </div>
 
-                <button type="button" class="btn btn-primary px-4" onclick="main()">
-                  <i class="bi bi-play-fill me-1"></i>Submit
-                </button>
-                
-              </div>
+    <div id="progressPage" class="page">
+      <div class="py-3 py-md-4">
+        <div class="container container-narrow">
+          <div class="progress" role="progressbar" aria-label="Analysis progress" aria-valuenow="0" aria-valuemin="0"
+            aria-valuemax="100">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" style="width:0%">0%
             </div>
-          </form>
-        </div>
-      </div>
-    </section>
-  </div>
-
-
-  <div id="progressPage" class="page">
-    <div class="py-3 py-md-4">
-      <div class="container container-narrow">
-        <div class="progress" role="progressbar" aria-label="Analysis progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-          <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" style="width:0%">0%</div>
-        </div>
-        <p id="status" class="status-text mt-2">Status updates will be shown here...</p>
-        <div class="progress-list mt-3">
-          <p id="progress_1" class="text-center">
-            <i class="bi bi-caret-right-fill"></i> FASTQ file alignment <i class="bi bi-caret-left-fill"></i>
-          </p>
+          </div>
+          <p id="status" class="status-text mt-2">Status updates will be shown here...</p>
+          <div class="progress-list mt-3">
+            <p id="progress_1" class="text-center">
+              <i class="bi bi-caret-right-fill"></i> FASTQ file alignment <i class="bi bi-caret-left-fill"></i>
+            </p>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-      
+
     <div id="resultsPage" class="page">
       <div class="py-3 py-md-4">
-      <div class="container container-narrow">
-        <div id="cnt-table-container" class="mb-3"></div>
+        <div class="container container-narrow">
+          <div id="cnt-table-container" class="mb-3"></div>
 
-        <div class="chart-container">
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2" style="width:70%; min-width:420px;">
-            <h2 class="h5 m-0">Allele assignments</h2>
-          </div>
-          <div id="alignSumPlot" class="mx-auto" style="width:300px;height:400px;"></div>
+          <div class="chart-container">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2"
+              style="width:70%; min-width:420px;">
+              <h2 class="h5 m-0">Allele assignments</h2>
+            </div>
+            <div id="alignSumPlot" class="mx-auto" style="width:300px;height:400px;"></div>
 
-          <ul class="nav nav-tabs mx-auto" id="optionTab" role="tablist">
-            <li class="nav-item" role="presentation">
-              <button class="nav-link active" id="allPiePlotBtn" data-bs-toggle="tab" data-bs-target="#allPiePlotPanel" type="button" role="tab" aria-controls="allPiePlotPanel" aria-selected="true">All pattern</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="mutPiePlotBtn" data-bs-toggle="tab" data-bs-target="#mutPiePlotPanel" type="button" role="tab" aria-controls="mutPiePlotPanel" aria-selected="false">WT vs other</button>
-            </li>
-          </ul>
-          <div class="tab-content" id="optionTabContent">
-            <div class="tab-pane fade show active" id="allPiePlotPanel" role="tabpanel" aria-labelledby="allPiePlotBtn">
-              <div id="allPiePlot" class="mx-auto" style="width:600px;height:400px;"></div>
+            <ul class="nav nav-tabs mx-auto" id="optionTab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="allPiePlotBtn" data-bs-toggle="tab"
+                  data-bs-target="#allPiePlotPanel" type="button" role="tab" aria-controls="allPiePlotPanel"
+                  aria-selected="true">All pattern</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="mutPiePlotBtn" data-bs-toggle="tab" data-bs-target="#mutPiePlotPanel"
+                  type="button" role="tab" aria-controls="mutPiePlotPanel" aria-selected="false">WT vs other</button>
+              </li>
+            </ul>
+            <div class="tab-content" id="optionTabContent">
+              <div class="tab-pane fade show active" id="allPiePlotPanel" role="tabpanel"
+                aria-labelledby="allPiePlotBtn">
+                <div id="allPiePlot" class="mx-auto" style="width:600px;height:400px;"></div>
+              </div>
+              <div class="tab-pane fade" id="mutPiePlotPanel" role="tabpanel" aria-labelledby="mutPiePlotBtn">
+                <div id="mutPiePlot" class="mx-auto" style="width:600px;height:400px;"></div>
+              </div>
             </div>
-            <div class="tab-pane fade" id="mutPiePlotPanel" role="tabpanel" aria-labelledby="mutPiePlotBtn">
-              <div id="mutPiePlot" class="mx-auto" style="width:600px;height:400px;"></div>
-            </div>
-          </div>
 
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3" style="width:70%; min-width:420px;">
-            <h2 class="h5 m-0">Indel characterization</h2>
-          </div>
-          <ul class="nav nav-tabs mx-auto" id="mutationTab" role="tablist">
-            <li class="nav-item" role="presentation">
-              <button class="nav-link active" id="combinedPlotBtn" data-bs-toggle="tab" data-bs-target="#combinedPlotPanel" type="button" role="tab" aria-controls="combinedPlotPanel" aria-selected="true">Combined</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="insertionsPlotBtn" data-bs-toggle="tab" data-bs-target="#insertionsPlotPanel" type="button" role="tab" aria-controls="insertionsPlotPanel" aria-selected="false">Insertions</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="deletionsPlotBtn" data-bs-toggle="tab" data-bs-target="#deletionsPlotPanel" type="button" role="tab" aria-controls="deletionsPlotPanel" aria-selected="false">Deletions</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="largeDeletionsPlotBtn" data-bs-toggle="tab" data-bs-target="#largeDeletionsPlotPanel" type="button" role="tab" aria-controls="largeDeletionsPlotPanel" aria-selected="false">Large Deletions</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="substitutionsPlotBtn" data-bs-toggle="tab" data-bs-target="#substitutionsPlotPanel" type="button" role="tab" aria-controls="substitutionsPlotPanel" aria-selected="false">Substitutions</button>
-            </li>
-          </ul>
-          <div class="tab-content" id="mutationTabContent">
-            <div class="tab-pane fade show active" id="combinedPlotPanel" role="tabpanel" aria-labelledby="combinedPlotBtn">
-              <div id="combinedPlot" class="mx-auto" style="width:600px;height:400px;"></div>
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3"
+              style="width:70%; min-width:420px;">
+              <h2 class="h5 m-0">Indel characterization</h2>
             </div>
-            <div class="tab-pane fade" id="insertionsPlotPanel" role="tabpanel" aria-labelledby="insertionsPlotBtn">
-              <div id="insertionsPlot" class="mx-auto" style="width:600px;height:400px;"></div>
-            </div>
-            <div class="tab-pane fade" id="deletionsPlotPanel" role="tabpanel" aria-labelledby="deletionsPlotBtn">
-              <div id="deletionsPlot" class="mx-auto" style="width:600px;height:400px;"></div>
-            </div>
-            <div class="tab-pane fade" id="largeDeletionsPlotPanel" role="tabpanel" aria-labelledby="largeDeletionsPlotBtn">
-              <div id="largeDeletionPlot" class="mx-auto" style="width:600px;height:400px;"></div>
-            </div>
-            <div class="tab-pane fade" id="substitutionsPlotPanel" role="tabpanel" aria-labelledby="substitutionsPlotBtn">
-              <div id="substitutionsPlot" class="mx-auto" style="width:600px;height:400px;"></div>
+            <ul class="nav nav-tabs mx-auto" id="mutationTab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="combinedPlotBtn" data-bs-toggle="tab"
+                  data-bs-target="#combinedPlotPanel" type="button" role="tab" aria-controls="combinedPlotPanel"
+                  aria-selected="true">Combined</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="insertionsPlotBtn" data-bs-toggle="tab"
+                  data-bs-target="#insertionsPlotPanel" type="button" role="tab" aria-controls="insertionsPlotPanel"
+                  aria-selected="false">Insertions</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="deletionsPlotBtn" data-bs-toggle="tab" data-bs-target="#deletionsPlotPanel"
+                  type="button" role="tab" aria-controls="deletionsPlotPanel" aria-selected="false">Deletions</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="largeDeletionsPlotBtn" data-bs-toggle="tab"
+                  data-bs-target="#largeDeletionsPlotPanel" type="button" role="tab"
+                  aria-controls="largeDeletionsPlotPanel" aria-selected="false">Large Deletions</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="substitutionsPlotBtn" data-bs-toggle="tab"
+                  data-bs-target="#substitutionsPlotPanel" type="button" role="tab"
+                  aria-controls="substitutionsPlotPanel" aria-selected="false">Substitutions</button>
+              </li>
+            </ul>
+            <div class="tab-content" id="mutationTabContent">
+              <div class="tab-pane fade show active" id="combinedPlotPanel" role="tabpanel"
+                aria-labelledby="combinedPlotBtn">
+                <div id="combinedPlot" class="mx-auto" style="width:600px;height:400px;"></div>
+              </div>
+              <div class="tab-pane fade" id="insertionsPlotPanel" role="tabpanel" aria-labelledby="insertionsPlotBtn">
+                <div id="insertionsPlot" class="mx-auto" style="width:600px;height:400px;"></div>
+              </div>
+              <div class="tab-pane fade" id="deletionsPlotPanel" role="tabpanel" aria-labelledby="deletionsPlotBtn">
+                <div id="deletionsPlot" class="mx-auto" style="width:600px;height:400px;"></div>
+              </div>
+              <div class="tab-pane fade" id="largeDeletionsPlotPanel" role="tabpanel"
+                aria-labelledby="largeDeletionsPlotBtn">
+                <div id="largeDeletionPlot" class="mx-auto" style="width:600px;height:400px;"></div>
+              </div>
+              <div class="tab-pane fade" id="substitutionsPlotPanel" role="tabpanel"
+                aria-labelledby="substitutionsPlotBtn">
+                <div id="substitutionsPlot" class="mx-auto" style="width:600px;height:400px;"></div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="container container-narrow">
-        <h2 class="h5">Allele plot</h2>
-        <div class="allelechart-container">
-          <div id="allelePlot"></div>
+        <div class="container container-narrow">
+          <h2 class="h5">Allele plot</h2>
+          <div class="allelechart-container">
+            <div id="allelePlot"></div>
+          </div>
         </div>
       </div>
-      </div>
     </div>
     </div>
-   
+
 
 
 
@@ -354,38 +434,39 @@
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://d3js.org/d3.v6.min.js"></script>
     <script>
-    
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-      return new bootstrap.Tooltip(tooltipTriggerEl)
-    })
-    
-    function toggleDetails() {
+
+      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+      })
+
+      function toggleDetails() {
         const rangeBox = document.getElementById("rangeOptions");
         rangeBox.style.display = (rangeBox.style.display === "none" || rangeBox.style.display === "") ? "block" : "none";
-    }
+      }
 
-    function clampValue(input) {
-    let val = parseFloat(input.value);
+      function clampValue(input) {
+        let val = parseFloat(input.value);
 
-    if (isNaN(val)) {
-      input.value = input.min || 0;
-      return;
-    }
-    if (input.min !== "" && val < parseFloat(input.min)) {
-      input.value = input.min;
-      return;
-    }
-    if (input.max !== "" && val > parseFloat(input.max)) {
-      input.value = input.max;
-      return;
-    }
-  }
-  document.querySelectorAll(".validate-number").forEach(input => {
-    input.addEventListener("input", () => clampValue(input));
-    input.addEventListener("blur", () => clampValue(input)); 
-  });
+        if (isNaN(val)) {
+          input.value = input.min || 0;
+          return;
+        }
+        if (input.min !== "" && val < parseFloat(input.min)) {
+          input.value = input.min;
+          return;
+        }
+        if (input.max !== "" && val > parseFloat(input.max)) {
+          input.value = input.max;
+          return;
+        }
+      }
+      document.querySelectorAll(".validate-number").forEach(input => {
+        input.addEventListener("input", () => clampValue(input));
+        input.addEventListener("blur", () => clampValue(input));
+      });
     </script>
-    
-</body>
+
+  </body>
+
 </html>

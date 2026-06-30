@@ -18,8 +18,10 @@ def main():
 	
 	parser = argparse.ArgumentParser(
 		description='Analysis of CRISPR mutation pattern for Long-read sequencing',
-		formatter_class=argparse.ArgumentDefaultsHelpFormatter  # 기본값도 함께 출력
+		formatter_class=argparse.ArgumentDefaultsHelpFormatter 
 	)
+
+	parser.add_argument('-v', '--version', action='version', version='CRISPRlungo 0.2v')
 
 
 	required = parser.add_argument_group('Required arguments')
@@ -72,7 +74,6 @@ def main():
         'on both sides of the insertion are validated. '
         'The inserted sequence body is ignored for precision assessment.'))
 	
-
 	viz_group = parser.add_argument_group('Visualization options')
 	viz_group.add_argument('--just_visualization', action='store_true', help='If you just want to analyze mutation and the consensus generation is already done using CRISPRlungo, use this option [default: False]')
 	viz_group.add_argument('--allele_plot_window', type=int, default=20, help='Window for allele plot, [default: window + 10]')

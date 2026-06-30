@@ -226,7 +226,10 @@ def write_summary_html(out_dir, results, batch_name='CRISPRlungo Batch'):
     for r in results:
         name = r['name']
         c = r.get('counts') or {}
-        used = c.get('used', 0)
+        if 'used' not in c:
+            used = c.get('Treated_used', 0)
+        else:
+            used = c.get('used', 0)
         ok = r['status'] == 'OK' and c
         if not ok:
             body_rows.append(

@@ -253,5 +253,4 @@ CRISPRlungoBatch -b samples.txt -o out --ref PD1.fasta --target ggcgccctggccagtc
 * `CRISPRlungoBatch_summary.html` – interactive summary; click a row to open that
   sample's full report (open it from inside `output_dir/` so links resolve)
 
-Samples run sequentially; a failing sample is marked `ERROR` and does not stop the
-batch. See `docs_CRISPRlungoBatch.md` for full details.
+
