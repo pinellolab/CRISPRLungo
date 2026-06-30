@@ -64,7 +64,7 @@ def main():
 	mut_group = parser.add_argument_group('Mutation classification')
 	mut_group.add_argument('--largeins_cutlen', default=50, type=int, help='The minimum length for large deletions')
 	mut_group.add_argument('--largedel_cutlen', default=50, type=int, help='The minimum length for large insertion')
-	mut_group.add_argument('--mix_tag', type=bool, default=False, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
+	mut_group.add_argument('--mix_tag', action='store_true', help='In mutation classification, when there are multiple mutations, default (flag absent) prioritizes indels, labeling them as ins or del, while setting this flag labels them as Complex. [default: False]')
 	mut_group.add_argument('--large_induced_insertion', type=str, default=None, help=(
         'When analyzing large insertions at induced_sequqence, sequencing errors within the inserted region '
         'can cause misclassification of precise editing. '

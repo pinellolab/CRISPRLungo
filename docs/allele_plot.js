@@ -205,7 +205,7 @@ function drawAllelePlot() {
       } else if (m == 'Ins') {
         mutSeq = mutInfo[3];
         pos = +mutInfo[0];
-        aligned[pos] = aligned[pos]+'I'+mutSeq;
+        aligned[pos-1] = aligned[pos-1]+'I'+mutSeq;   // insertion belongs BEFORE reference[pos] (between pos-1 and pos)
       }
     }
     
@@ -226,11 +226,13 @@ function drawAllelePlot() {
         drawInfo_1[3][0] = true;
       }
       if (m[0] != '-') {
-        drawInfo_1[1].push(m.slice(0,2));
         if (m[1] == 'I') {
+          drawInfo_1[1].push(m[0] + ' ');   // base itself is NOT inserted -> no red box
           for (x of m.slice(2,)){
             drawInfo_1[1].push(x + 'I');
           }
+        } else {
+          drawInfo_1[1].push(m.slice(0,2));
         }
       } else {
         if (m.indexOf('I') != -1) {
@@ -271,11 +273,13 @@ function drawAllelePlot() {
           drawInfo_2[3][0] = true;
         }
         if (m[0] != '-') {
-          drawInfo_2[1].push(m.slice(0,2));
           if (m[1] == 'I') {
+            drawInfo_2[1].push(m[0] + ' ');   // base itself is NOT inserted -> no red box
             for (x of m.slice(2,)){
               drawInfo_2[1].push(x + 'I');
             }
+          } else {
+            drawInfo_2[1].push(m.slice(0,2));
           }
         } else {
           if (m.indexOf('I') != -1) {

@@ -199,3 +199,59 @@ Each category subfolder contains:
 
 
 
+
+---
+## Batch Mode - CRISPRlungoBatch
+
+**CRISPRlungoBatch** runs CRISPRLungo on many samples described in one batch file
+(like *CRISPRessoBatch*), then builds a combined summary table and an interactive
+summary HTML where each row links to that sample's full report.
+
+```bash
+CRISPRlungoBatch -b batch_example.txt -o batch_output -t 8
+```
+
+### Batch file format
+Tab- or comma-separated, with a header row, one sample per row (lines starting
+with `#` are ignored). Column names map directly to CRISPRLungo arguments.
+
+* **Required columns:** `name`, `ref`, `treated`, `target`
+  (`ref`/`treated`/`target` may instead be given once on the command line).
+* **Optional columns:** ANY CRISPRLungo option (without the `--`). Its value is
+  passed through as `--<column> <value>` for that sample — e.g.
+  `control`, `additional_target`, `window`, `min_read_cnt`, ... including any
+  option added to CRISPRLungo in the future.
+* **Boolean flags** (`umi`, `whole_window_between_targets`, `just_visualization`,
+  `mix_tag`, ...): put `TRUE` (or 1/YES) in the column to enable; blank/`FALSE` to omit.
+* Paths may be relative to the batch file's directory. A value in the batch file
+  always overrides a `--<col>` command-line default.
+
+Example (`data/batch_example.txt`):
+```
+name	ref	treated	target	control	additional_target
+PD1_example	PD1.fasta	Example_Treated.fastq	ggcgccctggccagtcgtct	Example_Control.fastq	AGCCCAGGGGTCCCGGAGCG
+```
+
+Put a column once on the command line instead of per-row:
+```bash
+CRISPRlungoBatch -b samples.txt -o out --ref PD1.fasta --target ggcgccctggccagtcgtct
+```
+
+### Options
+* -b/--batch_file : batch file (TSV or CSV), one row per sample (required)
+* -o/--output_dir : batch output directory (required)
+* -t/--threads : threads per CRISPRLungo run (default 8)
+* -n/--batch_name : title shown in the summary HTML
+* --rerun : re-run samples even if their output already exists (default: reuse)
+* --<col> VALUE : default for every sample for any CRISPRLungo option
+  (a batch-file column of the same name overrides it)
+
+### Outputs (in `output_dir/`)
+* `<name>/` – full CRISPRLungo run per sample (incl. `<name>/combined_graphs.html`)
+* `CRISPRlungoBatch_summary.txt` – tab-separated combined summary
+  (Name, Status, targets, read counts, per-category counts/%, Precise, Partial)
+* `CRISPRlungoBatch_summary.html` – interactive summary; click a row to open that
+  sample's full report (open it from inside `output_dir/` so links resolve)
+
+Samples run sequentially; a failing sample is marked `ERROR` and does not stop the
+batch. See `docs_CRISPRlungoBatch.md` for full details.

@@ -1,0 +1,3 @@
+name	ref	treated	target	control	additional_target   allele_plot_lines
+PD1_nanopore	PD1.fasta	Nanopore_umi_Run_test_wo_chi.fastq	ggcgccctggccagtcgtct	Nanopore_umi_Run_test_control_wo_chi.fastq	AGCCCAGGGGTCCCGGAGCG    50
+PD1_example	PD1.fasta	Example_Treated.fastq	ggcgccctggccagtcgtct	Example_Control.fastq	AGCCCAGGGGTCCCGGAGCG    50

@@ -444,16 +444,14 @@ function drawAllelePlot() {
       if (i[0] == '-' && i.split('_')[1] * 1 > 100) {
         largeDelSt = 0;
         largeDelEd = 0;
-        while(i[0] == '-' && x < plotWindow*2) {
-          i = drawInfo[1][x];
+        while(x < plotWindow*2 && drawInfo[1][x][0] == '-') {
           x += 1;
           largeDelEd += 1;
         }
         x-=1
         
-        if (section == 0) {
-          largeDelEd -= plotWindow + 1;
-        }
+        // (removed: 'largeDelEd -= plotWindow + 1' for section 0 — it shrank the
+        //  left-window deletion line to a stub, leaving a gap before the 'X bp' label)
 
         rowG.append("line")
           .attr("x1", xPos + cellSizeWidth * (largeDelSt))   
@@ -463,11 +461,7 @@ function drawAllelePlot() {
           .attr("stroke", "black")              
           .attr("stroke-width", 1);
         xPos += cellSizeWidth * largeDelEd;
-        i = drawInfo[1][x];
-        base = i[0];
-        if (x == plotWindow*2 - 1) {
-          continue
-        }
+        continue;
       } 
       
       if (i[1] == 'S'){
@@ -589,7 +583,7 @@ function drawAllelePlot() {
       } else if (m == 'Ins' || m == 'LargeIns' || mutList[i].includes('inv') == false) {
         mutSeq = mutInfo[3];
         pos = +mutInfo[0];
-        aligned[pos] = aligned[pos]+'I'+mutSeq;
+        aligned[pos-1] = aligned[pos-1]+'I'+mutSeq;   // insertion belongs BEFORE reference[pos]
       }
     }
     
@@ -610,11 +604,13 @@ function drawAllelePlot() {
         drawInfo_1[3][0] = true;
       }
       if (m[0] != '-') {
-        drawInfo_1[1].push(m.slice(0,2));
         if (m[1] == 'I') {
+          drawInfo_1[1].push(m[0] + ' ');   // base itself is NOT inserted -> no red box
           for (x of m.slice(2,)){
             drawInfo_1[1].push(x + 'I');
           }
+        } else {
+          drawInfo_1[1].push(m.slice(0,2));
         }
       } else {
         if (m.indexOf('inv') == -1 && m.indexOf('I') != -1) {
@@ -655,11 +651,13 @@ function drawAllelePlot() {
           drawInfo_2[3][0] = true;
         }
         if (m[0] != '-') {
-          drawInfo_2[1].push(m.slice(0,2));
           if (m[1] == 'I') {
+            drawInfo_2[1].push(m[0] + ' ');   // base itself is NOT inserted -> no red box
             for (x of m.slice(2,)){
               drawInfo_2[1].push(x + 'I');
             }
+          } else {
+            drawInfo_2[1].push(m.slice(0,2));
           }
         } else {
           if (m.indexOf('I') != -1) {

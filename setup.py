@@ -14,7 +14,8 @@ setup(
 		'CRISPRlungo_minimap', 
 		'CRISPRlungo_single_map',
         'CRISPRlungo_mutation_analysis',
-        'CRISPRlungoAllele'],   
+        'CRISPRlungoAllele',
+        'CRISPRlungoBatch'],   
     package_data={
         "CRISPRlungo_assets": [
             "css/*"
@@ -28,7 +29,8 @@ setup(
     entry_points={
         'console_scripts': [
             'CRISPRlungo = CRISPRlungo:main',
-            'CRISPRlungoAllele = CRISPRlungoAllele:main'
+            'CRISPRlungoAllele = CRISPRlungoAllele:main',
+            'CRISPRlungoBatch = CRISPRlungoBatch:main'
         ],
     },
     

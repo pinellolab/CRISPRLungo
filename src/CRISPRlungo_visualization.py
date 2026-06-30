@@ -1205,7 +1205,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2,
 					xlim_min = -0.005-(11+2)*0.021
 				if int(mut[1]) - (cv_pos - plot_window) + adjust_ins > window_ed:
 					right_large_check = True
-					right_seq = ref_seq[mut[1]-10: mut[1]]
+					right_seq = ref_seq[mut[1]+1: mut[1]+11]
 					right_len_comp = 0
 				if (right_large_check or left_large_check) and len(info_sp) > mut_n + 1:
 						next_mut = info_sp[mut_n + 1].replace(':', '_').replace('>', '_').split('_')
@@ -1335,15 +1335,14 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2,
 							tmp = info_sp[mut_n + 1].replace(':', '_').split('_')
 							if tmp[2] == 'LargeIns':
 								if mut_st == int(tmp[0]) and mut_ed + 1 == int(tmp[1]):
-									inv_str += f" ({tmp[3]}bp Ins)"
-									rect = patches.Rectangle((0.005+(st_pos+adjust_ins)*0.021, y_pos -0.045), 0.01+(window_ed+add_large_cv2-1)*0.021+right_len_comp, 0.09, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
+									# (omit redundant '(<len>bp Ins)' — for an inversion del_len == ins_len; show only '(inv)')
+									rect = patches.Rectangle((0.005+(st_pos+adjust_ins)*0.021, y_pos -0.04), (((4*plot_window+10-(st_pos+adjust_ins))*0.021) if cv_pos_2 else ((window_ed-(st_pos+adjust_ins))*0.021))+right_len_comp, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
 									ax.add_patch(rect)
 					if left_large_ins_check:
 						rect = patches.Rectangle((-0.005-left_len_comp, y_pos -0.04), 0.005, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=9)
 						ax.add_patch(rect)
 					if right_large_ins_check and cv_pos_2 == False:
-						rect = patches.Rectangle((0.005+window_ed*0.021+right_len_comp,	y_pos -0.04), 0.006, 0.1, linewidth=2, edgecolor='r', facecolor='none', zorder=13)
-						ax.add_patch(rect)
+						# (redundant thin right-edge marker removed: the main inversion box now ends at this boundary)
 						mut_str += f'{ins_len}LargeIns,'
 				else:
 					ax.annotate('', xy=(0.005+(st_pos+adjust_ins)*0.021, y_pos), xytext=(0.05+(ed_pos+1+add_len_between+0.01)*0.021, y_pos), arrowprops=dict(arrowstyle='-'), zorder=10)
@@ -1518,7 +1517,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2,
 						left_len_comp = 0
 					if int(mut[1]) - (cv_pos_2 - plot_window) + adjust_ins > plot_window*2:
 						right_large_check = True
-						right_seq = ref_seq[mut[1]: mut[1]+10]
+						right_seq = ref_seq[mut[1]+1: mut[1]+11]
 						#left_len_comp = 2 * 0.021 * (1- ((ref_len - mut[1])/(ref_len - cv_pos_2)))
 						right_len_comp = 0
 					if (left_large_check or right_large_check) and len(info_sp) > mut_n + 1:

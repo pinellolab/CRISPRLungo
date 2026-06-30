@@ -82,6 +82,11 @@ def confirm_insertion_seq(mutation_dict, ref_seq, ori_ref_name, possible_ref_pat
                     if align_res != []:
                         before_mut = list(mutation_dict[read_id][0][mut_n])
                         if inv_check:
+                            # Do NOT change '==' to '='. Inversions are
+                            # classified downstream in classify_mut_mild via the
+                            # appended alignment tuple (mutation[7]) inside the
+                            # 'insertion' branch; relabeling the type here removes
+                            # the read from that branch and inversions are lost.
                             before_mut[0] == 'inversion'
                         before_mut.append(tuple(align_res))
                         mutation_dict[read_id][0][mut_n] = before_mut
@@ -166,6 +171,8 @@ def confirm_insertion_seq(mutation_dict, ref_seq, ori_ref_name, possible_ref_pat
             
             before_mut = list(mutation_dict[read_id[0]][0][read_id[1]])
             if inversion_check:
+                # Do NOT change '==' to '='. See note above: inversion type is
+                # detected downstream from the appended alignment tuple, not here.
                 before_mut[0] == 'inversion'
             before_mut.append(tuple(muts))
 
@@ -239,7 +246,6 @@ def confirm_induced_ins_with_simulation(mutation_dict,
         "--qscore_model", badread_model,
         "--identity", badread_identity]
     
-    """
     with open(f'{output_dir}/simulation/induce_simul.fastq', "w") as outfile:
         proc = Popen(cmd, stdout=outfile, stderr=PIPE, text=True)
 
@@ -253,7 +259,7 @@ def confirm_induced_ins_with_simulation(mutation_dict,
         print("badread simulation completed.")
     else:
         print("badread error:")
-        print(proc.stderr.decode())"""
+        print(proc.stderr.decode())
 
 
     longjoin_bandwidth = int(len(induce_seq) * 0.3)
@@ -276,31 +282,25 @@ def confirm_induced_ins_with_simulation(mutation_dict,
                         fasta_check=True)
     
 
-    ind_edited_dictionary, controll_dictionary, ind_List_of_valid_IDs, control_reads_cnt, edited_reads_cnt = mutation_analysis.analysis_function(
-				output_dir + '/align/induced_control_alignment.sam', 
-				output_dir + '/align/induced_treated_alignment.sam', 
-				f'{output_dir}/simulation/induce_simul.fasta', 
+    ind_edited_dictionary, controll_dictionary, ind_List_of_valid_IDs, control_reads_cnt, edited_reads_cnt = mutation_analysis.analysis_function_with_control(
+				output_dir + '/align/induced_control_alignment.sam',
+				output_dir + '/align/induced_treated_alignment.sam',
+				f'{output_dir}/simulation/induce_simul.fasta',
 				output_dir + '/simulation/induced_ins/',
-				cv_pos, 
-				cv_pos_2, 
-				window, 
+				cv_pos,
+				cv_pos_2,
+				window,
 				False,
-				[], 
+				[],
 				[],
                 -1)
 
-    print(cv_pos)
-    print(cv_pos_2)
-    reverse_List_of_valid_IDs = {v: k for k, v in List_of_valid_IDs.items()} 
+    # NOTE: large-induced-insertion validation via simulation is not yet
+    # fully wired up. The block below previously contained interactive
+    # debug code (input()) that would hang the pipeline; it has been removed.
+    reverse_List_of_valid_IDs = {v: k for k, v in List_of_valid_IDs.items()}
 
-    for x, y in ind_edited_dictionary.items():
-        if y[0] != []:
-            continue
-        read_id = ind_List_of_valid_IDs[x]
-        print(read_id) 
-        if read_id not in reverse_List_of_valid_IDs:
-            print('None')
-        input()
+    return mutation_dict
 
     
 

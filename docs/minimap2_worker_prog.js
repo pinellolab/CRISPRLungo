@@ -13,37 +13,42 @@ function reverseComplement(seq) {
   return revComp;
 }
 
-function readFastqtoFasta(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      const text = e.target.result;
-      const lines = text.split(/\r?\n/);
-      let fasta = [];
+async function readFastqtoFasta(file) {
+  // Transparently decompress gzip (.gz) input. Detect by extension OR by the
+  // gzip magic bytes (0x1f 0x8b) so a renamed .gz is still handled.
+  let isGz = !!(file.name && /\.gz$/i.test(file.name));
+  if (!isGz) {
+    try {
+      const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+      isGz = head[0] === 0x1f && head[1] === 0x8b;
+    } catch (e) { /* ignore, treat as plain text */ }
+  }
 
-      for (let i = 0; i < lines.length; i += 4) {
-        if (!lines[i]) continue;
+  let text;
+  if (isGz) {
+    if (typeof DecompressionStream === "undefined") {
+      throw new Error("This browser cannot decompress .gz files. Use a recent Chrome/Edge/Firefox, or upload an unzipped .fastq.");
+    }
+    const stream = file.stream().pipeThrough(new DecompressionStream("gzip"));
+    text = await new Response(stream).text();
+  } else {
+    text = await file.text();
+  }
 
-        let header = lines[i];
-        if (header.startsWith('@')) {
-          header = '>' + header.slice(1);
-        } else {
-          header = '>' + header;
-        }
-
-        let sequence = lines[i + 1] || "";
-
-        fasta.push(header + "\n" + sequence + "\n");
-
-      }
-
-      resolve(fasta);
-    };
-    reader.onerror = function (err) {
-      reject(err);
-    };
-    reader.readAsText(file);
-  });
+  const lines = text.split(/\r?\n/);
+  let fasta = [];
+  for (let i = 0; i < lines.length; i += 4) {
+    if (!lines[i]) continue;
+    let header = lines[i];
+    if (header.startsWith('@')) {
+      header = '>' + header.slice(1);
+    } else {
+      header = '>' + header;
+    }
+    let sequence = lines[i + 1] || "";
+    fasta.push(header + "\n" + sequence + "\n");
+  }
+  return fasta;
 }
 
 function softClipped(alignOutput, n) {

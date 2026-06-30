@@ -4,6 +4,8 @@
 import pysam
 from scipy.stats import fisher_exact
 from scipy.stats import chi2_contingency
+from scipy.stats import nbinom
+from scipy.optimize import minimize
 import math
 import csv
 from Bio import SeqIO
@@ -171,10 +173,15 @@ def get_mutation_cutoff(control1, window_filter, cv_pos, cv_pos_2, window, check
 
 	results_trunc = []
 
+	# Right-truncation threshold for fitting the background indel-length
+	# distribution. Short indels dominate the control (sequencing error),
+	# so the negative-binomial is fit on lengths <= T.
+	T = 8
+
 	data_trunc = control_reads[control_reads <= T]
 
 	if len(data_trunc) > 5:
-		r_t, p_t, ok = fit_truncated_nb(data_trunc, 8)
+		r_t, p_t, ok = fit_truncated_nb(data_trunc, T)
 	else:
 		return 5
 	
