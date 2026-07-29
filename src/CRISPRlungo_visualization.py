@@ -2021,7 +2021,7 @@ def make_visualization_sam(dict_of_reads, out_dir):
 				line += f'\t{sa_tags[idx]}'
 			fw.write(line + '\n')
 
-
+	fw.close()
 	subprocess.run(f"samtools sort {out_dir}/visualization.sam -o {out_dir}/visualization.sorted.bam", shell=True, check=True)
 	subprocess.run(f"samtools index {out_dir}/visualization.sorted.bam", shell=True, check=True) 
 	subprocess.run(f"samtools faidx {ref_dir}/ref_wo_umi.fasta", shell=True, check=True) 
@@ -2079,7 +2079,7 @@ def make_visualization_sam(dict_of_reads, out_dir):
 	print(f"       (User can open this single file to load everything)")
 
 
-	fw.close()
+
 			
 
 
