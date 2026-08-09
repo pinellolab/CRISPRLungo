@@ -22,7 +22,7 @@ import sys
 import time
 from datetime import datetime
 
-VERSION = '0.2'
+VERSION = '0.3'
 
 _RULE_WIDTH = 62
 _INDENT = '  '
