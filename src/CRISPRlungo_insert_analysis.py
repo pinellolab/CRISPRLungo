@@ -2,6 +2,7 @@ import os, sys, edlib
 from subprocess import Popen, PIPE
 from CRISPRlungo_minimap import *
 import CRISPRlungo_mutation_analysis as mutation_analysis
+import CRISPRlungo_log as log
 
 def rev_comp(s): return s.translate(s.maketrans('ATGC','TACG'))[::-1]
 
@@ -53,7 +54,7 @@ def align_edlib(seq_info, ref_dict, ori_ref_name, max_dist = 0.05):
 
 def confirm_insertion_seq(mutation_dict, ref_seq, ori_ref_name, possible_ref_path, output_dir, threads, anchor_validation_only=False, get_ins_len = 20, minimap_len_limit=100):
 
-    print(f'Analyzing the insertions (>{get_ins_len}) ...')
+    insert_task = log.task(f'Locating inserted sequences (>{get_ins_len} bp)')
     if not os.path.exists(output_dir + '/insert_analysis/'):
         os.mkdir(output_dir + '/insert_analysis/')
 
@@ -74,6 +75,8 @@ def confirm_insertion_seq(mutation_dict, ref_seq, ori_ref_name, possible_ref_pat
 
     fw = open(output_dir + '/insert_analysis/large_insertion.fasta', 'w')
 
+    short_hits = 0
+    long_inserts = 0
     for read_id, muts in mutation_dict.items():
         for mut_n, mut in enumerate(muts[0]):
             if mut[0] == 'insertion' and len(mut[3]) > get_ins_len:
@@ -90,16 +93,19 @@ def confirm_insertion_seq(mutation_dict, ref_seq, ori_ref_name, possible_ref_pat
                             before_mut[0] == 'inversion'
                         before_mut.append(tuple(align_res))
                         mutation_dict[read_id][0][mut_n] = before_mut
+                        short_hits += 1
                 else:
+                    long_inserts += 1
                     fw.write(f'>{read_id}_{mut_n}_{mut[5]}_{mut[6]}\n{mut[3]}\n')
 
     
     fw.close()
 
+    insert_task.update(f'aligning {long_inserts} long inserts')
     p = Popen(f'minimap2 -ax map-ont -t {threads} {output_dir}/insert_analysis/reference_for_ins.fasta {output_dir}/insert_analysis/large_insertion.fasta -o {output_dir}/insert_analysis/large_insertion.sam', shell=True, stderr=PIPE, stdout=PIPE).communicate()
     if p[1].decode('utf-8').find('ERROR') != -1:
-        print(p[1].decode('utf-8'))
-        sys.exit()
+        insert_task.fail('minimap2 failed')
+        log.error('minimap2 could not align the extracted insertions', p[1].decode('utf-8'))
     
     with open(f'{output_dir}/insert_analysis/large_insertion.sam') as f:
         for line in f:
@@ -178,10 +184,11 @@ def confirm_insertion_seq(mutation_dict, ref_seq, ori_ref_name, possible_ref_pat
 
             mutation_dict[read_id[0]][0][read_id[1]] = before_mut
 
+    insert_task.done(f'{short_hits} short, {long_inserts} long')
 
     return mutation_dict
 
-def confirm_induced_ins_with_simulation(mutation_dict, 
+def confirm_induced_ins_with_simulation(mutation_dict,
                                         List_of_valid_IDs,
                                         ref_seq, 
                                         induced_sequence_path,
@@ -199,6 +206,7 @@ def confirm_induced_ins_with_simulation(mutation_dict,
     induce_seq = ''.join(open(induced_sequence_path).readlines()[1:]).replace('\n','').split('>')[0].upper()
     fw = open(f'{output_dir}/ref_seq/induce_ref.fasta', 'w')
     fw.write(f'>induce_seq\n{induce_seq}\n')
+    fw.close()          # flush before minimap2 reads this file
 
     if cv_pos_2:
         cv_pos_2 = len(induce_seq) - (len(ref_seq) - cv_pos_2)
@@ -206,15 +214,14 @@ def confirm_induced_ins_with_simulation(mutation_dict,
         cv_pos_2 = len(induce_seq) - (len(ref_seq) - cv_pos)
 
 
-    print('Generate induced sequence control simulation file using badread...')
+    log.info('Simulating an error-matched control for the induced sequence')
     p = Popen(f'minimap2 -d {output_dir}/ref_seq/induce_ref.mmi {output_dir}/ref_seq/induce_ref.fasta', shell=True, stderr=PIPE, stdout=PIPE).communicate()
 
     try:
         p = Popen(["badread", "--help"], stdout=PIPE, stderr=PIPE)
         p.communicate()
     except FileNotFoundError:
-        print('ERROR!: need to install badread')
-        sys.exit()
+        log.error('badread is required by --large_induced_insertion but was not found. Install it with: pip install badread')
 
     fw = open(f'{output_dir}/simulation/induce_simul.fasta', 'w')
 
@@ -234,10 +241,10 @@ def confirm_induced_ins_with_simulation(mutation_dict,
         badread_model = 'nanopore2023' 
         badread_identity = '95,99,5'
     else:
-        print('ERROR: --large_induced_insertion value should be among pacbio, ont_sup, ont_hac, ont_fast')
-        sys.exit()
+        log.error('--large_induced_insertion must be one of: pacbio, ont_sup, ont_hac, ont_fast')
     
     for i in range(10000): fw.write(f'>{i}\n{induce_seq}\n')
+    fw.close()          # flush before badread reads this file
 
     cmd = ["badread", "simulate",
         "--reference", f'{output_dir}/simulation/induce_simul.fasta',
@@ -249,17 +256,13 @@ def confirm_induced_ins_with_simulation(mutation_dict,
     with open(f'{output_dir}/simulation/induce_simul.fastq', "w") as outfile:
         proc = Popen(cmd, stdout=outfile, stderr=PIPE, text=True)
 
-        print('')
-        for line in proc.stderr:
-            print(line.strip(), end="\r")
+        sim_task, last_line = log.stream_stderr(proc, 'Simulating reads (badread)')
 
-        proc.wait()
-    
     if proc.returncode == 0:
-        print("badread simulation completed.")
+        sim_task.done()
     else:
-        print("badread error:")
-        print(proc.stderr.decode())
+        sim_task.fail('badread failed')
+        log.error('badread could not generate the simulated control', last_line)
 
 
     longjoin_bandwidth = int(len(induce_seq) * 0.3)

@@ -1,21 +1,47 @@
 import time, pysam, sys, os
 from subprocess import Popen, PIPE
 
+import CRISPRlungo_log as log
+
 
 def reverse_complementary(s):
 	return s.translate(s.maketrans('ATGCatgc','TACGtacg'))[::-1]
 
-def run_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, chaining_bandwidth, threads, minimap2_opt):
-		align_st_time = time.time()
-		print(f'minimap2 aligning {input_file} ...\r', end='')
-		p = Popen(f'minimap2 -ax map-ont -t {threads} -z 100 -p 0.5 -r {chaining_bandwidth},{longjoin_bandwidth} {minimap2_opt} {ref_file} {input_file} -o {output_file}', shell=True, stderr=PIPE, stdout=PIPE).communicate()
-		#p = Popen(f'minimap2 -ax map-ont -t {threads} {minimap2_opt} {ref_file} {input_file} -o {output_file}', shell=True, stderr=PIPE, stdout=PIPE).communicate()
-		if p[1].decode('utf-8').find('ERROR') != -1:
-			print(p[1].decode('utf-8'))
-			sys.exit()
+def run_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, chaining_bandwidth, threads, minimap2_opt, task=None):
+		# `task` lets a caller (run_triple_minimap2) fold every pass into one
+		# line of output instead of printing one line per pass.
+		own_task = task is None
+		if own_task:
+			task = log.task(f'minimap2 : {os.path.basename(input_file)}')
+
+		cmd = f'minimap2 -ax map-ont -t {threads} -z 100 -p 0.5 -r {chaining_bandwidth},{longjoin_bandwidth} {minimap2_opt} {ref_file} {input_file} -o {output_file}'
+		proc = Popen(cmd, shell=True, stderr=PIPE, stdout=PIPE)
+		_, stderr = proc.communicate()
+		stderr_text = stderr.decode('utf-8', errors='replace')
+
+		# Check the exit status, not just the text of stderr. Scanning for the
+		# word "ERROR" alone let silent failures (minimap2 missing from PATH, a
+		# killed process, a write that never happened) through, and the run then
+		# died much later with a confusing "no such file" from pysam.
+		if proc.returncode != 0:
+			reason = f'minimap2 exited with code {proc.returncode}'
+		elif 'ERROR' in stderr_text:
+			reason = 'minimap2 reported an error'
+		elif not os.path.exists(output_file):
+			reason = 'minimap2 produced no alignment file'
 		else:
-			print(f'minimap2 aligning {input_file} ... Done {round(time.time() - align_st_time, 2)} s')			
-	
+			reason = None
+
+		if reason:
+			task.fail('minimap2 failed')
+			log.error(f'{reason} while aligning {input_file}.\n  Command: {cmd}',
+					  stderr_text or 'minimap2 produced no error message. '
+					  'Check that minimap2 is installed in the active environment (which minimap2) '
+					  'and that there is free disk space in the output directory.')
+
+		if own_task:
+			task.done()
+
 def soft_clipped(align_file_1, output_file, cut_len_threshold, fasta_check=False):
 
 	check_SA = False
@@ -56,7 +82,7 @@ def soft_clipped(align_file_1, output_file, cut_len_threshold, fasta_check=False
 			
 	return check_SA, read_d
 
-def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, chaining_bandwidth, threads, minimap2_opt, len_cutoff = 100, fasta_check=False):
+def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, chaining_bandwidth, threads, minimap2_opt, len_cutoff = 100, fasta_check=False, label=None):
 	output_path = output_file[:output_file.rfind('/')]
 	check_SA = True
 	n = 0
@@ -64,6 +90,11 @@ def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, c
 	file_format = 'fastq'
 	if fasta_check:
 		file_format = 'fasta'
+
+	if label is None:
+		label = f'Aligning {os.path.basename(input_file)}'
+	align_task = log.task(label)
+
 	while check_SA == True:
 		n += 1
 		if n == 1:
@@ -71,10 +102,11 @@ def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, c
 		else:
 			fastq_file = output_path + f'/{n}_soft.{file_format}'
 
-		run_minimap2(ref_file, fastq_file, output_path + f'/{n}_align.sam' , longjoin_bandwidth, chaining_bandwidth, threads, minimap2_opt)
+		align_task.update(f'pass {n}')
+		run_minimap2(ref_file, fastq_file, output_path + f'/{n}_align.sam' , longjoin_bandwidth, chaining_bandwidth, threads, minimap2_opt, task=align_task)
 		if not os.path.exists(output_path + f'/{n}_align.sam'):
-			print("[ERROR] Fail to generate alignment file!!")
-			sys.exit(1)
+			align_task.fail('no alignment file produced')
+			log.error(f'minimap2 did not produce {output_path}/{n}_align.sam')
 		check_SA, read_out = soft_clipped(output_path + f'/{n}_align.sam', output_path + f'/{n+1}_soft.{file_format}', len_cutoff, fasta_check)
 		for read in read_out:
 			query_name = read.query_name
@@ -120,8 +152,11 @@ def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, c
 				if not fasta_check: read.query_qualities = q
 
 				read_d[query_name].append(read)
-		
-	fw = open(output_file, 'w') 
+
+	pass_word = 'pass' if n == 1 else 'passes'
+	align_task.done(f'{n} {pass_word}, {log.count(len(read_d))} reads')
+
+	fw = open(output_file, 'w')
 	with open(output_path + '/1_align.sam') as f:
 		for line in f:
 			if line[0] == '@':

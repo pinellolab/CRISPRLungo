@@ -14,6 +14,7 @@ import time
 from multiprocessing import Pool, Pipe
 import CRISPRlungo_insert_analysis
 import CRISPRlungo_visualization as visualization
+import CRISPRlungo_log as log
 
 import bisect
 import numpy as np
@@ -35,6 +36,15 @@ def cal_test (input_val):
 	if control_count > 5:
 		chi2, p_value, dof, expected = chi2_contingency(table)
 	return p_value, key, table[1][0] / sum(table[1])
+
+def read_count_summary(cnt):
+	"""One-line, human readable version of the read filtering counters."""
+	labels = [('used', 'used'), ('short', 'short'), ('low_quality', 'low quality'), ('unmapped', 'unmapped')]
+	parts = [f'{log.count(cnt[key])} {name}' for key, name in labels if cnt.get(key)]
+	total = log.count(cnt.get('all_reads', 0))
+	if not parts:
+		return f'{total} reads'
+	return f'{total} reads -> ' + ', '.join(parts)
 
 def check_in_quality(read):
 	
@@ -662,7 +672,6 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 			
 		# Close the SAM file
 		samfile.close()
-		print('Done')
 
 		return mutations, reads_cnt
 
@@ -784,6 +793,7 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 		total = len(edit_counts)
 		interval = max(1, total // 100)
 		t0 = time.time()
+		score_task = log.task('Scoring mutations against control')
 
 		for idx, (mut, cnt_edit) in enumerate(edit_counts.items(), start=1):
 			p_len = probability_based_on_length(mut, ctrl_ins_sorted, ctrl_del_sorted)
@@ -799,10 +809,9 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 			})
 
 			if idx % interval == 0 or idx == total:
-				pct = idx / total * 100
-				print(f"\rScored mutations: {idx}/{total} ({pct:.1f}%)", end='', flush=True)
+				score_task.progress(idx, total, 'mutations')
 
-		print(f"\nScored {total} mutations in {time.time() - t0:.1f}s")
+		score_task.done(f'{log.count(total)} unique mutations')
 
 		# (2) build output records and assign double_min
 		out_records = []
@@ -859,8 +868,6 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 				else:
 					i['significant'] = False
 
-		print(f"p_cutoff: {p_cutoff}")
-
 		significant_keys = [i['mutation'] for i in out_records if i['significant']]
 
 		#df.to_csv(output_dir + "/mutation_pattern_p_values.txt", sep="\t", index=False)
@@ -877,8 +884,9 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 				fw.write("\t".join(row) + "\n")
 
 
-		print(f"Wrote CSV in {time.time() - t0:.1f}s")
-		print(f"Total runtime: {time.time() - start_total:.1f}s" if 'start_total' in locals() else "Done.")
+		n_sig = len(significant_keys)
+		cutoff_text = 'none passed BH' if p_cutoff is None else f'BH p_cutoff {p_cutoff:.3g}'
+		log.info(f'Significant mutations : {log.count(n_sig)} / {log.count(total)}  ({cutoff_text})')
 
 		return significant_keys
 
@@ -895,10 +903,6 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 		samfile = pysam.AlignmentFile(samfile_path, 'r')
 		fw_sep = open(samfile_path.replace('alignment.sam', 'separated.fasta'), 'w')
 
-		if Filter1:
-			print("Proceeding With Statistical Tests... ")
-		else:
-			print("Reporting All Mutations... ")
 
 		# Initialize a dictionary to hold mutation information
 		# Key: (type_of_mutation, position_of_mutation, length_of_mutation)
@@ -1109,40 +1113,34 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 		return(dict_of_reads,reads_that_passed)
 
 	
-	print("reading Control SAM files...\r", end='')
+	read_task = log.task('Reading control alignment')
 	control1, control_reads_cnt = quant_unique_indels(samfile_path2)
-	print(f"Control align : {control_reads_cnt}")
-	print("reading Treated SAM files... Done")
+	read_task.done(read_count_summary(control_reads_cnt))
+
+	read_task = log.task('Reading treated alignment')
 	edited1, edited_reads_cnt = quant_unique_indels(samfile_path1)
-	print(f"Treated align : {edited_reads_cnt}")
-	print("reading CRISPR-treated SAM file...\r", end='')
-	
-	
-	print("reading CRISPR-treated SAM file... Done")
+	read_task.done(read_count_summary(edited_reads_cnt))
 
-	if pooling: 
-		print('Binning mutation information in Control file ...\r', end='')
+	if pooling:
+		bin_task = log.task('Binning mutations')
+		bin_task.update('control')
 		control1 = pool(control1)
-		print('Binning mutation information in Treated file ... \r', end='')
+		bin_task.update('treated')
 		edited1 = pool(edited1)
-		print('Binning mutation information ... Done!			  ')
+		bin_task.done()
 
-	
 	if mutation_length_threshold_pval != -1:
 		length_min = get_mutation_cutoff(control1, window_filter, cv_pos, cv_pos_2, window, check_window_between_targets)
-		print('Re-calculated mutation length cutoff : ', length_min)
+		log.info(f'Mutation length cutoff : {length_min} bp (estimated from control)')
 	else:
 		length_min = 10
-		print('Not enough mutation at control file. mutation length cutoff = 10bp')
+		log.info(f'Mutation length cutoff : {length_min} bp (default)')
 
-	print(window)
 	significant_keys = significant_mutations(control1, edited1, control_reads_cnt['used'], edited_reads_cnt['used'], use_all_mutations = use_all_mutations, length_min = length_min)
 
-	print("Calculating mutation's significant... Done!			   ")
-
-
-	print("Calculating mutation in each reads.. \r", end ='')
+	classify_task = log.task('Assigning mutations to reads')
 	edited_dict_reads, reads_that_passed = creat_dict_analysis(samfile_path1, significant_keys, induced_mutations, anchor_information)
+	classify_task.done(f'{log.count(len(edited_dict_reads))} reads')
 
 	"""for x,y in edited_dict_reads.items():
 		if reads_that_passed[x].find('807e023b')!= -1:
@@ -1151,7 +1149,6 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 	
 	#edited_dict_reads2, _ = creat_dict_analysis(samfile_path2,significant_keys, induced_mutations)
 	edited_dict_reads2 = {}
-	print("Calculating mutation in each reads... Done!		 ")
 
 	"""sub_count_edited = 0
 	sub_count_control = 0
@@ -1319,6 +1316,7 @@ def classify_mut_mild(mutations, induced_mutations, anchor_information, largeins
 	
 
 def process_mutations(mutations_dict, output_file, ids, induced_mutations, anchor_information, partial_induce_cutoff, largeins_cutlen, largedel_cutlen, ref_seq):
+	classify_task = log.task('Classifying reads')
 	with open(output_file, 'w', newline='') as file:
 		writer = csv.writer(file, delimiter='\t')
 		writer.writerow(['Read_id', 'Classification', 'Mutation_info', 'Integration_info', 'Induce_type', 'whole_mutation'])
@@ -1336,6 +1334,7 @@ def process_mutations(mutations_dict, output_file, ids, induced_mutations, ancho
 				writer.writerow([read_id, classification, mutation_info, insert_info, induce_type, filtered_mutation_info])
 			else:
 				writer.writerow([read_id, classification, mutation_info, insert_info, '-', filtered_mutation_info])
+	classify_task.done(f'{log.count(len(mutations_dict))} reads')
 
 def write_cnt_file(control_reads_cnt, edited_reads_cnt, output_file):
 	with open(output_file, 'w') as fw:
@@ -1405,7 +1404,7 @@ def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, ch
 						if mut not in mutation_information:
 							mutation_information.append(mut)
 					else:
-						print("ERROR: Induced mutation is outside the window range. Please increase the window option (--window).")
+						log.warn("An induced mutation lies outside the analysis window; increase --window to include it.")
 				
 		else:
 
@@ -1460,7 +1459,7 @@ def get_induced_mutation(sam_file_path, fasta_file, cv_pos, cv_pos_2, window, ch
 				if check_in_window(mut, True, cv_pos, cv_pos_2, window, check_window_between_targets) == True:
 					mutation_information.append(tuple(mut))
 				else:
-					print("ERROR: Induced mutation is outside the window range. Please increase the window option (--window).")
+					log.warn("An induced mutation lies outside the analysis window; increase --window to include it.")
 	
 	induced_mutation_str = ''
 	
@@ -1557,10 +1556,14 @@ def analysis_function_without_control(reference_sequence, ref_name, cv_pos, stra
 
 	fw_sep = open(input_file.replace('alignment.sam', 'separated.fasta'), 'w')
 
+	scan_task = log.task('Calling mutations from treated alignment')
+
 	for read in samfile.fetch():
 		mutations_in_read = []
 		# Skip unmapped reads
 		cnt_dict['all_reads'] += 1
+		if cnt_dict['all_reads'] % 5000 == 0:
+			scan_task.update(f"{log.count(cnt_dict['all_reads'])} reads")
 		if read.is_unmapped:
 			cnt_dict['unmapped'] += 1
 			continue	
@@ -1692,6 +1695,7 @@ def analysis_function_without_control(reference_sequence, ref_name, cv_pos, stra
 
 	# Close the SAM file
 	samfile.close()
+	scan_task.done(read_count_summary(cnt_dict))
 
 	fw = open(output_dir + '/preprocess_count.txt', 'w')
 	fw.write('\t'.join(cnt_dict.keys()) + '\n')
@@ -1702,9 +1706,10 @@ def analysis_function_without_control(reference_sequence, ref_name, cv_pos, stra
 	fw.close()
 
 	dict_of_reads = CRISPRlungo_insert_analysis.confirm_insertion_seq(dict_of_reads, reference_sequence, ref_name, current_dir + '/possible_insertion.fasta', output_dir, threads)
-	
+
 	visualization.make_visualization_sam(dict_of_reads, output_dir)
 
+	classify_task = log.task('Classifying reads')
 	with open(f'{output_dir}/read_classification.txt', 'w', newline='') as file:
 		writer = csv.writer(file, delimiter='\t')
 		writer.writerow(['Read_id', 'Classification', 'Mutation_info', 'Integration_info', 'Induce_type', 'whole_mutation'])
@@ -1725,3 +1730,5 @@ def analysis_function_without_control(reference_sequence, ref_name, cv_pos, stra
 				writer.writerow([read_id, classification, mutation_info, insert_info, '-', filtered_mutation_info])
 
 
+
+	classify_task.done(f'{log.count(len(dict_of_reads))} reads')

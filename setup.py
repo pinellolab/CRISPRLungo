@@ -3,11 +3,12 @@ from setuptools import setup, find_packages
 
 setup(
     name='CRISPRlungo',
-    version='0.2',
+    version='0.3',
     package_dir={'': 'src'},      
     packages=find_packages(where='src'),
     include_package_data=True,
 	py_modules=['CRISPRlungo', 
+		'CRISPRlungo_log',
 		'CRISPRlungo_umi', 
 		'CRISPRlungo_insert_analysis', 
 		'CRISPRlungo_visualization', 

@@ -1,5 +1,6 @@
 import sys, argparse, os
 import CRISPRlungo_visualization as visual
+import CRISPRlungo_log as log
 import CRISPRlungo_mutation_analysis as mutation_analysis
 from CRISPRlungo_minimap import *
 from itertools import combinations
@@ -55,7 +56,6 @@ def main():
         
     def marker_find_mild(mut_set):
         all_vals = set().union(*mut_set.values())
-        print(all_vals)
         for r in range(1, len(all_vals)+1):
             for combo in combinations(all_vals, r):
                 marker_set = set(combo)
@@ -84,7 +84,7 @@ def main():
 
                     if line[0] == 'AND':
                         if not mut_type:
-                            print('ERROR: "AND" can not be used in first line')
+                            log.error('"AND" cannot be used on the first line of the category file.')
                             sys.exit()
                         pass
                     else:
@@ -94,11 +94,11 @@ def main():
                     start_pos = convert_postion(line[1])
 
                     if not start_pos:
-                        print('ERROR: not proper format at start_pos') 
+                        log.error('Could not parse the start position in the category file.')
                         sys.exit()
                     end_pos = convert_postion(line[2])
                     if not end_pos:
-                        print('ERROR: not proper format at end_pos') 
+                        log.error('Could not parse the end position in the category file.')
                         sys.exit()
                     mut = []
                     mutation_marker = True
@@ -129,8 +129,6 @@ def main():
                     elif 'SUB' in line[3].upper():
                         mutation_category[-1][1].append(['SUB', [start_pos, 0, line[4], line[3].split('_')[1], line[3].split('_')[2]], mutation_marker, OrNot_marker, Include_marker])
                 
-        print(mutation_category)
-
         return mutation_category, additional_analysis_cateogry
     
     def set_mutation_reference(reference_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir, mut_range_reference):
@@ -207,8 +205,7 @@ def main():
         marker_back = marker_find(induced_mut_back)
 
         if marker_front == False and marker_back == False:
-            print('ERROR:: can not find proper mutation markers')
-            sys.exit()
+            log.error('No marker mutation set separates the given alleles.')
         
         n = 0
         confirmed_table = False
@@ -302,7 +299,6 @@ def main():
 
 
 
-        print(updated_mutation_category_dict)
         mutation_category = []
         for read_id, mut in updated_mutation_category_dict.items():
             mutation_category.append([read_id, mut])
@@ -328,10 +324,14 @@ def main():
 
     args = parser.parse_args()
 
+    log.banner(tool='CRISPRlungoAllele',
+               Analysis_dir=args.analysis_file_dir,
+               Category_file=args.custom_category_file,
+               Reference_fasta=args.reference_fasta)
+    log.plan(['Allele categories', 'Grouping reads', 'Visualization'])
+
     if args.custom_category_file == None and args.reference_fasta == None:
-        print('ERROR: Please input custom_category_file (-i) or reference_fasta (-r)')
-        sys.exit()
-    
+        log.error('Give either a category file (-i) or an allele reference FASTA (-r).')
 
     analysis_res_dir = args.analysis_file_dir
     create_dir(analysis_res_dir + '/custom_results/')
@@ -368,14 +368,18 @@ def main():
     original_target = input_opt['target_1']
 
 
+    log.step()
+
     if args.custom_category_file != None:
         mutation_category, additional_analysis_category = set_custom_mutation(args.custom_category_file, cv_pos, cv_pos2, induced_mut, analysis_res_dir)
     elif args.reference_fasta != None:
         mutation_category, additional_analysis_category = set_mutation_reference(args.reference_fasta, cv_pos, cv_pos2, induced_mut, analysis_res_dir, args.mut_range_reference)
     else:
-        print('ERROR: input mutation information files (--custom_category_file or --reference_fasta)')
-        sys.exit()
-    for i in mutation_category: print(i)
+        log.error('Give either a category file (-i) or an allele reference FASTA (-r).')
+
+    log.info(f'Categories : {", ".join(sorted({i[0] for i in mutation_category}))}')
+
+    log.step()
 
     f = open(analysis_res_dir + '/results/read_classification.txt').readlines()
 
@@ -542,9 +546,8 @@ def main():
             filted_classification_cnt[annot][x] = cnt
             filted_total_cnt += cnt
 
-    print('Total cnt', total_cnt)
-    print('Filted cnt', 
-    filted_total_cnt)
+    log.info(f'Reads grouped : {log.count(total_cnt)}')
+    log.info(f'After count/frequency filters : {log.count(filted_total_cnt)}')
 
     fw = open(analysis_res_dir + '/custom_results/custom_mutation_patter_count.txt', 'w')
 
@@ -577,9 +580,8 @@ def main():
 
     fw.close()
 
-    print(classification_cnt)
-    
-    print('Drawing graphs ...\r', end='')
+
+    log.step()
     if induced_mut:
         induced_mut = ','.join(induced_mut)
     visual.custom_mutation_pie_chart(classification_cnt, analysis_res_dir + '/custom_results')
@@ -601,7 +603,9 @@ def main():
         elif x == 'Ref_seq':
             ref_seq = i[1]
 
-    for i in mutation_category:
+    group_task = log.task('Per-category plots')
+    for cat_n, i in enumerate(mutation_category, start=1):
+        group_task.progress(cat_n, len(mutation_category), 'categories')
         plots = {}
         tsv_file = f'{analysis_res_dir}/custom_results/{i[0]}/read_classification.txt'
         read_cnt_file = f'{analysis_res_dir}/custom_results/{i[0]}/mutation_patter_count.txt'
@@ -610,6 +614,9 @@ def main():
         read_per_position = visual.visualization_preprocess_regular(analysis_res_dir + '/align/Treated_alignment.sam', analysis_res_dir + '/ref_seq/ref_wo_umi.fasta')
         plots['mutation_pie'], plots['pattern_pie'], plots['allele_pie'] = visual.mutation_pie_chart(read_cnt_file, graph_output_dir)
         plots['indel_per_pos'] = visual.indel_per_position(read_cnt_file, ref_seq, graph_output_dir)
+    group_task.done(f'{len(mutation_category)} categories')
+
+    log.finish(Results=os.path.join(analysis_res_dir, 'custom_results'))
 
 if __name__=='__main__':
 	main()

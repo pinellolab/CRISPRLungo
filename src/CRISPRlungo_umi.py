@@ -5,6 +5,8 @@ from spoa import poa
 from multiprocessing import Pool
 import csv
 
+import CRISPRlungo_log as log
+
 def rc(s): return s.translate(s.maketrans('ATGC','TACG'))[::-1]
 
 def check_in_quality(read):
@@ -47,16 +49,15 @@ def input_organize(ref_fn, output_dir, input_fn):
 	
 	umi_pos = [forward_umi_pos, back_umi_pos]
 	if umi_pos[0][1] == -1 and umi_pos[1][1] == -1:
-		print('ERROR: There is any UMI sequence in reference, please check the reference and primer format.')
-		sys.exit()
+		log.error('No UMI found in the reference. Mark the UMI region with ( and ) in the reference FASTA.')
 	if umi_pos[0][1] != -1:
-		print(f'UMI position in the front part of sequence is from {umi_pos[0][0] + 1} to {umi_pos[0][1] + 1}.')
+		log.info(f'Front UMI : {umi_pos[0][0] + 1} - {umi_pos[0][1] + 1}')
 	else:
-		print(f'There is no UMI at the front part of the sequence.')
+		log.info('Front UMI : none')
 	if umi_pos[1][1] != -1:
-		print(f'UMI position in the back part of the sequence is from {umi_pos[1][0] + 1} to {umi_pos[1][1] + 1}.')
+		log.info(f'Back UMI  : {umi_pos[1][0] + 1} - {umi_pos[1][1] + 1}')
 	else:
-		print(f'There is no UMI at the back part of the sequence.')
+		log.info('Back UMI  : none')
 
 	return umi_pos, umi_len, ref_name, ref_seq
 
@@ -411,8 +412,8 @@ def extract_index_umi(sam_file, ref_file, output_dir, umi_front_pos, umi_back_po
 		fw.write('\n')
 		for i in cnt_dict.values():
 			fw.write(f'{i}\t')
-			
-	print(cnt_dict)
+
+	return cnt_dict
 
 
 def run_spoa(info):
@@ -421,7 +422,8 @@ def run_spoa(info):
 
 def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads, clust_cutoff, umi_r=1):
 	
-	print('Running 1st vsearch ...\r', end='')
+	vsearch_task = log.task('UMI clustering (vsearch)')
+	vsearch_task.update('1st pass, id 0.90')
 	os.system(' '.join(['vsearch',
 			'--clusterout_id',
 			'--clusters', f'{output_clust}/1st_clusters/',
@@ -439,8 +441,8 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 			'--iddef', '0',
 			'--minwordmatches', '0',
 			'-id', '0.9']))
-	print('Running 1st vsearch ... completed')
 
+	vsearch_task.update('correcting 1st pass centroid lengths')
 	with open(f'{output_clust}/1st_consensus.fasta') as f, open(f'{output_clust}/confirmed_1st_consensus.fasta', 'w') as fw:
 		for sid in f:
 			umi = next(f).strip()
@@ -460,7 +462,7 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 			fw.write(f'>{sid.strip()}\n{umi}\n')
 					
 
-	print('Running 2nd vsearch ...\r', end='')	 
+	vsearch_task.update('2nd pass, id 0.95')
 	os.system(' '.join(['vsearch',
 			'--clusterout_id',
 			'--clusters', f'{output_clust}/2nd_clusters/',
@@ -477,9 +479,9 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 			'--iddef', '0',
 			'--minwordmatches', '0',
 			'-id', '0.95']))
-	print('Running 2nd vsearch ... completed')
+	vsearch_task.done()
 
-	print('Reorganinzing clustering files ...\r', end='')
+	group_task = log.task('Grouping reads by UMI cluster')
 	cluster_cnt = 0
 	filted_cnt = 0
 	for fn in os.listdir(f'{output_clust}/2nd_clusters'):
@@ -504,24 +506,20 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 		cluster_cnt += 1
 		with open(f'{output_clust}/medaka_input/{fn}.fasta', 'w') as fw:
 			fw.write('\n'.join(fw_list))
-	print('Reorganinzing clustering files ... completed')
-	print(f'The number of clustering : {cluster_cnt} (filted cluster : {filted_cnt}')
+	group_task.done(f'{log.count(cluster_cnt)} clusters kept, {log.count(filted_cnt)} below cutoff')
 
-	
-		
-	print('Generating consensus sequence ...\r', end='') 
 	medaka_input_list = []
 	for i in os.listdir(f'{output_clust}/medaka_input/'):
 		if i[0] != '.' and i[-6:] == '.fasta':
 			medaka_input_list.append(f'{output_clust}/medaka_input/{i}')
 	fw = open(output_consensus + '/consensus.fasta', 'w')
-	t = time.time()
+	consensus_task = log.task('Building consensus sequences (SPOA)')
+	consensus_n = 0
 	with Pool(threads) as pool:
 		pool_input = []
-		print(f'Generating consensus sequence [0 / {len(medaka_input_list)}] {round(time.time() - t,2)} s\r', end='') 
+		consensus_task.progress(0, len(medaka_input_list), 'clusters')
 		for fn_n, fn in enumerate(medaka_input_list):
 
-			t = time.time()
 			reads = []
 			with open(fn) as f:
 				for line in f:
@@ -534,14 +532,17 @@ def clustering_umi(input_file, umi_len, output_clust, output_consensus, threads,
 				for spoa_res in pool.map(run_spoa, pool_input):
 					fn = spoa_res[1]
 					fw.write(f'>{fn[fn.rfind("/")+1:fn.rfind(".")]}\n{spoa_res[0]}\n')
-					print(f'Generating consensus sequence [{fn_n} / {len(medaka_input_list)}]						\r', end='') 
+					consensus_n += 1
+				consensus_task.progress(fn_n + 1, len(medaka_input_list), 'clusters')
 				pool_input = []
 		for spoa_res in pool.map(run_spoa, pool_input):
 			fn = spoa_res[1]
 			fw.write(f'>{fn[fn.rfind("/")+1:fn.rfind(".")]}\n{spoa_res[0]}\n')
-			
+			consensus_n += 1
+
 	fw.close()
-	print('Generating consensus sequence ... completed')
+	consensus_task.done(f'{log.count(consensus_n)} consensus reads')
+	return consensus_n
 
 
 

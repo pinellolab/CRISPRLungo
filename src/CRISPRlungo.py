@@ -1,15 +1,55 @@
 #!/usr/bin/env python
 
 import argparse, sys
-import time, os, pysam
+import time, os, shutil, pysam
 from subprocess import Popen, PIPE
 
 import CRISPRlungo_mutation_analysis as mutation_analysis
 import CRISPRlungo_visualization as visual
 import CRISPRlungo_umi
 import CRISPRlungo_insert_analysis
+import CRISPRlungo_log as log
 from CRISPRlungo_minimap import *
 
+
+
+def check_reference_fasta(path):
+	"""Reject a reference that CRISPRlungo cannot handle, before anything runs.
+
+	The parser below joins every line after the first into one sequence, so a
+	multi-record FASTA (a whole genome, for example) is silently concatenated
+	into a single pseudo-sequence: the cleavage site is reported at a nonsense
+	coordinate, and minimap2 then builds a multi-part index whose SAM carries no
+	@SQ header, which fails much later with "file has no sequences defined".
+	"""
+	names = []
+	seq_len = 0
+	try:
+		with open(path) as f:
+			for line in f:
+				if line.startswith('>'):
+					header = line[1:].strip()
+					names.append(header.split()[0] if header else '(unnamed)')
+				else:
+					seq_len += len(line.strip())
+	except OSError as e:
+		log.error(f'Could not read the reference FASTA: {path}', e)
+
+	if not names:
+		log.error(f'{path} does not look like a FASTA file - no ">" header line was found.')
+
+	if len(names) > 1:
+		shown = ', '.join(names[:5]) + (' ...' if len(names) > 5 else '')
+		log.error(
+			f'The reference FASTA contains {len(names)} sequences ({shown}).\n'
+			'  CRISPRlungo aligns against a single amplicon or target region, not a whole genome.\n'
+			'  Please extract the region around your target site and use that as the reference.')
+
+	if seq_len > 10_000_000:
+		log.warn(f'The reference is {log.count(seq_len)} bp. CRISPRlungo is designed for '
+				 'amplicon-sized references; very large references are slow and may not align as expected.')
+
+	return seq_len
 
 
 def main():
@@ -21,7 +61,7 @@ def main():
 		formatter_class=argparse.ArgumentDefaultsHelpFormatter 
 	)
 
-	parser.add_argument('-v', '--version', action='version', version='CRISPRlungo 0.2v')
+	parser.add_argument('-v', '--version', action='version', version=f'CRISPRlungo {log.VERSION}')
 
 
 	required = parser.add_argument_group('Required arguments')
@@ -92,7 +132,47 @@ def main():
 
 	args = parser.parse_args()
 	read_res_cnt = {'fastq': 0, 'filtered': 0, 'aligned': 0}
-	
+
+	mode = 'UMI' if args.umi else 'amplicon'
+	if args.control:
+		mode += ' + control filtering'
+	elif args.run_simulation:
+		mode += f' + simulated control ({args.run_simulation})'
+
+	log.banner(Reference=args.ref,
+			   Treated=args.treated,
+			   Control=args.control,
+			   Target=args.target,
+			   Output=args.output_dir,
+			   Mode=mode,
+			   Threads=args.threads)
+
+	# Fail fast with a readable message when an external tool is missing, instead
+	# of dying part way through the run with a subprocess traceback.
+	required_tools = [('minimap2', 'read alignment', 'conda install -c bioconda minimap2'),
+					  ('samtools', 'IGV alignment files', 'conda install -c bioconda samtools')]
+	if args.umi:
+		required_tools.append(('vsearch', 'UMI clustering', 'conda install -c bioconda vsearch'))
+	if args.run_simulation or args.large_induced_insertion:
+		required_tools.append(('badread', 'control read simulation', 'pip install badread'))
+
+	missing_tools = [i for i in required_tools if shutil.which(i[0]) is None]
+	if missing_tools:
+		log.error('Required external tool(s) not found on PATH:',
+				  '\n'.join(f'{name}  ({purpose})  ->  install with: {how}'
+							for name, purpose, how in missing_tools))
+
+	# Section list for the [n/total] headers; must match the log.step() calls below.
+	run_steps = ['Reference and target']
+	if args.umi and not args.just_visualization:
+		run_steps.append('UMI clustering and consensus')
+	if args.run_simulation and args.control is None:
+		run_steps.append('Control simulation')
+	if not (args.just_visualization and (args.control or args.run_simulation)):
+		run_steps += ['Alignment', 'Mutation analysis']
+	run_steps.append('Visualization')
+	log.plan(run_steps)
+
 	current_dir = os.path.dirname(os.path.abspath(__file__))
 
 	def create_dir(dir_name):
@@ -109,8 +189,7 @@ def main():
 	
 	if args.remove_large_mutations_in_plot != -1:
 		if args.remove_large_mutations_in_plot < 100:
-			print('ERROR: remove_large_mutations_in_plot option should be larger than 100')
-			sys.exit()
+			log.error('--remove_large_mutations_in_plot must be 100 or larger.')
 
 
 	create_dir(output_dir)
@@ -118,22 +197,23 @@ def main():
 	create_dir(f'{output_dir}/custom_results')
 
 	if args.additional_target == None and args.whole_window_between_targets == True:
-		print('ERROR: whole_window_between_targets is declared, but additional_target is not declared.')
-		sys.exit()
+		log.error('--whole_window_between_targets needs a second target. Add --additional_target.')
 
 	if args.run_simulation:
 		if args.control or args.umi:
-			print('ERROR: The options --control or --umi and --run_simulation cannot be used together.')
-			sys.exit()
+			log.error('--run_simulation cannot be combined with --control or --umi.')
 
 	if args.allele_plot_window == 0:
 		allele_plot_window = args.window + 10
 	else:
 		allele_plot_window = args.allele_plot_window
 
-	# Get reference information 
+	log.step()
+
+	# Get reference information
 
 	ref_file = args.ref
+	check_reference_fasta(ref_file)
 
 	ref_dir = f'{output_dir}/ref_seq'
 	create_dir(ref_dir)
@@ -191,9 +271,9 @@ def main():
 			cv_pos = ref_seq.find(reverse_complementary(target)) + len(target) - args.cleavage_pos - 2
 			strand = -1
 		else:
-			print('ERROR: Can not find target sequence in reference !!')
-			sys.exit()
-		print(f'Cleavage site : {cv_pos}')
+			log.error('Target sequence was not found in the reference (either strand).')
+		log.info(f'Target 1       : {target} ({"+" if strand == 1 else "-"} strand)')
+		log.info(f'Cleavage site 1: {cv_pos}')
 
 	if args.additional_target != None:
 		target_2 = args.additional_target.upper()
@@ -204,9 +284,9 @@ def main():
 			cv_pos_2 = ref_seq.find(reverse_complementary(target_2)) + len(target) - args.cleavage_pos - 2
 			strand_2 = -1
 		else:
-			print('ERROR: Can not find additional targt sequence in reference !!')
-			sys.exit()
-		print(f'Additional cleavage site : {cv_pos_2}')
+			log.error('Additional target sequence was not found in the reference (either strand).')
+		log.info(f'Target 2       : {target_2} ({"+" if strand_2 == 1 else "-"} strand)')
+		log.info(f'Cleavage site 2: {cv_pos_2}')
 	else:
 		target_2 = False
 		cv_pos_2 = False
@@ -267,17 +347,14 @@ def main():
 					pos_ed = int(pos_ed)
 					mut_len = int(mut_len)
 					if ref_seq[pos_st - 1] != ref_nt or pos_ed -1 > ref_len:
-						print('ERROR: can not recognize induced mutation pattern !!! '+ i)
-						sys.exit()	
+						log.error('Could not parse the induced mutation pattern: ' + i)
 					induced_mutations.append(('substitution', pos_st - 1, mut_len, ref_nt, mut_nt))
 					if i.count('_') == 4:
 						parts = i.rsplit('_', 1)
 						fix_pat_i = '>'.join(parts)
 					induced_mutation_str += fix_pat_i + ','
 				except Exception as e:
-					print(e)
-					print('ERROR: can not recognize induced mutation pattern !!! '+ i)
-					sys.exit()
+					log.error('Could not parse the induced mutation pattern: ' + i, e)
 			elif 'DEL' in i.upper():
 				try:
 					pos_st, pos_ed, mut_type, mut_len = i.replace(':', '_').split('_')
@@ -285,15 +362,12 @@ def main():
 					pos_ed = int(pos_ed)
 					mut_len = int(mut_len)
 					if pos_ed - 1 > ref_len:
-						print('ERROR: can not recognize induced mutation pattern !!! '+ i)
-						sys.exit()	
+						log.error('Could not parse the induced mutation pattern: ' + i)
 					induced_mutations.append(('deletion', pos_st, mut_len ))
 					induced_mutation_str += i + ','
 					mod_pos -= mut_len
 				except Exception as e:
-					print(e)
-					print('ERROR: can not recognize induced mutation pattern !!! '+ i)
-					sys.exit()
+					log.error('Could not parse the induced mutation pattern: ' + i, e)
 			elif 'INS' in i.upper():
 				try:
 					pos_st, pos_ed, mut_type, mut_len, mut_seq = i.replace(':', '_').split('_')
@@ -301,15 +375,12 @@ def main():
 					pos_ed = int(pos_ed)
 					mut_len = int(mut_len)
 					if pos_ed - 1 > ref_len:
-						print('ERROR: can not recognize induced mutation pattern !!! '+ i)
-						sys.exit()	
+						log.error('Could not parse the induced mutation pattern: ' + i)
 					induced_mutations.append(('insertion', pos_st, mut_len, mut_seq, pos_ed, pos_st + mod_pos, pos_st+mod_pos+mut_len ))
 					induced_mutation_str += i + ','
 					mod_pos += mut_len
 				except Exception as e:
-					print(e)
-					print('ERROR: can not recognize induced mutation pattern !!! '+ i)
-					sys.exit()
+					log.error('Could not parse the induced mutation pattern: ' + i, e)
 		induced_mutation_str = induced_mutation_str[:-1]
 			
 	anchor_information.insert(0, args.anchor_validation_only)
@@ -323,7 +394,8 @@ def main():
 
 	if args.umi:
 
-		print('Generating treated consensus file...')
+		if args.just_visualization == False:
+			log.step()
 
 		index_info = 'result,NNNNNNNNNN' #For index demultiplexing, not yet supported.
 
@@ -334,6 +406,8 @@ def main():
 			index_names.append(i)
 
 		if args.just_visualization == False:
+
+			log.info('Treated sample')
 
 			# Align recieved FASTQ file
 			run_triple_minimap2(ref_dir + "/ref.mmi", 
@@ -377,7 +451,8 @@ def main():
 
 			if args.control:
 				
-				print('Generating control consensus file...')
+				log.blank()
+				log.info('Control sample')
 
 				run_triple_minimap2(ref_dir + "/ref.mmi", 
 				args.control,  output_dir + '/align/control_fastq_align_to_umiref.sam', 
@@ -420,15 +495,15 @@ def main():
 	create_dir(f'{output_dir}/css/')
 
 	if args.control == None and args.run_simulation:
-		
+
+		log.step()
+
 		# Confirm badread
-		print('Generate control simulation data...')
 		try:
 			p = Popen(["badread", "--help"], stdout=PIPE, stderr=PIPE)
 			p.communicate()
 		except FileNotFoundError:
-			print('ERROR!: need to install badread')
-			sys.exit()
+			log.error('badread is required by --run_simulation but was not found. Install it with: pip install badread')
 
 		create_dir(f'{output_dir}/simulation/')
 
@@ -450,10 +525,10 @@ def main():
 			badread_model = 'nanopore2023' 
 			badread_identity = '95,99,5'
 		else:
-			print('ERROR: --run_simulation value should be among pacbio, ont_sup, ont_hac, ont_fast')
-			sys.exit()
+			log.error('--run_simulation must be one of: pacbio, ont_sup, ont_hac, ont_fast')
 		
 		for i in range(10000): fw.write(f'>{i}\n{ref_seq}\n')
+		fw.close()      # flush before badread reads this file
 
 		cmd = ["badread", "simulate",
 		 "--reference", f'{output_dir}/simulation/control_simul.fasta',
@@ -465,17 +540,13 @@ def main():
 		with open(f'{output_dir}/simulation/control_simul.fastq', "w") as outfile:
 			proc = Popen(cmd, stdout=outfile, stderr=PIPE, text=True)
 
-			print('')
-			for line in proc.stderr:
-				print(line.strip(), end="\r")
+			sim_task, last_line = log.stream_stderr(proc, 'Simulating control reads (badread)')
 
-			proc.wait()
-		
 		if proc.returncode == 0:
-			print("Badread simulation completed.")
+			sim_task.done()
 		else:
-			print("Badread error:")
-			print(proc.stderr.decode())
+			sim_task.fail('badread failed')
+			log.error('badread could not generate the simulated control', last_line)
 		
 
 		args.control = f'{output_dir}/simulation/control_simul.fastq'
@@ -483,12 +554,12 @@ def main():
 			
 	if args.control:
 
-		print('Start filtering module ...')
-
 		if args.just_visualization == False:
-			
-			run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi', 
-				control_file_path,  
+
+			log.step()
+
+			run_triple_minimap2(f'{ref_dir}/ref_wo_umi.mmi',
+				control_file_path,
 				output_dir + '/align/Control_alignment.sam', 
 				longjoin_bandwidth, 
 				chaining_bandwidth, 
@@ -509,7 +580,7 @@ def main():
 				fasta_check=True
 			)
 
-			# Run Statistical anlaysis.py
+			log.step()
 
 			edited_dictionary, controll_dictionary, List_of_valid_IDs, control_reads_cnt, edited_reads_cnt = mutation_analysis.analysis_function_with_control(
 				output_dir + '/align/Control_alignment.sam', 
@@ -568,6 +639,8 @@ def main():
 			mutation_analysis.write_cnt_file(control_reads_cnt, edited_reads_cnt, f'{output_dir}/results/preprocess_count.txt')
 	
 	else:
+		log.step()
+
 		ref_index = ref_dir + '/ref_wo_umi.mmi'
 
 		run_triple_minimap2(ref_index,
@@ -586,7 +659,9 @@ def main():
 		else:
 			write_cnt = False
 
-		mutation_analysis.analysis_function_without_control(ref_seq, 
+		log.step()
+
+		mutation_analysis.analysis_function_without_control(ref_seq,
 			ref_name, 
 			cv_pos, 
 			strand, 
@@ -635,19 +710,21 @@ def main():
 				continue
 			edited_reads_cnt[i[0]] = int(i[1])
 
-	print('Drawing graphs ... \r', end='')
+	log.step()
 
 	tsv_file = output_dir + '/results/read_classification.txt'
 	graph_output_dir = output_dir + '/results/'
 
 	plots = {}
 
-	print('Preprocessing for visualization ... \r', end = '')
+	viz_task = log.task('Reading alignment for plots')
 	read_per_position = visual.visualization_preprocess_regular(output_dir + '/align/Treated_alignment.sam', ref_file)
+	viz_task.done()
 
 	if args.control:
-		print('Drawing accuracy plot ... \r', end ='')
+		acc_task = log.task('Accuracy plot')
 		visual.regular_accuracy_plot(ref_seq, read_per_position, graph_output_dir)
+		acc_task.done()
 	
 	fw_input = open(f'{output_dir}/results/input_summary.txt', 'w')
 	fw_input.write(f'Target_1 :{target}\n')
@@ -667,19 +744,67 @@ def main():
 	fw_input.write(f'induced_sequence_path : {args.induced_sequence_path}\n')
 	fw_input.write(f'largeins_cutlen : {args.largeins_cutlen}\n')
 	fw_input.write(f'largedel_cutlen : {args.largedel_cutlen}\n')
+
+	# Everything below is a record of the run for reproducibility. It is not read
+	# back by CRISPRlungoAllele / CRISPRlungoBatch, so new lines can be added
+	# freely -- but do not rename any of the keys written above.
+
+	fw_input.write('\n# Run\n')
+	for key, value in [('CRISPRlungo_version', log.VERSION),
+					   ('Command', log.command_line()),
+					   ('Started', log.started_at()),
+					   ('Working_directory', os.getcwd()),
+					   ('Output_directory', os.path.abspath(output_dir))]:
+		fw_input.write(f'{key} : {value}\n')
+
+	# A few names here repeat a key from the block above (window, largeins_cutlen,
+	# largedel_cutlen, induced_sequence_path). Both are written straight from
+	# `args`, so they always agree; readers that fold case keep the last one.
+	fw_input.write('\n# Options\n')
+	option_names = sorted(vars(args))
+	option_width = max(len(i) for i in option_names)
+	for key in option_names:
+		fw_input.write(f'{key.ljust(option_width)} : {getattr(args, key)}\n')
+
+	# Values that the run actually used where they differ from the raw options,
+	# plus the numbers derived from the reference.
+	fw_input.write('\n# Effective values\n')
+	effective = [('reference_name', ref_name),
+				 ('reference_length', ref_len),
+				 ('treated_file_used', treated_file_path),
+				 ('control_file_used', control_file_path if args.control else None),
+				 ('allele_plot_window_used', allele_plot_window),
+				 ('minimap2_longjoin_bandwidth', longjoin_bandwidth),
+				 ('minimap2_chaining_bandwidth', chaining_bandwidth),
+				 ('induced_mutation_count', len(induced_mutations)),
+				 ('induced_insertion_anchors', max(0, len(anchor_information) - 1))]
+	effective_width = max(len(i[0]) for i in effective)
+	for key, value in effective:
+		fw_input.write(f'{key.ljust(effective_width)} : {value}\n')
+
 	fw_input.close()
 
 	read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'
-	print('writing output ...                              \r', end = '')
+	count_task = log.task('Counting allele patterns')
 	mut_cnt, precise_cnt = visual.write_read_count(tsv_file,  f'{output_dir}/results/preprocess_count.txt', read_cnt_file, f'{output_dir}/results/mutation_summary_count.txt', args.min_read_cnt, args.min_read_freq, args.induced_sequence_path)
+	count_task.done()
+
+	log.summary_table('Read classification', mut_cnt)
+	if args.induced_sequence_path:
+		log.summary_table('Desired edit', precise_cnt)
+	log.blank()
+
+	plot_task = log.task('Read count plot')
 	plot_html = visual.align_count_plot(f'{output_dir}/results/preprocess_count.txt', f'{output_dir}/results/mutation_summary_count.txt', f'{output_dir}/results')
 	plots['treated_align'] = plot_html[1]
 	plots['control_align'] = ''
 	if args.control:
 		plots['control_align'] = plot_html[0]
 	#read_cnt_file = f'{output_dir}/results/mutation_patter_count.txt'
+	plot_task.done()
+
 	if args.target != None:
-		print('Drawing graphs ... Allele plot                         \r', end='')
+		plot_task = log.task('Allele plot and table')
 		visual.allele_plot(ref_seq, 
 			cv_pos, 
 			cv_pos_2, 
@@ -718,22 +843,30 @@ def main():
 			induced_mutation_str, 
 			args.show_all_between_allele
 		)
+		plot_task.done()
 
-	print('Drawing graphs ... pie plot                         \r', end='')
+	plot_task = log.task('Mutation plots')
+	plot_task.update('pie charts')
 	plots['mutation_pie'], plots['pattern_pie'], plots['allele_pie'] = visual.mutation_pie_chart(read_cnt_file, graph_output_dir)
-	print('Drawing graphs ... indel plot                         \r', end='')
+	plot_task.update('indels per position')
 	plots['indel_per_pos'] = visual.indel_per_position(read_cnt_file, ref_seq, graph_output_dir)
-	print('Drawing graphs ... insertion plot                         \r', end='')
+	plot_task.update('insertion length')
 	plots['insertion_len'] = visual.Insertion_length(read_cnt_file, graph_output_dir)
-	print('Drawing graphs ... deletion plot                         \r', end='')
+	plot_task.update('deletion length')
 	plots['deletion_len'] = visual.Deletion_length(read_cnt_file, graph_output_dir)
-	plots['deletion_count_len'] = visual.Deletion_count_length(read_cnt_file, graph_output_dir)	
-	print('Drawing graphs ... large deletion tornado plot                         \r', end='')
+	plots['deletion_count_len'] = visual.Deletion_count_length(read_cnt_file, graph_output_dir)
+	plot_task.update('large deletion tornado')
 	visual.LD_tornado(read_cnt_file, cv_pos, ref_len, strand, graph_output_dir)
-	print('Drawing graphs ... base proportion plot                         \r', end='')
+	plot_task.update('base proportion')
 	plots['base_proportion'] = visual.base_proportion(read_per_position, graph_output_dir, ref_seq, cv_pos, cv_pos_2, allele_plot_window, args.show_all_between_allele)
-	
+	plot_task.done()
+
+	report_task = log.task('Writing report')
 	visual.write_html(plots, args.control, args.target, output_dir, mut_cnt, precise_cnt, edited_reads_cnt)
+	report_task.done()
+
+	log.finish(Report=os.path.join(output_dir, 'combined_graphs.html'),
+			   Results=os.path.join(output_dir, 'results'))
 
 
 if __name__=='__main__':

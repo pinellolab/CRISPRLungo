@@ -19,6 +19,8 @@ from pathlib import Path
 import shutil
 import subprocess
 
+import CRISPRlungo_log as log
+
 
 def visualization_preprocess_regular(sam_file, fasta_file):
 
@@ -50,7 +52,6 @@ def visualization_preprocess_regular(sam_file, fasta_file):
 					read_seq = read.query_sequence
 					read_pos = read.reference_start
 					if type(read_seq) != type('str'):
-						print("continue")
 						continue
 					
 					# Iterate over the aligned portion of the read
@@ -973,14 +974,20 @@ def allele_table(ref_seq, cv_pos, cv_pos_2, strand, strand_2, input_file, output
 
 			ex_mut = mut
 
+		# Sequence downstream of the last mutation. Single target: a full
+		# plot_window of flank, so the row is symmetric with the plot_window
+		# written upstream. Two targets: stop at the same right edge the WT row
+		# uses (cv_pos_2 + plot_window). The trailing M is counted from the text
+		# that was actually appended -- deriving it separately used to leave the
+		# CIGAR one base longer than the sequence it describes.
 		if mut[1] + plot_window > cv_pos_2 + plot_window:
-			align_ref += ref_seq[mut[1] + 1: mut[1] + plot_window]
-			align_mut += ref_seq[mut[1] + 1: mut[1] + plot_window]
-			CIGAR_str += f'{plot_window}M'
+			tail_seq = ref_seq[mut[1] + 1: mut[1] + 1 + plot_window]
 		else:
-			align_ref += ref_seq[mut[1] + 1: cv_pos_2 + plot_window]
-			align_mut += ref_seq[mut[1] + 1: cv_pos_2 + plot_window]
-			CIGAR_str += f'{cv_pos_2 + plot_window - (mut[1] + 1) + 1}M'
+			tail_seq = ref_seq[mut[1] + 1: cv_pos_2 + plot_window]
+
+		align_ref += tail_seq
+		align_mut += tail_seq
+		CIGAR_str += f'{len(tail_seq)}M'
 
 		if not induced_mutation_str or info_n != 0:
 			fw.write(f'{align_ref}\t{align_mut}\t{info[2]}\t{info[1]}\t{CIGAR_str}\t{info[0]}\n')
@@ -1061,7 +1068,7 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2,
 		if len(showing_line) >= show_line:
 			break
 
-	print("Drawing allele plot : ", len(showing_line), " lines")
+	log.info(f'Allele plot : {len(showing_line)} lines')
 	fig, ax = plt.subplots(figsize=(fig_wide, 3 * (len(showing_line)+8)/10))
 
 	#for info_n, info in enumerate(sorted(output_res.items(), key=lambda x: x[1], reverse=True)[:show_line]):
@@ -1849,16 +1856,14 @@ def write_read_count(tsv_file, input_pre_cnt_file, output_read_file, output_summ
 	s1 += '\t'
 	s2 += '\t'
 
-	print('')
-	
 	for i in ['WT', 'Del', 'Ins', 'Sub', 'LargeDel', 'LargeIns', 'Inv', 'Complex', 'ComplexWithLargeMut']:
 		if i  in mut_cnt:
 			s1 += i + '\t'
 			s2 += str(mut_cnt[i]) + '\t'
-			if out_print:
-				print(i, mut_cnt[i])
 	s1 += '\t'
 	s2 += '\t'
+
+
 
 	if induced_sequence_path != False:
 		for i in ['Precise', 'Precise_with_mutations', 'Partial', 'Partial_with_mutations', 'X']:
@@ -2022,9 +2027,31 @@ def make_visualization_sam(dict_of_reads, out_dir):
 			fw.write(line + '\n')
 
 
-	subprocess.run(f"samtools sort {out_dir}/visualization.sam -o {out_dir}/visualization.sorted.bam", shell=True, check=True)
-	subprocess.run(f"samtools index {out_dir}/visualization.sorted.bam", shell=True, check=True) 
-	subprocess.run(f"samtools faidx {ref_dir}/ref_wo_umi.fasta", shell=True, check=True) 
+	# Close before handing the file to samtools: Python buffers writes, so an
+	# open handle can leave the tail of the SAM (up to one buffer) unwritten and
+	# samtools would sort a truncated -- or, for small runs, an empty -- file.
+	fw.close()
+
+	igv_task = log.task('Building IGV files (samtools)')
+
+	if shutil.which('samtools') is None:
+		igv_task.fail('samtools not found')
+		log.error('samtools was not found on PATH, so the IGV alignment files cannot be built. '
+				  'Install it with: conda install -c bioconda samtools')
+
+	for what, command in [
+			('sort the alignment', f"samtools sort {out_dir}/visualization.sam -o {out_dir}/visualization.sorted.bam"),
+			('index the sorted BAM', f"samtools index {out_dir}/visualization.sorted.bam"),
+			('index the reference', f"samtools faidx {ref_dir}/ref_wo_umi.fasta")]:
+		igv_task.update(what)
+		result = subprocess.run(command, shell=True, capture_output=True, text=True)
+		if result.returncode != 0:
+			igv_task.fail(f'samtools failed ({what})')
+			log.error(f'samtools could not {what} (exit code {result.returncode}).\n'
+					  f'  Command: {command}',
+					  result.stderr or result.stdout)
+
+	igv_task.done()
 
 	xml_filename = f"{'/'.join(out_dir.split('/')[:-1])}/Lungo_IGV_Session.xml"
 	
@@ -2075,11 +2102,7 @@ def make_visualization_sam(dict_of_reads, out_dir):
 	with open(xml_filename, 'w') as f:
 		f.write(xml_content)
 	
-	print(f"[Done] Created IGV Session File: {xml_filename}")
-	print(f"       (User can open this single file to load everything)")
-
-
-	fw.close()
+	log.info(f'IGV session : {xml_filename}')
 			
 
 

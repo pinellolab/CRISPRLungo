@@ -66,6 +66,9 @@ PATH_OPTS = {'control', 'induced_sequence_path', 'induced_mutation_patterns',
 # so new CRISPRlungo options can be used as batch columns with no code change.
 
 
+import CRISPRlungo_log as log
+
+
 def parse_batch_file(path):
     """Read a batch file -> list of dict rows.
 
@@ -347,49 +350,56 @@ def main():
             else:
                 defaults[key] = 'TRUE'; i += 1
         else:
-            print('  (ignoring unrecognised argument: %s)' % tok); i += 1
+            log.warn('ignoring unrecognised argument: %s' % tok); i += 1
 
     batch_dir = os.path.dirname(os.path.abspath(args.batch_file))
     rows = parse_batch_file(args.batch_file)
     if not rows:
-        sys.exit('ERROR: no samples found in batch file')
+        log.error('No samples found in the batch file.')
     if any('name' not in r or not r['name'] for r in rows):
-        sys.exit("ERROR: batch file must have a non-empty 'name' column for every row")
+        log.error("The batch file needs a non-empty 'name' column for every row.")
 
     os.makedirs(args.output_dir, exist_ok=True)
+
+    log.banner(tool='CRISPRlungoBatch',
+               Batch_file=args.batch_file,
+               Output=args.output_dir,
+               Samples=len(rows),
+               Threads=args.threads)
+    log.plan([r['name'] for r in rows])
 
     results = []
     t0 = time.time()
     for i, row in enumerate(rows, 1):
         name = row['name']
         sample_out = os.path.join(args.output_dir, name)
-        print('\n[%d/%d] %s' % (i, len(rows), name))
+        log.step()
         rec = {'name': name, 'status': 'OK'}
 
         done_marker = os.path.join(sample_out, 'combined_graphs.html')
         if os.path.exists(done_marker) and not args.rerun:
-            print('  already done (use --rerun to force) -> reusing results')
+            log.info('already done, reusing results (use --rerun to force)')
         else:
             try:
                 cmd = build_command(crispr_cmd, row, defaults, sample_out,
                                     args.threads, batch_dir)
             except ValueError as e:
-                print('  SKIP: ' + str(e))
+                log.info('skipped: ' + str(e))
                 rec.update(status='ERROR', error=str(e))
                 results.append(rec)
                 continue
-            print('  $ ' + ' '.join(cmd))
+            log.info('$ ' + ' '.join(cmd))
             st = time.time()
             proc = subprocess.run(cmd)
             if proc.returncode != 0:
-                print('  FAILED (exit %d)' % proc.returncode)
+                log.info('FAILED (exit %d)' % proc.returncode)
                 rec.update(status='ERROR', error='exit code %d' % proc.returncode)
                 results.append(rec)
                 if not args.skip_failed:
                     # keep going through the batch regardless, but record it
                     pass
                 continue
-            print('  done in %.1f s' % (time.time() - st))
+            log.info('done in %.1f s' % (time.time() - st))
 
         counts = read_summary_counts(sample_out)
         if counts is None:
@@ -403,10 +413,9 @@ def main():
     html = write_summary_html(args.output_dir, results, args.batch_name)
 
     ok = sum(1 for r in results if r['status'] == 'OK' and r.get('counts'))
-    print('\n==================================================')
-    print('Batch finished: %d/%d OK in %.1f s' % (ok, len(results), time.time() - t0))
-    print('Summary table : ' + txt)
-    print('Summary HTML  : ' + html)
+    log.finish(Samples_completed='%d / %d' % (ok, len(results)),
+               Summary_table=txt,
+               Summary_HTML=html)
 
 
 if __name__ == '__main__':
