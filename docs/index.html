@@ -131,14 +131,19 @@
 
   <body>
     <nav class="navbar bg-white border-bottom sticky-top">
-      <div class="container container-narrow">
-        <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-          <i class="bi bi-bezier"></i>
-          <span>CRISPRLungo</span>
-        </a>
-        <div class="text-secondary small">v1</div>
-      </div>
-    </nav>
+  <div class="container container-narrow">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+      <span>CRISPRLungo</span>
+    </a>
+    <div class="d-flex align-items-center gap-3 small">
+      <a class="text-decoration-none" target="_blank" rel="noopener"
+         href="https://doi.org/10.1038/s41551-026-01776-7"><i class="bi bi-journal-text"></i> Paper</a>
+      <a class="text-decoration-none" target="_blank" rel="noopener"
+         href="https://github.com/pinellolab/CRISPRLungo"><i class="bi bi-github"></i> GitHub</a>
+      <span class="text-secondary">v1</span>
+    </div>
+  </div>
+</nav>
 
 
     <section class="hero">
@@ -466,7 +471,23 @@
         input.addEventListener("blur", () => clampValue(input));
       });
     </script>
-
+  <footer class="border-top mt-5 py-4">
+  <div class="container container-narrow">
+    <div class="alert alert-light border small mb-2">
+      <strong>If you use CRISPRLungo, please support us by citing it in your work:</strong><br>
+      Hwang GH, Vyshedskiy B, Barry T, Zeng J, Levesque S, Manis JP, Shimamura A, Bauer DE, Pinello L.<br>
+      Analysing long-read CRISPR experiments with CRISPRLungo.<br>
+      <em>Nat Biomed Eng.</em> 2026.
+      doi: <a href="https://doi.org/10.1038/s41551-026-01776-7" target="_blank" rel="noopener">10.1038/s41551-026-01776-7</a><br>
+      <span class="text-secondary">This can help us receive proper credit and citations as more people begin using the tool.</span>
+    </div>
+    <div class="small text-secondary">
+      <a href="https://github.com/pinellolab/CRISPRLungo" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="https://github.com/pinellolab/CRISPRLungo/issues" target="_blank" rel="noopener">Report an issue</a> ·
+      Pinello Lab
+    </div>
+  </div>
+</footer>
   </body>
 
 </html>
