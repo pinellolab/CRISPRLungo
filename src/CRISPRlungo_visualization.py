@@ -31,8 +31,7 @@ CITATION_HTML = """
     Analysing long-read CRISPR experiments with CRISPRLungo.<br>
     <i>Nat Biomed Eng.</i> 2026. doi:
     <a href="https://doi.org/10.1038/s41551-026-01776-7">10.1038/s41551-026-01776-7</a><br>
-    <span style="color:#6b7280;">This can help us receive proper credit and citations
-    as more people begin using the tool.</span>
+
   </div>
   <div style="margin-top:10px;font-size:13px;color:#6b7280;">
     <a href="https://pinellolab.github.io/CRISPRLungo">Web version</a> &middot;
