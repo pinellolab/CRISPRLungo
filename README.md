@@ -5,6 +5,9 @@
 **CRISPRLungo** is a software pipeline designed to analyze genome editing outcomes using long-read sequencing data.  
 It supports multiple CRISPR platforms (base editors, prime editors) and is compatible with various sequencing methods such as amplicon sequencing, UMI-tagged long-read sequencing, and nCATS.
 
+[![DOI](https://img.shields.io/badge/DOI-10.1038%2Fs41551--026--01776--7-blue)](https://doi.org/10.1038/s41551-026-01776-7)
+
+📄 **Published in Nature Biomedical Engineering (2026)** — if you use CRISPRLungo, please cite our [paper](https://doi.org/10.1038/s41551-026-01776-7)
 
 ---
 
@@ -254,3 +257,29 @@ CRISPRlungoBatch -b samples.txt -o out --ref PD1.fasta --target ggcgccctggccagtc
   sample's full report (open it from inside `output_dir/` so links resolve)
 
 
+---
+## Citation
+
+If you use CRISPRLungo in your research, please cite:
+
+> Hwang, G.-H., Vyshedskiy, B., Barry, T., Zeng, J., Levesque, S., Manis, J. P.,
+> Shimamura, A., Bauer, D. E. & Pinello, L.
+> Analysing long-read CRISPR experiments with CRISPRLungo.
+> *Nature Biomedical Engineering* (2026). https://doi.org/10.1038/s41551-026-01776-7
+
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
+@article{Hwang2026CRISPRLungo,
+  title   = {Analysing long-read CRISPR experiments with CRISPRLungo},
+  author  = {Hwang, Gue-Ho and Vyshedskiy, Benjamin and Barry, Timothy and
+             Zeng, Jing and Levesque, S{\'e}bastien and Manis, John P. and
+             Shimamura, Akiko and Bauer, Daniel E. and Pinello, Luca},
+  journal = {Nature Biomedical Engineering},
+  year    = {2026},
+  doi     = {10.1038/s41551-026-01776-7},
+  url     = {https://doi.org/10.1038/s41551-026-01776-7}
+}
+```
+</details>
