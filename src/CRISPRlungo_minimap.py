@@ -42,13 +42,64 @@ def run_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, chaining
 		if own_task:
 			task.done()
 
+# Reads that minimap2 could not place are dropped by soft_clipped() below, so
+# they never reach the alignment file the read counters are computed from. That
+# made "all reads" the number of *aligned* reads and left the "unmapped" column
+# permanently at zero. The aligner is the only place that still sees them, so it
+# records the two numbers in a small file beside the SAM.
+ALIGN_STATS_SUFFIX = '.align_stats'
+
+
+def align_stats_path(sam_path):
+	return sam_path + ALIGN_STATS_SUFFIX
+
+
+def write_align_stats(sam_path, stats):
+	try:
+		with open(align_stats_path(sam_path), 'w') as fw:
+			for key in ('input_reads', 'unmapped'):
+				fw.write(f'{key}\t{stats.get(key, 0)}\n')
+	except OSError as e:
+		# Counting is not worth failing a run over.
+		log.warn(f'Could not write alignment statistics beside {sam_path}: {e}')
+
+
+def read_align_stats(sam_path):
+	"""Input read count / unmapped count recorded when sam_path was written.
+
+	Returns None when the file is absent (an alignment produced by an older
+	run, or by a code path that does not go through run_triple_minimap2), so
+	callers can fall back to counting the alignment file alone.
+	"""
+	path = align_stats_path(sam_path)
+	if not os.path.exists(path):
+		return None
+	stats = {}
+	try:
+		with open(path) as f:
+			for line in f:
+				key, _, value = line.strip().partition('\t')
+				if key:
+					stats[key] = int(value)
+	except (OSError, ValueError):
+		return None
+	return stats or None
+
+
 def soft_clipped(align_file_1, output_file, cut_len_threshold, fasta_check=False):
 
 	check_SA = False
 	read_d = []
+	stats = {'input_reads': 0, 'unmapped': 0}
 	with pysam.AlignmentFile(align_file_1) as f1, open(output_file, 'w') as fw:
 		for line in f1:
-			if line.is_unmapped or line.is_secondary or line.is_supplementary:
+			if line.is_secondary or line.is_supplementary:
+				continue
+			# minimap2 emits exactly one primary-or-unmapped record per input
+			# read, so this is the input read count.
+			stats['input_reads'] += 1
+			if line.is_unmapped:
+				stats['unmapped'] += 1
 				continue
 			if line.mapping_quality < 30 and align_file_1.split('/')[-1].split('_')[0] != '1':
 				continue
@@ -80,13 +131,14 @@ def soft_clipped(align_file_1, output_file, cut_len_threshold, fasta_check=False
 					check_SA = True
 
 			
-	return check_SA, read_d
+	return check_SA, read_d, stats
 
 def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, chaining_bandwidth, threads, minimap2_opt, len_cutoff = 100, fasta_check=False, label=None):
 	output_path = output_file[:output_file.rfind('/')]
 	check_SA = True
 	n = 0
 	read_d = {}
+	align_stats = {'input_reads': 0, 'unmapped': 0}
 	file_format = 'fastq'
 	if fasta_check:
 		file_format = 'fasta'
@@ -107,7 +159,11 @@ def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, c
 		if not os.path.exists(output_path + f'/{n}_align.sam'):
 			align_task.fail('no alignment file produced')
 			log.error(f'minimap2 did not produce {output_path}/{n}_align.sam')
-		check_SA, read_out = soft_clipped(output_path + f'/{n}_align.sam', output_path + f'/{n+1}_soft.{file_format}', len_cutoff, fasta_check)
+		check_SA, read_out, pass_stats = soft_clipped(output_path + f'/{n}_align.sam', output_path + f'/{n+1}_soft.{file_format}', len_cutoff, fasta_check)
+		if n == 1:
+			# Only the first pass sees the original reads; later passes
+			# realign soft-clipped fragments of reads already counted.
+			align_stats = pass_stats
 		for read in read_out:
 			query_name = read.query_name
 			strand_info = query_name.split('_alignStrandInfo_')[1].split('_')
@@ -175,6 +231,8 @@ def run_triple_minimap2(ref_file, input_file, output_file, longjoin_bandwidth, c
 			read_n += 1
 			fw.write(read.to_string() +f'\t\n')
 	fw.close()
+
+	write_align_stats(output_file, align_stats)
 	
 	# remove tmp files
 	

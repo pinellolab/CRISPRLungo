@@ -15,6 +15,7 @@ from multiprocessing import Pool, Pipe
 import CRISPRlungo_insert_analysis
 import CRISPRlungo_visualization as visualization
 import CRISPRlungo_log as log
+from CRISPRlungo_minimap import read_align_stats
 
 import bisect
 import numpy as np
@@ -480,6 +481,35 @@ def analyze_SA_reads(partial_reads, query_seq, reference_sequence, reference_len
 	return mutations_in_reads
 
 
+def mutation_match_key(mutation):
+	"""Return the part of a mutation tuple that identifies it on the reference.
+
+	A read-derived insertion carries the coordinates of the inserted bases inside
+	the *read* in fields 5-6 (and an optional realignment tuple in field 7), while
+	an induced pattern carries *edited-reference* coordinates in those same slots.
+	Those are different coordinate systems, so comparing whole tuples never
+	matches - the induced mutation is then counted as a non-induced one. Only the
+	leading fields identify the mutation, and that is all this key keeps:
+
+	  insertion    ('insertion', ref_pos, length, inserted_seq, ref_end)
+	  substitution ('substitution', ref_pos, length, ref_nt, alt_nt)
+	  deletion     ('deletion', ref_pos, length)
+
+	It also normalises list vs tuple: mutations read off an alignment are carried
+	around as lists, while induced patterns are tuples, and a list never compares
+	equal to a tuple.
+	"""
+	mutation = tuple(mutation)
+	if mutation[0] == 'deletion':
+		return mutation[:3]
+	return mutation[:5]
+
+
+def induced_mutation_keys(induced_mutations):
+	"""Comparable keys for the induced (desired) mutation patterns."""
+	return {mutation_match_key(m) for m in induced_mutations}
+
+
 def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, anchor_information, mutation_length_threshold_pval = 0.005, range_align_end=100, use_all_mutations=False, length_min = 10, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
 
 	# Path to SAM files
@@ -672,6 +702,15 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 			
 		# Close the SAM file
 		samfile.close()
+
+		# The alignment file holds only reads that aligned, so 'all_reads'
+		# above is the aligned-read count and 'unmapped' can never be hit.
+		# run_triple_minimap2 records both real numbers beside the SAM.
+		align_stats = read_align_stats(samfile_path)
+		if align_stats:
+			reads_cnt['unmapped'] = align_stats.get('unmapped', 0)
+			reads_cnt['all_reads'] = align_stats.get('input_reads',
+													reads_cnt['all_reads'] + reads_cnt['unmapped'])
 
 		return mutations, reads_cnt
 
@@ -896,6 +935,7 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 
 	def creat_dict_analysis(samfile_path, significant_keys, induced_mutations, anchor_information):
 		# Open the SAM file
+		induced_keys = induced_mutation_keys(induced_mutations)
 		reference_sequence = ""
 		for record in SeqIO.parse(fasta_file, "fasta"):
 			reference_sequence = str(record.seq).upper()
@@ -977,7 +1017,7 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 									mutation = (mut_type,pos,length1)
 
 							if check_in_window(mut, window_filter, cv_pos, cv_pos_2, window, check_window_between_targets) == True:
-								if mutation in set_sig_mut or tuple(mut) in induced_mutations: 
+								if mutation in set_sig_mut or mutation_match_key(mut) in induced_keys:
 									dict_of_reads[total_reads][0].append(mut)
 								else:
 									v = False
@@ -1090,7 +1130,7 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 								pos = custom_round(mut[1],allowance,list(mut)[2])
 								mut_type = mut[0]
 								mutation = (mut_type,pos,length1)
-						if check_in_window(mut, window_filter, cv_pos, cv_pos_2, window, check_window_between_targets) == True and (mutation in set_sig_mut or tuple(mut) in induced_mutations):
+						if check_in_window(mut, window_filter, cv_pos, cv_pos_2, window, check_window_between_targets) == True and (mutation in set_sig_mut or mutation_match_key(mut) in induced_keys):
 							dict_of_reads[total_reads][0].append(mut)
 						else:
 							dict_of_reads[total_reads][1].append(mut)
@@ -1169,7 +1209,9 @@ def classify_mut_mild(mutations, induced_mutations, anchor_information, largeins
 	muts = ''
 	mut_info = ''
 	
-	whole_induced_muts = len(induced_mutations)
+	induced_keys = induced_mutation_keys(induced_mutations)
+	whole_induced_muts = len(induced_keys)
+	matched_induced_keys = set()
 	match_induced_mutations_cnt = 0
 	non_induced_mutations_cnt = 0
 	induced_mut_type = ''
@@ -1182,9 +1224,12 @@ def classify_mut_mild(mutations, induced_mutations, anchor_information, largeins
 		pos = mutation[1]
 		length = mutation[2]
 		
-
-		if mutation in induced_mutations:
-			match_induced_mutations_cnt += 1
+		mut_key = mutation_match_key(mutation)
+		if mut_key in induced_keys:
+			# Credit each induced pattern once, even if a read carries it twice.
+			if mut_key not in matched_induced_keys:
+				matched_induced_keys.add(mut_key)
+				match_induced_mutations_cnt += 1
 		else:
 			v = False
 
@@ -1560,15 +1605,16 @@ def analysis_function_without_control(reference_sequence, ref_name, cv_pos, stra
 
 	for read in samfile.fetch():
 		mutations_in_read = []
-		# Skip unmapped reads
+		# A split read is one read, not one per alignment record, so the
+		# counter has to come after the secondary/supplementary skip.
+		if read.is_secondary or read.is_supplementary:
+			continue
 		cnt_dict['all_reads'] += 1
 		if cnt_dict['all_reads'] % 5000 == 0:
 			scan_task.update(f"{log.count(cnt_dict['all_reads'])} reads")
 		if read.is_unmapped:
 			cnt_dict['unmapped'] += 1
 			continue	
-		if read.is_secondary or read.is_supplementary:
-			continue
 
 		if read.has_tag('SA'):
 			SA_reads = [read]
@@ -1695,6 +1741,14 @@ def analysis_function_without_control(reference_sequence, ref_name, cv_pos, stra
 
 	# Close the SAM file
 	samfile.close()
+
+	# See quant_unique_indels: unmapped reads never reach the alignment file.
+	align_stats = read_align_stats(input_file)
+	if align_stats:
+		cnt_dict['unmapped'] = align_stats.get('unmapped', 0)
+		cnt_dict['all_reads'] = align_stats.get('input_reads',
+											   cnt_dict['all_reads'] + cnt_dict['unmapped'])
+
 	scan_task.done(read_count_summary(cnt_dict))
 
 	fw = open(output_dir + '/preprocess_count.txt', 'w')

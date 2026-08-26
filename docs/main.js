@@ -6,17 +6,17 @@ const outputDiv = document.getElementById("output");
 var target, target2, reference, desiredSeq, treatedFile, controlFile, cleavagePos, cleavagePos2, strand, strand2, longjoinBandWidth, chainingBandWidth;
 var statusElem, treatedAlignSam, controlAlignSam, mainResult, filteredSigMut, filteredTreatedReads;
 var desiredAlignSam = "";
-var mutTypeCnt = {"WT":0, "Ins": 0, "Del": 0, "Sub": 0, "LargeIns": 0, "LargeDel": 0, "Inv": 0, "Complex": 0, "Precise": 0, "Partial": 0};
+var mutTypeCnt = { "WT": 0, "Ins": 0, "Del": 0, "Sub": 0, "LargeIns": 0, "LargeDel": 0, "Inv": 0, "Complex": 0, "Precise": 0, "Partial": 0 };
 
 var subPlotList = [];
-var insPlotList = [[],[],[]]; //Pos, Len, Freq.
-var delPlotList = [[],[],[]];
+var insPlotList = [[], [], []]; //Pos, Len, Freq.
+var delPlotList = [[], [], []];
 
 var subPosList = [];
-var insPosList = []; 
+var insPosList = [];
 var delPosList = [];
 
-var subProportionList = [[],[],[],[]]
+var subProportionList = [[], [], [], []]
 
 
 
@@ -24,15 +24,20 @@ var windowRange = Number(document.getElementById("analysisWindow").value);
 var cleavagePosTarget = Number(document.getElementById("cleavageSite").value);
 var largeInsLen = Number(document.getElementById("largeInsertionLen").value);
 var largeDelLen = Number(document.getElementById("largeDeletionLen").value);
-var wholeWindow = Number(document.querySelector('input[name="wholeWindow"]:checked').value)
+// The radio buttons carry the strings "true"/"false". Number() turns BOTH of
+// them into NaN, which reaches the wasm as 0, so "Whole window between targets"
+// silently stayed off however it was set -- and with two targets that made the
+// intended edit between the cut sites unmatchable, so precise editing was
+// always reported as 0.
+var wholeWindow = document.querySelector('input[name="wholeWindow"]:checked').value === 'true' ? 1 : 0;
 
 
 function reverseComplement(seq) {
-    const complement = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'};
+    const complement = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C' };
     let revComp = "";
     for (let i = seq.length - 1; i >= 0; i--) {
         const base = seq[i];
-        revComp += complement[base] || base; 
+        revComp += complement[base] || base;
     }
     return revComp;
 }
@@ -41,30 +46,30 @@ function main() {
 
     target = document.getElementById("targetSequence").value.trim().toUpperCase();
     target2 = document.getElementById("targetSequence2").value.trim().toUpperCase();
-    reference = document.getElementById("reference").value.trim().toUpperCase();
-    desiredSeq = document.getElementById("desiredSequence").value.trim().toUpperCase();
-    treatedFile =   document.getElementById("treatedFile").files[0];
+    reference = document.getElementById("reference").value.replace(/\s+/g, "").toUpperCase();
+    desiredSeq = document.getElementById("desiredSequence").value.replace(/\s+/g, "").toUpperCase();
+    treatedFile = document.getElementById("treatedFile").files[0];
 
     windowRange = Number(document.getElementById("analysisWindow").value);
     cleavagePosTarget = Number(document.getElementById("cleavageSite").value);
     largeInsLen = Number(document.getElementById("largeInsertionLen").value);
     largeDelLen = Number(document.getElementById("largeDeletionLen").value);
-    wholeWindow = Number(document.querySelector('input[name="wholeWindow"]:checked').value)
+    wholeWindow = document.querySelector('input[name="wholeWindow"]:checked').value === 'true' ? 1 : 0;
 
     if (document.getElementById("controlFile").files.length == 0) {
         controlFile = false;
     } else {
-        controlFile =   document.getElementById("controlFile").files[0];
+        controlFile = document.getElementById("controlFile").files[0];
     }
 
     statusElem = document.getElementById("status");
-    
+
     if (target === "" || reference === "") {
         alert("Please enter both Target and Reference sequences");
         return;
     }
 
-    if  (!treatedFile) {
+    if (!treatedFile) {
         alert("No Treate fastq file");
         return;
     }
@@ -76,15 +81,15 @@ function main() {
         cleavagePos = reference.indexOf(reverseComplement(target)) + target.length - cleavagePosTarget - 2;
         strand = -1;
     } else {
-         alert("Target sequence is not found in the Reference");
-        return ;
+        alert("Target sequence is not found in the Reference");
+        return;
     }
-    
-    
+
+
     if (target2 !== '') {
         if (target2.length < 10) {
             alert('Additional target is too short!')
-            return ;
+            return;
         }
         if (reference.includes(target2)) {
             cleavagePos2 = reference.indexOf(target2) + cleavagePosTarget;
@@ -93,8 +98,8 @@ function main() {
             cleavagePos2 = reference.indexOf(reverseComplement(target2)) + target2.length - cleavagePosTarget - 2;
             strand2 = -1;
         } else {
-             alert("Second target sequence is not found in the Reference");
-            return ;
+            alert("Second target sequence is not found in the Reference");
+            return;
         }
     } else {
         cleavagePos2 = '';
@@ -117,10 +122,10 @@ function main() {
         subPosList.push(0);
         insPosList.push(0);
         delPosList.push(0);
-        subProportionList.push([0,0,0,0,0,0,0]); //ATGCN, Del, Ins
+        subProportionList.push([0, 0, 0, 0, 0, 0, 0]); //ATGCN, Del, Ins
     }
 
-    
+
     runAlignDesired();
 
 }
@@ -150,13 +155,13 @@ async function runAction() {
         await Promise.all(files.map(async (f) => {
             const response = await fetch(f.path);
             if (!response.ok) throw new Error(`Can not find ${f.name} file`);
-            
+
             const blob = await response.blob();
             const file = new File([blob], f.name, { type: "text/plain" });
 
             const dataTransfer = new DataTransfer();
             dataTransfer.items.add(file);
-            
+
             const input = document.getElementById(f.id);
             input.files = dataTransfer.files;
             input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -178,21 +183,21 @@ async function downloadAction() {
         for (const f of files) {
             const response = await fetch(f.path);
             if (!response.ok) throw new Error(`Can not find ${f.name} file`);
-            
+
             const blob = await response.blob();
-            
+
             const url = window.URL.createObjectURL(blob);
-            
+
             const a = document.createElement('a');
             a.href = url;
-            a.download = f.name; 
-            
+            a.download = f.name;
+
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            
+
             window.URL.revokeObjectURL(url);
-            
+
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     } catch (error) {

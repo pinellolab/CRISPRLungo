@@ -10,6 +10,14 @@ var plotWindow = 20;
 var preciseEditThreshold = 1.0;
 var partialEditThreshold = 0.8;
 
+// Reported by the aligner worker: the number of reads in the input file, and
+// how many of them minimap2 could not place. Neither can be recovered from the
+// alignment result, because unmapped reads are dropped before the analysis.
+var treatedInputReadCount = null;
+var treatedUnmappedCount = null;
+var controlInputReadCount = null;
+var controlUnmappedCount = null;
+
 var showAllBetweenAllele = false;
 var minaResult;
 
@@ -111,6 +119,8 @@ async function runAlignFiles() {
           progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
           console.log("Mapping result:", event.data.stdout);
         } else if (event.data.type === 2) {
+          treatedInputReadCount = event.data.inputReadCount;
+          treatedUnmappedCount = event.data.unmappedCount;
           resolve(event.data.result);
         }
       }
@@ -131,6 +141,8 @@ async function runAlignFiles() {
             progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
             progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
           } else if (event.data.type === 2) {
+            controlInputReadCount = event.data.inputReadCount;
+            controlUnmappedCount = event.data.unmappedCount;
             resolve(event.data.result);
           }
         }
@@ -237,6 +249,61 @@ async function confirmInsertion() {
   };
 }
 
+// The analysis keeps only mutations inside the window around the cut site(s),
+// but the induced (intended-edit) alignment is read with that filter switched
+// OFF in the wasm -- quant_unique_indels is called with induced_filter = false.
+// So every mutation of the desired allele stayed in the required set while the
+// reads' copies of the out-of-window ones were dropped, and with "Whole window
+// between targets" off nothing could ever match: precise editing was reported
+// as 0 for any edit that reaches beyond the window. This applies the same
+// window test to the induced side. Ported from check_in_window() in
+// rust/src/CRISPRlungo_regular_new.rs -- keep the two in step.
+function mutationInWindow(mutStr, cvPos, cvPos2, window, wholeWindowBetweenTargets) {
+  const parts = mutStr.replace(/:/g, '_').split('_');
+  const mutSt = parseInt(parts[0], 10);
+  // A deletion's end coordinate is inclusive; +1 matches the rust.
+  const mutEd = parseInt(parts[1], 10) + (mutStr.includes('Del') ? 1 : 0);
+  if (isNaN(mutSt) || isNaN(mutEd)) { return true; }
+
+  var inWindow = !(mutEd < cvPos - window || mutSt > cvPos + window);
+
+  const second = Number(cvPos2);
+  if (cvPos2 !== '' && cvPos2 !== null && cvPos2 !== undefined && !isNaN(second)) {
+    const start2 = wholeWindowBetweenTargets ? cvPos - window : second - window;
+    const end2 = second + window;
+    if (!(mutEd < start2 || mutSt > end2)) { inWindow = true; }
+  }
+  return inWindow;
+}
+
+// The mutation strings collected into filteredMutStr are relabelled for display
+// -- Ins becomes LargeIns and Del becomes LargeDel past the size cutoff, and an
+// inversion gets an '_inv' marker -- while mainResult.induced_mutations keeps
+// the raw labels the analysis produced. Comparing the two forms directly means
+// a large induced insertion (the usual knock-in) never counts as a precise
+// edit, so both sides are reduced to the same key before being compared.
+function inducedMutationKey(mutStr) {
+  return mutStr
+    .replace(/_inv$/, '')
+    .replace(':LargeIns_', ':Ins_')
+    .replace(':LargeDel_', ':Del_');
+}
+
+// How many distinct induced patterns this read carries. Counting distinct keys
+// keeps a mutation that appears twice in one read from pushing the ratio above
+// 1 and turning a partial edit into a precise one.
+function countInducedMatches(mutStrList, inducedMutKeys) {
+  var matched = new Set();
+  for (var mutStr of mutStrList) {
+    var key = inducedMutationKey(mutStr);
+    if (inducedMutKeys.has(key)) {
+      matched.add(key);
+    }
+  }
+  return matched.size;
+}
+
+
 function filterMutations() {
 
   filteredSigMut = [];
@@ -250,7 +317,11 @@ function filterMutations() {
   filteredTreatedReads = {};
   var liens_res = [];
   var filteredMutStr = '';
-  var inducedMutPatCnt = mainResult.induced_mutations.length;
+  var inducedInWindow = mainResult.induced_mutations.filter(function (m) {
+    return mutationInWindow(m, cleavagePos, cleavagePos2, windowRange, wholeWindow === 1);
+  });
+  var inducedMutKeys = new Set(inducedInWindow.map(inducedMutationKey));
+  var inducedMutPatCnt = inducedMutKeys.size;
 
   for (val of Object.entries(mainResult.treated_read_to_mut)) {
     var filteredMutStr = '';
@@ -323,20 +394,24 @@ function filterMutations() {
       mainResult.treated_read_to_mut[val[0]].push(mutType);
       filteredMutStr = filteredMutStr.slice(0, -1); //+ "_" + mutType;
     }
-    preciseMutCnt = 0
-    for (mut of filteredMutStr.split(',')) {
-      if (mainResult.induced_mutations.includes(mut)) {
-        preciseMutCnt += 1
-      }
-    }
-    if (preciseMutCnt / inducedMutPatCnt >= preciseEditThreshold) {
+    // "Precisely induced" means the read carries the intended edit AND nothing
+    // else. A read that has every induced pattern but also carries extra
+    // mutations is the CLI's Precise_with_mutations, and it belongs with the
+    // partially induced reads -- it is not a clean edit.
+    var readMutStrs = filteredMutStr.split(',').filter(function (m) { return m !== '' && m !== 'WT'; });
+    var preciseMutCnt = countInducedMatches(readMutStrs, inducedMutKeys);
+    var otherMutCnt = readMutStrs.filter(function (m) {
+      return !inducedMutKeys.has(inducedMutationKey(m));
+    }).length;
+    var inducedRatio = preciseMutCnt / inducedMutPatCnt;
+
+    if (inducedRatio >= preciseEditThreshold && otherMutCnt === 0) {
       filteredMutStr += "_PreciseEdit";
       mutTypeCnt["Precise"] += cnt;
-    } else if (preciseMutCnt / inducedMutPatCnt >= partialEditThreshold) {
+    } else if (inducedRatio >= partialEditThreshold) {
       filteredMutStr += "_PartialEdit";
       mutTypeCnt["Partial"] += cnt;
     }
-    console.log()
 
     filteredTreatedReads[filteredMutStr] = (filteredTreatedReads[filteredMutStr] || 0) + cnt;
 
@@ -1150,7 +1225,7 @@ function runVisualization() {
   var table = document.createElement("table");
   table.className = "table table-bordered table-striped w-100 result-table";
 
-  var headers = ["Total reads", "Reads used in analysis", "WT", "Ins", "Del", "Sub", "LargeDel", "LargeIns", "Inversion", "Complex", "Precisely induced editing", "Partially induced editing"];
+  var headers = ["Total reads", "Unmapped", "Reads used in analysis", "WT", "Ins", "Del", "Sub", "LargeDel", "LargeIns", "Inversion", "Complex", "Precisely induced editing", "Partially induced editing"];
 
   var colgroup = document.createElement("colgroup");
   for (let i = 0; i < headers.length; i++) {
@@ -1175,8 +1250,18 @@ function runVisualization() {
   var tbody = document.createElement("tbody");
   var dataRow = document.createElement("tr");
 
+  // treated_align_cnt.All_reads only counts reads present in the alignment
+  // result, i.e. reads that aligned. The worker reports the real input count.
+  var totalReads = (treatedInputReadCount === null || treatedInputReadCount === undefined)
+    ? mainResult.treated_align_cnt.All_reads
+    : treatedInputReadCount;
+  var unmappedReads = (treatedUnmappedCount === null || treatedUnmappedCount === undefined)
+    ? '-'
+    : treatedUnmappedCount + ' (' + (treatedUnmappedCount * 100 / totalReads).toFixed(1) + ' %)';
+
   var data = [
-    mainResult.treated_align_cnt.All_reads,
+    totalReads,
+    unmappedReads,
     mainResult.treated_align_cnt.Used,
     mutTypeCnt.WT + ' (' + (mutTypeCnt.WT * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
     mutTypeCnt.Ins + ' (' + (mutTypeCnt.Ins * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
