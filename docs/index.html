@@ -355,6 +355,12 @@
     <div id="resultsPage" class="page">
       <div class="py-3 py-md-4">
         <div class="container container-narrow">
+          <div class="d-flex align-items-center gap-2 mb-3 flex-wrap"> <!-- 20261110_export -->
+            <button type="button" class="btn btn-outline-primary btn-sm" id="exportResultsBtn" onclick="downloadResultFiles()"><i class="bi bi-file-earmark-zip me-1"></i>Download result files (CLI format)</button> <!-- 20261110_export -->
+            <label for="exportRefName" class="form-help m-0">Reference name</label> <!-- 20261110_export -->
+            <input type="text" class="form-control form-control-sm" id="exportRefName" value="Ref" style="width:140px;" spellcheck="false" title="Reference name written to the exported files (the FASTA header name the CLI would use)"> <!-- 20261110_export -->
+            <span id="exportStatus" class="form-help"></span> <!-- 20261110_export -->
+          </div> <!-- 20261110_export -->
           <div id="cnt-table-container" class="mb-3"></div>
 
           <div class="chart-container">
@@ -453,6 +459,8 @@
 
     <script src="main.js"></script>
     <script src="CRISPRlungo.js"></script>
+    <script src="lungo_export.js"></script> <!-- 20261110_export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script> <!-- 20261110_export -->
     <!--script src="https://cdn.jsdelivr.net/npm/cstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script-->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>

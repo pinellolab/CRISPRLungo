@@ -61,3 +61,18 @@ python3 parity_check/compare.py /tmp/wasm_out.json OUT/results
 - `feature 'serde-serialize' does not exist`: 1번 수정이 안 들어간 것 — Cargo.toml 확인.
 - `getrandom` 관련 wasm 에러: 이미 `getrandom = { features=["js"] }` 설정돼 있어 정상.
 - main.rs(네이티브 bin)는 `wasm-pack build --lib`에 포함 안 되니 무시해도 됨.
+
+## 6. rustup이 막힌 환경에서 빌드 (2026-11-10, conda-forge)  <!-- 20261110_cli_parity -->
+```bash
+micromamba create -p ./rustenv -c conda-forge rust rust-std-wasm32-unknown-unknown binaryen
+export PATH=$PWD/rustenv/bin:$PATH
+cargo install wasm-bindgen-cli --version 0.2.100 --locked   # Cargo.lock의 wasm-bindgen 버전과 같아야 함
+cargo build --release --target wasm32-unknown-unknown --lib
+wasm-bindgen --target web --out-dir pkg_build target/wasm32-unknown-unknown/release/CRISPRlungo_regular.wasm
+wasm-opt -O pkg_build/CRISPRlungo_regular_bg.wasm -o pkg_build/CRISPRlungo_regular_bg.wasm
+```
+
+## 7. CLI 파리티 수정 (2026-11-10, 태그 `20261110_cli_parity`)
+- analyze_sa_reads를 Python analyze_SA_reads와 맞춤: 조각 방향은 read 이름(`_AI_`/`alignStrandInfo_`)으로, 위치는 CIGAR clip으로 계산; 정방향 쌍 overlap 처리, 역방향 쌍 deletion 끝 좌표·insertion 서열 범위, u32 언더플로우 수정.
+- quant_unique_indels: SA read는 MAPQ<=30이어도 NM < 0.05 x 정렬 길이면 통과(check_in_quality), short 판정 `>=` 로 통일.
+- 검증: PD1 Example, PD1 Nanopore(2 target), Allele(SBDS, induced) control 포함 3세트에서 웹 다운로드 결과 파일(read_classification, mutation_patter_count, mutation_summary_count, preprocess_count, Allele_table)이 CLI와 바이트 단위 동일.

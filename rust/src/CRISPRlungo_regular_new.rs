@@ -133,6 +133,7 @@ fn cigar_mutation_keys(
     ref_char_vec: Vec<char>,
     overlap_len: u32,
     ref_start_pos: u32,
+    always: bool, // 20261110_cli_parity
 ) -> Vec<String> {
     let mut mutations_in_read: Vec<String> = Vec::new();
     let mut seq_pos: u32 = 0;
@@ -190,7 +191,7 @@ fn cigar_mutation_keys(
             // R1 fix: only the recording is gated by the overlap guard; the
             // query position must ALWAYS advance for an insertion, otherwise
             // every subsequent coordinate in the read desyncs.
-            if ref_start_pos + overlap_len < ref_pos {
+            if always || ref_start_pos + overlap_len < ref_pos { // 20261110_cli_parity
                 let query_index = seq_pos as usize;
                 let formated = format!(
                     "{}_{}:Ins_{}",
@@ -206,7 +207,7 @@ fn cigar_mutation_keys(
             seq_pos += len;
         } else if op == 2 {
             // R1 fix: reference position must ALWAYS advance for a deletion.
-            if ref_start_pos + overlap_len < ref_pos {
+            if always || ref_start_pos + overlap_len < ref_pos { // 20261110_cli_parity
                 let formated = format!("{}_{}:Del_{}", ref_pos, ref_pos + len - 1, len);
                 mutations_in_read.push(formated);
             }
@@ -222,7 +223,7 @@ fn cigar_mutation_keys(
 }
 
 fn analyze_sa_reads(
-    partial_reads: Vec<(u32, u32, String, String, u16)>,
+    partial_reads: Vec<(u32, u32, String, String, u16, String)>, // 20261110_cli_parity
     query_seq: String,
     ref_char_vec: Vec<char>,
     ref_len: u32,
@@ -232,7 +233,7 @@ fn analyze_sa_reads(
     let mut partial_read_info: Vec<(u32, u32, u32, u32, i8, i8, String, String)> = Vec::new();
 
     for read in partial_reads {
-        let (pos_refst, pos_refed, partial_seq, cigar, flag) = read;
+        let (pos_refst, pos_refed, partial_seq, cigar, flag, part_name) = read; // 20261110_cli_parity
         let mut cigar_tup = cigar_to_tup(&cigar);
         let mut pos_in_ref = false;
 
@@ -246,43 +247,35 @@ fn analyze_sa_reads(
 
         let align_len = cigar_aligned_length(&cigar);
 
-        if let Some(index) = query_seq.find(&partial_seq) {
-            if cigar_tup[0].0 == 4 || cigar_tup[0].0 == 5 {
-                pos_in_seq = cigar_tup[0].1;
-                pos_find_check = true;
-            } else {
-                pos_in_seq = 0;
-                pos_find_check = true;
-            }
-            if let Some((op, val)) = cigar_tup.last() {
-                if *op == 4 || *op == 5 {
-                    pos_in_seq_ed = query_seq_len - val - 1;
-                } else {
-                    pos_in_seq_ed = query_seq_len - 1;
-                }
-            } else {
-                println!("Warning: truncated cigar");
-            }
-            align_strand_to_seq = 1;
-        } else if let Some(index) = query_seq.find(&reverse_complementary(&partial_seq)) {
-            if cigar_tup[0].0 == 4 || cigar_tup[0].0 == 5 {
-                pos_in_seq_ed = query_seq_len - cigar_tup[0].1 - 1;
-            } else {
-                pos_in_seq_ed = query_seq_len - 1;
-            }
-            if let Some((op, val)) = cigar_tup.last() {
-                if *op == 4 || *op == 5 {
-                    pos_in_seq = *val;
-                    pos_find_check = true;
-                } else {
-                    pos_in_seq = 0;
-                    pos_find_check = true;
-                }
-            } else {
-                println!("Warning: truncated cigar");
-            }
-            align_strand_to_seq = -1;
-        }
+        if cigar_tup.is_empty() { // 20261110_cli_parity
+            continue; // 20261110_cli_parity
+        } // 20261110_cli_parity
+        let strand_info: Vec<&str> = match part_name.find("_AI_") { // 20261110_cli_parity
+            Some(idx) => part_name[idx + 4..].split('_').collect(), // 20261110_cli_parity
+            None => match part_name.find("alignStrandInfo_") { // 20261110_cli_parity
+                Some(idx) => part_name[idx + 16..].split('_').collect(), // 20261110_cli_parity
+                None => Vec::new(), // 20261110_cli_parity
+            }, // 20261110_cli_parity
+        }; // 20261110_cli_parity
+        align_strand_to_seq = 1; // 20261110_cli_parity
+        for x in strand_info.iter().skip(1) { // 20261110_cli_parity
+            if let Ok(v) = x.parse::<i8>() { // 20261110_cli_parity
+                align_strand_to_seq *= v; // 20261110_cli_parity
+            } // 20261110_cli_parity
+        } // 20261110_cli_parity
+        if cigar_tup[0].0 == 4 || cigar_tup[0].0 == 5 { // 20261110_cli_parity
+            pos_in_seq = cigar_tup[0].1; // 20261110_cli_parity
+        } else { // 20261110_cli_parity
+            pos_in_seq = 0; // 20261110_cli_parity
+        } // 20261110_cli_parity
+        if let Some((op, val)) = cigar_tup.last() { // 20261110_cli_parity
+            if *op == 4 || *op == 5 { // 20261110_cli_parity
+                pos_in_seq_ed = (query_seq_len as i64 - *val as i64 - 1).max(0) as u32; // 20261110_cli_parity
+            } else { // 20261110_cli_parity
+                pos_in_seq_ed = query_seq_len.saturating_sub(1); // 20261110_cli_parity
+            } // 20261110_cli_parity
+        } // 20261110_cli_parity
+        pos_find_check = true; // 20261110_cli_parity
 
         if pos_find_check == false {
             continue;
@@ -296,7 +289,7 @@ fn analyze_sa_reads(
 
         if pos_refst < 100 && pos_refed > ref_len - 100 {
             align_strand_in_refseq = 3;
-        } else if flag & 0x10 != 0 {
+        } else if flag & 0x10 == 0 { // 20261110_cli_parity
             align_strand_in_refseq = 1;
         } else {
             align_strand_in_refseq = -1;
@@ -344,6 +337,7 @@ fn analyze_sa_reads(
                 ref_char_vec.clone(),
                 0,
                 0,
+                true, // 20261110_cli_parity
             ));
             continue;
         }
@@ -358,7 +352,7 @@ fn analyze_sa_reads(
                 overlap_len = info[0].1 - info[1].0;
             }
 
-            if info[0].1 < info[1].0 - 100 {
+            if (info[0].1 as i64) < info[1].0 as i64 - 100 { // 20261110_cli_parity
                 let formated = format!(
                     "{}_{}:Del_{}",
                     info[0].1,
@@ -368,7 +362,7 @@ fn analyze_sa_reads(
                 mutations_in_read.push(formated);
             }
             let mut_len = (info[0].3 as i32 - info[1].2 as i32).abs() as u32;
-            if mut_len - 1 > 20 {
+            if mut_len as i64 - 1 > 20 { // 20261110_cli_parity
                 let mut ins_end_pos = info[1].0 + overlap_len;
                 if ins_end_pos <= info[0].1 {
                     ins_end_pos = info[0].1 + 1;
@@ -413,8 +407,9 @@ fn analyze_sa_reads(
                     cigar_to_tup(&sub_info.6),
                     &sub_info.7,
                     ref_char_vec.clone(),
-                    overlap_len,
+                    overlap_st, // 20261110_cli_parity
                     sub_info.0,
+                    false, // 20261110_cli_parity
                 ) {
                     mutations_in_read.push(tmp_sub);
                 }
@@ -429,11 +424,11 @@ fn analyze_sa_reads(
             if info[1].1 > info[0].0 {
                 overlap_len = info[1].1 - info[0].0;
             }
-            if info[1].1 < info[0].0 - 100 {
+            if (info[1].1 as i64) < info[0].0 as i64 - 100 { // 20261110_cli_parity
                 let formated = format!(
                     "{}_{}:Del_{}",
                     info[1].1,
-                    info[1].1 - 1,
+                    info[0].0 - 2, // 20261110_cli_parity
                     info[0].0 - info[1].1 - 1,
                 );
                 mutations_in_read.push(formated);
@@ -450,15 +445,17 @@ fn analyze_sa_reads(
                 let overlap = overlap_len as i32;
                 let diff = (pos1 - pos0).abs();
 
-                let start_idx = ((pos0 + 1 - overlap).max(0)) as usize;
-                let end_idx = (pos0 + 1 + diff - 1 + overlap) as usize;
-
+                let qlen = query_char_vector.len() as i32; // 20261110_cli_parity
                 if query_seq.contains(&info[0].7) {
-                    ins_seq = query_char_vector[start_idx..end_idx]
+                    let start_idx = (pos0 + 1 - overlap).max(0).min(qlen) as usize; // 20261110_cli_parity
+                    let end_idx = (pos0 + 1 + diff - 1).max(0).min(qlen) as usize; // 20261110_cli_parity
+                    ins_seq = query_char_vector[start_idx..end_idx.max(start_idx)] // 20261110_cli_parity
                         .iter()
                         .collect::<String>();
                 } else {
-                    let temp_seq = query_char_vector[start_idx..end_idx]
+                    let start_idx = (pos0 + 1).max(0).min(qlen) as usize; // 20261110_cli_parity
+                    let end_idx = (pos0 + 1 + diff - 1 + overlap).max(0).min(qlen) as usize; // 20261110_cli_parity
+                    let temp_seq = query_char_vector[start_idx..end_idx.max(start_idx)] // 20261110_cli_parity
                         .iter()
                         .collect::<String>();
                     ins_seq = reverse_complementary(&temp_seq);
@@ -486,6 +483,7 @@ fn analyze_sa_reads(
                     ref_char_vec.clone(),
                     overlap_st,
                     sub_info.0,
+                    false, // 20261110_cli_parity
                 ) {
                     mutations_in_read.push(tmp_sub);
                 }
@@ -495,6 +493,23 @@ fn analyze_sa_reads(
     }
     mutations_in_reads
 }
+
+fn sa_quality_pass(fields: &Vec<&str>) -> bool { // 20261110_cli_parity
+    if !fields.iter().skip(11).any(|t| t.starts_with("SA:")) { // 20261110_cli_parity
+        return false; // 20261110_cli_parity
+    } // 20261110_cli_parity
+    let nm = fields.iter().skip(11).find(|t| t.starts_with("NM:i:")).and_then(|t| t[5..].parse::<f64>().ok()); // 20261110_cli_parity
+    let mut qalen: u32 = 0; // 20261110_cli_parity
+    for (op, len) in cigar_to_tup(fields[5]) { // 20261110_cli_parity
+        if op == 0 || op == 1 { // 20261110_cli_parity
+            qalen += len; // 20261110_cli_parity
+        } // 20261110_cli_parity
+    } // 20261110_cli_parity
+    match nm { // 20261110_cli_parity
+        Some(v) => v < qalen as f64 * 0.05, // 20261110_cli_parity
+        None => false, // 20261110_cli_parity
+    } // 20261110_cli_parity
+} // 20261110_cli_parity
 
 fn quant_unique_indels(
     align_res: Vec<String>,
@@ -550,7 +565,7 @@ fn quant_unique_indels(
             .get_mut("All_reads")
             .map(|count| *count += 1);
 
-        if mapq <= 30 {
+        if mapq <= 30 && !sa_quality_pass(&fields) { // 20261110_cli_parity
             if let Some(count) = align_summary_cnt.get_mut("Low_quality") {
                 *count += 1;
             }
@@ -582,13 +597,14 @@ fn quant_unique_indels(
         let query_seq = fields[9].to_string();
 
         if sa_check {
-            let mut sa_reads: Vec<(u32, u32, String, String, u16)> = Vec::new();
+            let mut sa_reads: Vec<(u32, u32, String, String, u16, String)> = Vec::new(); // 20261110_cli_parity
             sa_reads.push((
                 start_pos,
                 start_pos + cigar_aligned_length(&cigar),
                 query_seq.clone(),
                 cigar,
                 flag,
+                fields[0].to_string(), // 20261110_cli_parity
             ));
             let mut next_cnt = 0;
             let query_name = fields[0].to_string();
@@ -620,6 +636,7 @@ fn quant_unique_indels(
                             next_query_seq,
                             next_cigar,
                             next_flag,
+                            next_fields[0].to_string(), // 20261110_cli_parity
                         ));
                     }
                 } else {
@@ -679,7 +696,7 @@ fn quant_unique_indels(
             // Run analyze_sa_reads func
         } else {
             let end_pos = start_pos + cigar_aligned_length(&cigar);
-            if start_pos > 100 || end_pos < ref_len - 100 {
+            if start_pos >= 100 || (end_pos as i64) < ref_len as i64 - 100 { // 20261110_cli_parity
                 align_summary_cnt.get_mut("Short").map(|count| *count += 1);
                 continue;
             }
@@ -695,6 +712,7 @@ fn quant_unique_indels(
                 ref_char_vec.clone(),
                 0,
                 0,
+                true, // 20261110_cli_parity
             ) {
                 if (!check_in_window(
                     tmp_mut.clone(),
