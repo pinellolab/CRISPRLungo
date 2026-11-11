@@ -205,11 +205,13 @@
     });
   }
 
-  // significant_keys drops nanopore noise, but on an allele reference the
-  // difference between that allele and the control is itself a multi-kb event
-  // present in both, so anything longer than the large-deletion cutoff is kept
-  // whatever the test said. Same guard as --background_max_len in the CLI.
-  function readsFromResult(result, largeCut, tokensOut) {
+  // 20261111_bgstat: only the mutations that passed the control statistics are
+  // kept, large deletions included. An earlier version let anything longer than
+  // the large-deletion cutoff through regardless, which kept the structural
+  // WT-vs-allele difference in the list and turned clean precise-PA reads into
+  // Flap_install_with_Large_deletion. Which allele a read belongs to is decided by
+  // coverage, not by leaving background in place.
+  function readsFromResult(result, tokensOut) {
     var significant = new Set(Object.keys(result.significant_keys || {}));
     var table = {};
     Object.entries(result.treated_read_to_mut || {}).forEach(function (entry) {
@@ -219,7 +221,7 @@
       (entry[1][0] || []).forEach(function (token) {
         var m = parseMut(token);
         if (!m) return;
-        if (!significant.has(token) && m.len <= largeCut) return;
+        if (!significant.has(token)) return;
         muts.push(m);
         // the alignment viewer parses the raw token string, so keep it as well
         if (tokensOut) tokensOut[id] += token + ',';  // 20261111_alignview
@@ -403,7 +405,7 @@
         // The run already analysed this allele. Reusing its result instead of
         // repeating it with the PA window is what keeps "Unedited" here equal to
         // "WT" in the outcome table above.
-        tables.WT = readsFromResult(window.mainResult, largeCut);
+        tables.WT = readsFromResult(window.mainResult);
         coverage.WT = coverageFromSam(window.treatedAlignSam);
       } else {
         var treatedSam = await align(window.treatedFile, alleles[name].seq, 'file');
@@ -415,7 +417,7 @@
         // alignment viewer - it is the one that shows whether the donor sits in
         // cleanly - so its alignment and mutation table are kept
         var tokens = (name === 'PA') ? {} : null;
-        tables[name] = readsFromResult(result, largeCut, tokens);
+        tables[name] = readsFromResult(result, tokens);
         coverage[name] = coverageFromSam(treatedSam);
         if (name === 'PA') {
           paView = { sam: treatedSam, mutations: tokens };

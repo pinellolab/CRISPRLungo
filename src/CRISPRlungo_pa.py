@@ -512,7 +512,14 @@ def analyse_allele(name, seq, sites, ref_name, pa_dir, align_dir, treated_file, 
 			largeins_cutlen=args.largeins_cutlen, largedel_cutlen=args.largedel_cutlen,
 			use_all_mutations=args.using_all_mutations, length_min=args.length_min,
 			allowance_value=0, umi_clustered=False,
-			background_max_len=args.largedel_cutlen)
+			# 20261111_bgstat: large deletions go through the same control
+			# statistics as everything else. Forcing them past the test (which this
+			# used to do, with background_max_len=largedel_cutlen) kept the
+			# structural WT-vs-allele difference in the read's mutation list, and
+			# that turned clean precise-PA reads into
+			# Flap_install_with_Large_deletion. Which allele a read belongs to is
+			# decided by coverage, not by leaving background in place.
+			background_max_len=args.background_max_len)
 		mutation_analysis.process_mutations(edited_dict, table_path, ids, [], [False],
 											args.induced_paritial_similiarity,
 											args.largeins_cutlen, args.largedel_cutlen, seq)
