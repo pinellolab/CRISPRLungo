@@ -8,6 +8,7 @@ import CRISPRlungo_mutation_analysis as mutation_analysis
 import CRISPRlungo_visualization as visual
 import CRISPRlungo_umi
 import CRISPRlungo_insert_analysis
+import CRISPRlungo_pa  #20261111_pa
 import CRISPRlungo_log as log
 from CRISPRlungo_minimap import *
 
@@ -88,6 +89,7 @@ def main():
 	control_group.add_argument('--control', type=str, default=None, help='When a control file is input, background filtering is performed using the control file')
 	control_group.add_argument('--using_all_mutations', action='store_true', help='When comparing with control, use every mutations without filteration')
 	control_group.add_argument('--mut_freq_threshold', type=float, default=0, help='muation frequency threshold, if you want more harsh filteration, you can use this')
+	control_group.add_argument('--background_max_len', type=int, default=None, help='Mutations longer than this are never dismissed as background, even when the control carries them. Use it when the reference is the edited allele, so that the wild-type difference is not filtered away [default: off]')  #20261111_bgmax
 	control_group.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
 	control_group.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')
 	control_group.add_argument('--min_mut_freq_no_control_refmut', type=float, default=0.5, help='In mutation classification, when there are multiple mutations, "False" prioritizes indels, labeling them as ins or del, while "True" labels them as Complex. [default: False]')
@@ -102,6 +104,13 @@ def main():
 	induced_group.add_argument('--integration_file', type=str, default=False, help='FASTA file for possible sequences that can be integrated')
 	induced_group.add_argument('--induced_paritial_similiarity', type=float, default=0.8, help='The If the mutation pattern similarity is higher than this value, but not completely identical, it is considered partially induced.')
 	induced_group.add_argument('--only_consider_desired_mutation', action='store_true', help='Only consider the desired mutation and exclude other mutation patterns')
+
+	pa_group = parser.add_argument_group('Prime assembly (PA)')  #20261111_pa
+	pa_group.add_argument('--pa_donor', type=str, default=None, help='FASTA of the PA donor. Turns on PA analysis. Several records are treated as the fragments of one assembly, in order')  #20261111_pa
+	pa_group.add_argument('--pa_flap_len', type=str, default='32', help="pegRNA 3' extension (flap) length. One value, or two separated by a comma when the two targets write flaps of different length, in the order target,additional_target [default: 32]")  #20261111_pa
+	pa_group.add_argument('--pa_window', type=int, default=2, help='Window used by the two internal PA analyses, as in the PA paper [default: 2]')  #20261111_pa
+	pa_group.add_argument('--pa_site_window', type=int, default=1, help='Half-width of the cleavage/flap/junction windows used to classify a read. 1 reproduces the published 4 bp cleavage window [default: 1]')  #20261111_pa
+	pa_group.add_argument('--pa_reference', type=str, default=None, help='Precise-PA allele FASTA. Derived from the reference and the donor when not given')  #20261111_pa
 
 	mut_group = parser.add_argument_group('Mutation classification')
 	mut_group.add_argument('--largeins_cutlen', default=50, type=int, help='The minimum length for large deletions')
@@ -601,7 +610,8 @@ def main():
 				use_all_mutations=args.using_all_mutations, 
 				length_min = args.length_min,
 				allowance_value=0,
-				umi_clustered = args.umi
+				umi_clustered = args.umi,
+				background_max_len=args.background_max_len  #20261111_bgmax
 			)
 
 			edited_dictionary = CRISPRlungo_insert_analysis.confirm_insertion_seq(edited_dictionary, ref_seq, ref_name, args.integration_file, output_dir, threads)
@@ -762,6 +772,10 @@ def main():
 	# `args`, so they always agree; readers that fold case keep the last one.
 	fw_input.write('\n# Options\n')
 	option_names = sorted(vars(args))
+	if not args.pa_donor:  #20261111_pa
+		option_names = [i for i in option_names if not i.startswith('pa_')]  #20261111_pa
+	if args.background_max_len is None:  #20261111_bgmax
+		option_names = [i for i in option_names if i != 'background_max_len']  #20261111_bgmax
 	option_width = max(len(i) for i in option_names)
 	for key in option_names:
 		fw_input.write(f'{key.ljust(option_width)} : {getattr(args, key)}\n')
@@ -794,6 +808,20 @@ def main():
 		log.summary_table('Desired edit', precise_cnt)
 	log.blank()
 
+	# 20261111_pa_report: PA runs before the plots and the report, so that in PA
+	# mode the outcome table, the pie charts and the allele-plot labels are the PA
+	# classification rather than the wild-type one -- the same thing the web
+	# version does. With --pa_donor unset nothing below changes.
+	pa_result = None  #20261111_pa_report
+	if args.pa_donor:  #20261111_pa_report
+		pa_result = CRISPRlungo_pa.run(args, output_dir, ref_seq, ref_name, cv_pos, cv_pos_2,
+									   original_target,
+									   treated_file_path if args.control else final_mutation_analysis_file,
+									   control_file_path if args.control else None,
+									   threads, range_align_end, longjoin_bandwidth,
+									   chaining_bandwidth)  #20261111_pa_report
+		log.blank()  #20261111_pa_report
+
 	plot_task = log.task('Read count plot')
 	plot_html = visual.align_count_plot(f'{output_dir}/results/preprocess_count.txt', f'{output_dir}/results/mutation_summary_count.txt', f'{output_dir}/results')
 	plots['treated_align'] = plot_html[1]
@@ -822,7 +850,8 @@ def main():
 			args.allele_plot_lines, 
 			induced_mutation_str, 
 			args.show_all_between_allele, 
-			args.remove_large_mutations_in_plot
+			args.remove_large_mutations_in_plot,
+			pa_labels=(pa_result['labels'] if pa_result else None)  #20261111_pa_report
 		)
 
 		visual.allele_table(ref_seq, 
@@ -862,7 +891,8 @@ def main():
 	plot_task.done()
 
 	report_task = log.task('Writing report')
-	visual.write_html(plots, args.control, args.target, output_dir, mut_cnt, precise_cnt, edited_reads_cnt)
+	visual.write_html(plots, args.control, args.target, output_dir, mut_cnt, precise_cnt,
+					  edited_reads_cnt, pa=pa_result)  #20261111_pa_report
 	report_task.done()
 
 	log.finish(Report=os.path.join(output_dir, 'combined_graphs.html'),

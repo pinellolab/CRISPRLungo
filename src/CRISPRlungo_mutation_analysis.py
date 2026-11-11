@@ -510,7 +510,7 @@ def induced_mutation_keys(induced_mutations):
 	return {mutation_match_key(m) for m in induced_mutations}
 
 
-def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, anchor_information, mutation_length_threshold_pval = 0.005, range_align_end=100, use_all_mutations=False, length_min = 10, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
+def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, anchor_information, mutation_length_threshold_pval = 0.005, range_align_end=100, use_all_mutations=False, length_min = 10, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False, background_max_len = None):  #20261111_pa
 
 	# Path to SAM files
 	samfile_path1 = edited
@@ -860,7 +860,9 @@ def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos
 			cnt_ctrl = rec["count_control"]
 
 
-			if cnt_ctrl == 0 and mut[2] > length_min:
+			if background_max_len is not None and mut[2] > background_max_len:  #20261111_pa
+				double_min = -1   #20261111_pa
+			elif cnt_ctrl == 0 and mut[2] > length_min:
 				double_min = -1   
 			else:
 				double_min = rec["prob_count"]

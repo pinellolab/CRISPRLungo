@@ -1,0 +1,88 @@
+--- baseline/src/CRISPRlungo.py	2026-11-11 16:27:12.696456790 +0900
++++ patched/src/CRISPRlungo.py	2026-11-11 16:29:31.750655649 +0900
+@@ -8,6 +8,7 @@
+ import CRISPRlungo_visualization as visual
+ import CRISPRlungo_umi
+ import CRISPRlungo_insert_analysis
++import CRISPRlungo_pa  #20261111_pa
+ import CRISPRlungo_log as log
+ from CRISPRlungo_minimap import *
+ 
+@@ -103,6 +104,13 @@
+ 	induced_group.add_argument('--induced_paritial_similiarity', type=float, default=0.8, help='The If the mutation pattern similarity is higher than this value, but not completely identical, it is considered partially induced.')
+ 	induced_group.add_argument('--only_consider_desired_mutation', action='store_true', help='Only consider the desired mutation and exclude other mutation patterns')
+ 
++	pa_group = parser.add_argument_group('Prime assembly (PA)')  #20261111_pa
++	pa_group.add_argument('--pa_donor', type=str, default=None, help='FASTA of the PA donor. Turns on PA analysis. Several records are treated as the fragments of one assembly, in order')  #20261111_pa
++	pa_group.add_argument('--pa_flap_len', type=str, default='32', help="pegRNA 3' extension (flap) length. One value, or two separated by a comma when the two targets write flaps of different length, in the order target,additional_target [default: 32]")  #20261111_pa
++	pa_group.add_argument('--pa_window', type=int, default=2, help='Window used by the two internal PA analyses, as in the PA paper [default: 2]')  #20261111_pa
++	pa_group.add_argument('--pa_site_window', type=int, default=1, help='Half-width of the cleavage/flap/junction windows used to classify a read. 1 reproduces the published 4 bp cleavage window [default: 1]')  #20261111_pa
++	pa_group.add_argument('--pa_reference', type=str, default=None, help='Precise-PA allele FASTA. Derived from the reference and the donor when not given')  #20261111_pa
++
+ 	mut_group = parser.add_argument_group('Mutation classification')
+ 	mut_group.add_argument('--largeins_cutlen', default=50, type=int, help='The minimum length for large deletions')
+ 	mut_group.add_argument('--largedel_cutlen', default=50, type=int, help='The minimum length for large insertion')
+@@ -762,6 +770,8 @@
+ 	# `args`, so they always agree; readers that fold case keep the last one.
+ 	fw_input.write('\n# Options\n')
+ 	option_names = sorted(vars(args))
++	if not args.pa_donor:  #20261111_pa
++		option_names = [i for i in option_names if not i.startswith('pa_')]  #20261111_pa
+ 	option_width = max(len(i) for i in option_names)
+ 	for key in option_names:
+ 		fw_input.write(f'{key.ljust(option_width)} : {getattr(args, key)}\n')
+@@ -865,6 +875,12 @@
+ 	visual.write_html(plots, args.control, args.target, output_dir, mut_cnt, precise_cnt, edited_reads_cnt)
+ 	report_task.done()
+ 
++	if args.pa_donor:  #20261111_pa
++		CRISPRlungo_pa.run(args, output_dir, ref_seq, ref_name, cv_pos, cv_pos_2, original_target,
++						   treated_file_path if args.control else final_mutation_analysis_file,
++						   control_file_path if args.control else None,
++						   threads, range_align_end, longjoin_bandwidth, chaining_bandwidth)  #20261111_pa
++
+ 	log.finish(Report=os.path.join(output_dir, 'combined_graphs.html'),
+ 			   Results=os.path.join(output_dir, 'results'))
+ 
+--- baseline/src/CRISPRlungo_mutation_analysis.py	2026-11-11 16:27:12.697084103 +0900
++++ patched/src/CRISPRlungo_mutation_analysis.py	2026-11-11 16:29:22.470418152 +0900
+@@ -510,7 +510,7 @@
+ 	return {mutation_match_key(m) for m in induced_mutations}
+ 
+ 
+-def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, anchor_information, mutation_length_threshold_pval = 0.005, range_align_end=100, use_all_mutations=False, length_min = 10, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False):
++def analysis_function_with_control(control, edited, refernce, output_dir, cv_pos, cv_pos_2, window, check_window_between_targets, induced_mutations, anchor_information, mutation_length_threshold_pval = 0.005, range_align_end=100, use_all_mutations=False, length_min = 10, allowance_value = 0.05, pooling = True, largeins_cutlen=50, largedel_cutlen=50, Filter1 = True, window_filter = True, threads=1, umi_clustered = False, background_max_len = None):  #20261111_pa
+ 
+ 	# Path to SAM files
+ 	samfile_path1 = edited
+@@ -860,7 +860,9 @@
+ 			cnt_ctrl = rec["count_control"]
+ 
+ 
+-			if cnt_ctrl == 0 and mut[2] > length_min:
++			if background_max_len is not None and mut[2] > background_max_len:  #20261111_pa
++				double_min = -1   #20261111_pa
++			elif cnt_ctrl == 0 and mut[2] > length_min:
+ 				double_min = -1   
+ 			else:
+ 				double_min = rec["prob_count"]
+--- baseline/setup.py	2026-11-11 16:27:12.695686274 +0900
++++ patched/setup.py	2026-11-11 16:46:54.014871089 +0900
+@@ -15,6 +15,7 @@
+ 		'CRISPRlungo_minimap', 
+ 		'CRISPRlungo_single_map',
+         'CRISPRlungo_mutation_analysis',
++        'CRISPRlungo_pa',  #20261111_pa
+         'CRISPRlungoAllele',
+         'CRISPRlungoBatch'],   
+     package_data={
+@@ -31,7 +32,8 @@
+         'console_scripts': [
+             'CRISPRlungo = CRISPRlungo:main',
+             'CRISPRlungoAllele = CRISPRlungoAllele:main',
+-            'CRISPRlungoBatch = CRISPRlungoBatch:main'
++            'CRISPRlungoBatch = CRISPRlungoBatch:main',  #20261111_pa
++            'CRISPRlungoPA = CRISPRlungo_pa:cli'  #20261111_pa
+         ],
+     },
+     

@@ -159,7 +159,17 @@
          href="https://doi.org/10.1038/s41551-026-01776-7"><i class="bi bi-journal-text"></i> Paper</a>
       <a class="text-decoration-none" target="_blank" rel="noopener"
          href="https://github.com/pinellolab/CRISPRLungo"><i class="bi bi-github"></i> GitHub</a>
-      <span class="text-secondary">v1</span>
+      <!-- 20261111_version -->
+      <div class="dropdown">
+        <button class="btn btn-sm btn-link text-secondary text-decoration-none dropdown-toggle p-0"
+                type="button" id="versionMenu" data-bs-toggle="dropdown" aria-expanded="false"
+                title="Switch version">v1.1.0</button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="versionMenu">
+          <li><h6 class="dropdown-header">Version</h6></li>
+          <li><a class="dropdown-item active" href="#">v1.1.0 &middot; current</a></li>
+          <li><a class="dropdown-item" href="v1_0_0/index_ai.html">v1.0.0</a></li>
+        </ul>
+      </div>
     </div>
   </div>
 </nav>
@@ -241,6 +251,7 @@
                         <div class="p-3 p-md-4 border rounded-3 bg-white">
                           <div class="row g-3 g-md-4">
                             <div class="row g-3">
+                              <div class="col-12"><div class="text-uppercase small fw-semibold text-secondary border-bottom pb-1 mt-2">Window and cleavage</div></div>
                               <!-- Analysis window -->
                               <div class="col-12 col-md-6">
                                 <label for="analysisWindow" class="form-label">Analysis window (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Only mutations within this many nucleotides on either side of the cleavage site are counted as editing outcomes. Mutations farther away are ignored."></i></label>
@@ -268,36 +279,116 @@
                                   name="cleavageSite" value="16" min="1" step="1">
                               </div>
 
-                              <!-- Large insertion length -->
+                              <div class="col-12"><div class="text-uppercase small fw-semibold text-secondary border-bottom pb-1 mt-2">Mutation classification</div></div>
                               <div class="col-12 col-md-6">
-                                <label for="largeInsertionLen" class="form-label">Large insertion length cutoff
-                                  (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Insertions longer than this are classified as LargeIns instead of Ins in the results."></i></label>
-                                <input type="number" class="form-control validate-number" id="largeInsertionLen"
-                                  name="largeInsertionLen" value="50" min="1" step="1">
+                                <label for="largeInsertionLen" class="form-label">Large insertion length cutoff (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Insertions longer than this are classified as LargeIns instead of Ins in the results."></i></label>
+                                <input type="number" class="form-control validate-number" id="largeInsertionLen" name="largeInsertionLen" value="50" min="1" step="1">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label for="largeDeletionLen" class="form-label">Large deletion length cutoff (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Deletions longer than this are classified as LargeDel instead of Del in the results."></i></label>
+                                <input type="number" class="form-control validate-number" id="largeDeletionLen" name="largeDeletionLen" value="50" min="1" step="1">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label for="inducedPartialSimilarity" class="form-label">Partial edit similarity <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="A read carrying at least this fraction of the intended edit, but not all of it, is called a partial edit. CLI: --induced_paritial_similiarity."></i></label>
+                                <input type="number" class="form-control validate-number" id="inducedPartialSimilarity" name="inducedPartialSimilarity" value="0.8" min="0" max="1" step="0.05">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <div class="form-check mt-md-4">
+                                  <input class="form-check-input" type="checkbox" id="mixTag" name="mixTag">
+                                  <label class="form-check-label" for="mixTag">Call mixed mutations Complex <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Off: a read carrying several mutation types is reported by its indel. On: it is reported as Complex. CLI: --mix_tag."></i></label>
+                                </div>
+                              </div>
+                              <div class="col-12"><div class="text-uppercase small fw-semibold text-secondary border-bottom pb-1 mt-2">Background filtering (needs a control)</div></div>
+                              <div class="col-12 col-md-6">
+                                <div class="form-check mt-md-4">
+                                  <input class="form-check-input" type="checkbox" id="useAllMutations" name="useAllMutations">
+                                  <label class="form-check-label" for="useAllMutations">Use every mutation, no filtering <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Skip the enrichment test against the control and keep every mutation found in the window. CLI: --using_all_mutations."></i></label>
+                                </div>
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label for="lengthMin" class="form-label">Auto-significant length (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="A mutation absent from the control and longer than this is kept without a statistical test. CLI: --length_min."></i></label>
+                                <input type="number" class="form-control validate-number" id="lengthMin" name="lengthMin" value="10" min="0" step="1">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label for="mutAllowance" class="form-label">BH significance alpha <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="False-discovery-rate level used when testing each mutation against the control. Lower keeps fewer mutations."></i></label>
+                                <input type="number" class="form-control validate-number" id="mutAllowance" name="mutAllowance" value="0.05" min="0" max="1" step="0.01">
+                              </div>
+                              <div class="col-12"><div class="text-uppercase small fw-semibold text-secondary border-bottom pb-1 mt-2">Allele table</div></div>
+                              <div class="col-12 col-md-6">
+                                <label for="readCountMin" class="form-label">Minimum read count <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Allele patterns supported by fewer reads than this are dropped from the allele table. CLI: --min_read_cnt."></i></label>
+                                <input type="number" class="form-control validate-number" id="readCountMin" name="readCountMin" value="0" min="0" step="1">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label for="readFreqMin" class="form-label">Minimum read frequency <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Allele patterns below this fraction of reads are dropped from the allele table. CLI: --min_read_freq."></i></label>
+                                <input type="number" class="form-control validate-number" id="readFreqMin" name="readFreqMin" value="0" min="0" max="1" step="0.01">
+                              </div>
+                              <div class="col-12"><div class="text-uppercase small fw-semibold text-secondary border-bottom pb-1 mt-2">Alignment</div></div>
+                              <div class="col-12 col-md-6">
+                                <label for="alignSaLenThreshold" class="form-label">Soft-clip re-align threshold (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="A soft-clipped piece longer than this is re-aligned and stitched back as a supplementary record. CLI: --align_sa_len_threshold."></i></label>
+                                <input type="number" class="form-control validate-number" id="alignSaLenThreshold" name="alignSaLenThreshold" value="100" min="10" step="10">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label for="minimap2Opt" class="form-label">Extra minimap2 options <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Appended to the minimap2 command, e.g. -k 11 -w 5. CLI: --minimap2_opt."></i></label>
+                                <input type="text" class="form-control validate-number" id="minimap2Opt" name="minimap2Opt" value="" placeholder="(none)" spellcheck="false">
+                              </div>
+                              <div class="col-12"><div class="text-uppercase small fw-semibold text-secondary border-bottom pb-1 mt-2">Allele plot</div></div>
+                              <div class="col-12 col-md-6">
+                                <label for="allelePlotWindow" class="form-label">Allele plot window (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="How many nucleotides either side of the cleavage site the allele plot shows. CLI: --allele_plot_window."></i></label>
+                                <input type="number" class="form-control validate-number" id="allelePlotWindow" name="allelePlotWindow" value="20" min="5" step="1">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label for="allelePlotLines" class="form-label">Allele plot rows <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="How many allele rows the plot draws. CLI: --allele_plot_lines."></i></label>
+                                <input type="number" class="form-control validate-number" id="allelePlotLines" name="allelePlotLines" value="10" min="1" step="1">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label for="removeLargeMutationsInPlot" class="form-label">Hide mutations longer than (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Mutations longer than this are left out of the allele plot. -1 keeps everything. CLI: --remove_large_mutations_in_plot."></i></label>
+                                <input type="number" class="form-control validate-number" id="removeLargeMutationsInPlot" name="removeLargeMutationsInPlot" value="-1" min="-1" step="1">
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <div class="form-check mt-md-4">
+                                  <input class="form-check-input" type="checkbox" id="showAllBetweenAllele" name="showAllBetweenAllele">
+                                  <label class="form-check-label" for="showAllBetweenAllele">Show the whole region between targets <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Draw every nucleotide between the two cleavage sites in the allele plot instead of only the windows around them. CLI: --show_all_between_allele."></i></label>
+                                </div>
                               </div>
 
-                              <!-- Large deletion length -->
-                              <div class="col-12 col-md-6">
-                                <label for="largeDeletionLen" class="form-label">Large deletion length cutoff
-                                  (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Deletions longer than this are classified as LargeDel instead of Del in the results."></i></label>
-                                <input type="number" class="form-control validate-number" id="largeDeletionLen"
-                                  name="largeDeletionLen" value="50" min="1" step="1">
-                              </div>
-
-                              <!-- 
-                        <div class="col-12 col-md-6">
-                          <label for="readCountMin" class="form-label">Read count minimum</label>
-                          <input type="number" class="form-control validate-number" id="readCountMin" name="readCountMin" value="0" min="0" step="1">
-                        </div>
-
-                        
-                        <div class="col-12 col-md-6">
-                          <label for="readFreqMin" class="form-label">Read frequency minimum (0 ~ 1)</label>
-                          <input type="number" class="form-control validate-number" id="readFreqMin" name="readFreqMin" value="0" min="0" max="1" step="0.01">
-                        </div>-->
                             </div>
 
 
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 20261111_pa Prime assembly -->
+                    <div class="col-12">
+                      <div class="border rounded-3 p-3 p-md-4 bg-white">
+                        <div class="form-check form-switch d-flex align-items-center gap-2 m-0">
+                          <input class="form-check-input" type="checkbox" role="switch" id="paEnable" style="width:2.6em;height:1.3em;">
+                          <label class="form-check-label fw-semibold ms-2" for="paEnable">Prime assembly (PA) analysis</label>
+                          <span id="paStateBadge" class="badge rounded-pill text-bg-secondary ms-2">off</span>
+                          <i class="bi bi-question-circle help-icon ms-1" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Classifies out-out amplicon reads into prime assembly outcomes. Every read is compared with five alleles built from the reference, the two cleavage sites and the donor: wild type, precise PA, dual flap without donor, 5-prime flap only and 3-prime flap only."></i>
+                        </div>
+                        <div id="paPanel" class="mt-3" style="display:none;">
+                          <div class="row g-3">
+                            <div class="col-12">
+                              <label for="paDonor" class="form-label">Donor sequence <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="The donor that is assembled between the two nicks. Plain sequence, or FASTA. Several FASTA records are read as the fragments of one assembly, in order, and the joins between them become extra sites to check."></i></label>
+                              <textarea class="form-control seq" id="paDonor" rows="4" spellcheck="false" placeholder="Paste the donor sequence, or a FASTA with one record per assembly fragment"></textarea>
+                            </div>
+                            <div class="col-12 col-md-4">
+                              <label for="paFlapLen" class="form-label">Flap length (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Length of the pegRNA 3-prime extension written at each nick. One value for both, or two separated by a comma when the two protospacers write flaps of different length, in the order protospacer,additional protospacer. Example: 32,25"></i></label>
+                              <input type="text" class="form-control" id="paFlapLen" value="32" spellcheck="false" placeholder="32 or 32,25">
+                            </div>
+                            <div class="col-12 col-md-4">
+                              <label for="paWindow" class="form-label">PA analysis window (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Window used by the per-allele analyses inside PA mode. 2 is the value used in the prime assembly paper."></i></label>
+                              <input type="number" class="form-control validate-number" id="paWindow" value="2" min="1" step="1">
+                            </div>
+                            <div class="col-12 col-md-4">
+                              <label for="paSiteWindow" class="form-label">Site window half-width (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Half-width of the window around each cleavage, flap and fragment-junction position used to classify a read. 1 gives the published 4 bp cleavage window; raise it if nanopore breakpoints scatter."></i></label>
+                              <input type="number" class="form-control validate-number" id="paSiteWindow" value="1" min="0" step="1">
+                            </div>
+                            <div class="col-12">
+                              <div class="small text-secondary">PA mode needs both protospacers and runs one alignment per allele, so it takes about five times as long as a normal run.</div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -336,16 +427,21 @@
     <div id="progressPage" class="page">
       <div class="py-3 py-md-4">
         <div class="container container-narrow">
-          <div class="progress" role="progressbar" aria-label="Analysis progress" aria-valuenow="0" aria-valuemin="0"
-            aria-valuemax="100">
-            <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" style="width:0%">0%
+          <!-- 20261111_progress -->
+          <div class="app-card p-3 p-md-4">
+            <div class="d-flex align-items-baseline justify-content-between flex-wrap gap-2 mb-2">
+              <h2 class="h5 m-0">Running the analysis</h2>
+              <span id="progressElapsed" class="small text-secondary"></span>
             </div>
-          </div>
-          <p id="status" class="status-text mt-2">Status updates will be shown here...</p>
-          <div class="progress-list mt-3">
-            <p id="progress_1" class="text-center">
-              <i class="bi bi-caret-right-fill"></i> FASTQ file alignment <i class="bi bi-caret-left-fill"></i>
-            </p>
+            <div class="progress" role="progressbar" aria-label="Analysis progress" aria-valuenow="0" aria-valuemin="0"
+              aria-valuemax="100" style="height:1.25rem;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" style="width:0%">0%
+              </div>
+            </div>
+            <p id="status" class="status-text mt-2 mb-3">Preparing ...</p>
+            <div id="progressSteps" class="border-top pt-2"></div>
+            <p id="progress_1" class="d-none"></p>
+            <p class="small text-secondary mt-3 mb-0">The whole analysis runs in this browser &mdash; nothing is uploaded. Leaving the page stops it.</p>
           </div>
         </div>
       </div>
@@ -361,6 +457,17 @@
             <input type="text" class="form-control form-control-sm" id="exportRefName" value="Ref" style="width:140px;" spellcheck="false" title="Reference name written to the exported files (the FASTA header name the CLI would use)"> <!-- 20261110_export -->
             <span id="exportStatus" class="form-help"></span> <!-- 20261110_export -->
           </div> <!-- 20261110_export -->
+          <!-- 20261111_pa: the PA heading belongs with the table it describes -->
+          <div id="paHeading" class="mb-2" style="display:none;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <h2 class="h5 m-0">Prime assembly analysis</h2>
+              <div class="d-flex align-items-center gap-2">
+                <span id="paStatus" class="small text-secondary"></span>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="paDownload">Download per-read table</button>
+              </div>
+            </div>
+            <p class="small text-secondary mt-2 mb-2" id="paHeadingNote">Every read is compared with the wild-type, precise-PA, dual-flap, 5&prime;-flap and 3&prime;-flap alleles and assigned to the one that explains the most of it. The table, the pie charts and the allele-plot labels below are that classification; outcome names follow Levesque et al., Nature 2026. The per-position insertion, deletion and substitution plots stay on the wild-type reference, since PA has no equivalent of them.</p>
+          </div>
           <div id="cnt-table-container" class="mb-3"></div>
 
           <div class="chart-container">
@@ -451,6 +558,49 @@
           </div>
         </div>
 
+        <!-- 20261111_pa -->
+
+        <!-- 20261111_alignview -->
+        <div class="container container-narrow" id="alignViewSection" style="display:none;">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <h2 class="h5 m-0">Alignment</h2>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span id="alignViewRefWrap" style="display:none;">
+                <select id="alignViewRef" class="form-select form-select-sm" style="width:auto;" title="Which reference the reads are shown against"></select>
+              </span>
+              <select id="alignViewPick" class="form-select form-select-sm" style="width:auto;" title="Show only the reads of one category">
+                <option value="">All reads</option>
+              </select>
+              <select id="alignViewColour" class="form-select form-select-sm" style="width:auto;" title="How the reads are coloured">
+                <option value="igv">IGV grey</option>
+                <option value="outcome">Colour by outcome</option>
+                <option value="strand">Colour by strand</option>
+              </select>
+              <select id="alignViewHeight" class="form-select form-select-sm" style="width:auto;" title="Height of the alignment box">
+                <option value="300">300 px</option>
+                <option value="460" selected>460 px</option>
+                <option value="700">700 px</option>
+                <option value="1000">1000 px</option>
+              </select>
+              <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-secondary" id="alignViewZoomOut" title="Zoom out">&minus;</button>
+                <button type="button" class="btn btn-outline-secondary" id="alignViewZoomIn" title="Zoom in">+</button>
+                <button type="button" class="btn btn-outline-secondary" id="alignViewReset" title="Fit the whole reference">Fit</button>
+              </div>
+            </div>
+          </div>
+          <div class="border rounded-3 mt-2 bg-white">
+            <div style="position:relative;"><canvas id="alignViewRuler" style="display:block;width:100%;"></canvas></div>
+            <div id="alignViewScroll" style="max-height:460px;overflow-y:auto;overflow-x:hidden;position:relative;border-top:1px solid #e9ecef;">
+              <div id="alignViewSpacer" style="position:relative;width:100%;">
+                <canvas id="alignViewCanvas" style="position:sticky;top:0;display:block;width:100%;cursor:grab;"></canvas>
+              </div>
+            </div>
+          </div>
+          <p id="alignViewNote" class="small text-secondary mt-2 mb-0"></p>
+          <p class="small text-secondary mb-4">The same alignment the CLI writes for IGV: one row per read, rebuilt from the reference and the mutations that passed filtering. Red dashed = cleavage site &middot; blue band = protospacer &middot; a deletion is the joined, labelled stretch (red over the large-deletion cutoff) &middot; purple tick = insertion, with its length written beside it when it is over the large-insertion cutoff &mdash; click a tick to see the inserted sequence &middot; substitutions are coloured by the base that replaced the reference (A green, C blue, G amber, T red) &middot; green hatched = inverted segment. Untick "Filtered mutations only" for the raw aligner output. In PA mode a reference selector appears on the left, switching between the wild-type reference and the precise-PA allele, whose dashed marks are the two cleavage sites, the two flap boundaries and any donor fragment junctions. The category selector beside it narrows the view to one class of read &mdash; a PA outcome when PA mode ran, or one of the standard classes &mdash; which is easier to read than scrolling for a band. Drag to pan, ctrl or shift with the wheel to zoom; the box scrolls through the stacked reads.</p>
+        
+
         <!-- ================= AI custom classification ================= -->
         <div class="container container-narrow mt-4">
           <div class="app-card p-3 p-md-4">
@@ -458,6 +608,7 @@
               <i class="bi bi-stars"></i>
               <h2 class="h5 m-0">AI analysis</h2> <!-- 20261110_agent -->
             </div>
+
             <p class="form-help mb-3">
               Describe how you want the reads re-classified in plain language. Claude writes a
               classification algorithm from your request and it is applied to the current results.
@@ -558,6 +709,19 @@
             </div> <!-- 20261110_agent -->
           </div>
         </div>
+
+        <!-- 20261111_cli -->
+        <div class="container container-narrow" id="cliCommandSection" style="display:none;">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <h2 class="h5 m-0">Same run on the command line</h2>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-outline-secondary" id="cliCommandCopy">Copy</button>
+              <button type="button" class="btn btn-outline-secondary" id="cliCommandDownload">Download FASTA inputs</button>
+            </div>
+          </div>
+          <pre id="cliCommandText" class="border rounded-3 bg-white p-3 mt-2 mb-2" style="white-space:pre-wrap;word-break:break-word;font-size:0.85rem;"></pre>
+          <p id="cliCommandFiles" class="small text-secondary mb-4"></p>
+        </div>
       </div>
     </div>
     </div>
@@ -565,8 +729,12 @@
 
 
 
+    <script src="lungo_progress.js"></script> <!-- 20261111_progress -->
+    <script src="lungo_options.js"></script> <!-- 20261111_options -->
     <script src="main.js"></script>
     <script src="CRISPRlungo_ai.js"></script>
+    <script src="lungo_alignview.js"></script> <!-- 20261111_alignview -->
+    <script src="lungo_pa.js"></script> <!-- 20261111_pa -->
     <script src="custom_classify.js"></script>
     <script src="lungo_export.js"></script> <!-- 20261110_export -->
     <script src="lungo_agent.js"></script> <!-- 20261110_agent -->

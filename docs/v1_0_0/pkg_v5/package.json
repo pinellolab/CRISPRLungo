@@ -1,0 +1,15 @@
+{
+  "name": "CRISPRlungo_regular",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "CRISPRlungo_regular_bg.wasm",
+    "CRISPRlungo_regular.js",
+    "CRISPRlungo_regular.d.ts"
+  ],
+  "main": "CRISPRlungo_regular.js",
+  "types": "CRISPRlungo_regular.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

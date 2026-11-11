@@ -61,7 +61,8 @@ FLAG_OPTS = {'umi', 'no_multipass_align', 'whole_window_between_targets',
              'just_visualization', 'show_all_between_allele'}
 # Option columns whose value is a file path (resolved relative to the batch file)
 PATH_OPTS = {'control', 'induced_sequence_path', 'induced_mutation_patterns',
-             'integration_file', 'large_induced_insertion'}
+             'integration_file', 'large_induced_insertion',
+             'pa_donor', 'pa_reference'}  #20261111_compat
 # ANY other column is passed straight through as --<column> <value> to CRISPRlungo,
 # so new CRISPRlungo options can be used as batch columns with no code change.
 
@@ -182,6 +183,45 @@ def read_input_summary(sample_out):
     return info
 
 
+def count_of(counts, key, default=0):
+    """mutation_summary_count.txt writes Treated_all_reads / Treated_used, so look
+    the plain name up first and fall back to the prefixed one."""  #20261111_compat
+    if key in counts:
+        return counts[key]
+    return counts.get('Treated_' + key, default)
+
+
+# Prime assembly outcomes, in the order CRISPRlungo_pa writes them.
+PA_CATEGORIES = ['Precise_PA', 'Flap_install_wo_indels', 'Flap_integration_wDel',
+                 'Flap_integration_wIns', 'Flap_install_with_Large_deletion',
+                 'Large_deletion', 'Unedited', 'Indel_at_nick_site', 'Others',
+                 'Not_analysed']  #20261111_pa
+
+
+def read_pa_summary(sample_out):
+    """Parse pa_results/pa_summary.txt -> {category: int}, or None when the sample
+    was not run with --pa_donor."""  #20261111_pa
+    path = os.path.join(sample_out, 'pa_results', 'pa_summary.txt')
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        lines = [ln.rstrip('\n') for ln in f if ln.strip() != '']
+    if len(lines) < 2:
+        return None
+    header = lines[0].split('\t')
+    values = lines[1].split('\t')
+    d = {}
+    for i, h in enumerate(header):
+        h = h.strip()
+        if h == '':
+            continue
+        try:
+            d[h] = int(values[i].strip())
+        except (ValueError, IndexError, TypeError):
+            d[h] = 0
+    return d
+
+
 def pct(n, d):
     return (100.0 * n / d) if d else 0.0
 
@@ -189,24 +229,37 @@ def pct(n, d):
 def write_summary_txt(out_dir, results):
     """results: list of dicts with name, status, counts(dict), info(dict)."""
     path = os.path.join(out_dir, 'CRISPRlungoBatch_summary.txt')
+    any_pa = any(r.get('pa') for r in results)  #20261111_pa
     cols = (['Name', 'Status', 'Target_1', 'Target_2', 'Total_reads',
              'Reads_used', 'Modified_pct'] +
             CATEGORIES + [c + '_pct' for c in CATEGORIES] + ['Precise', 'Partial'])
+    if any_pa:  #20261111_pa
+        cols += ['PA_analysed'] + ['PA_' + c for c in PA_CATEGORIES] \
+                + ['PA_' + c + '_pct' for c in PA_CATEGORIES]  #20261111_pa
     with open(path, 'w') as fw:
         fw.write('\t'.join(cols) + '\n')
         for r in results:
             c = r.get('counts') or {}
             info = r.get('info') or {}
-            used = c.get('used', 0)
+            used = count_of(c, 'used')  #20261111_compat
             wt = c.get('WT', 0)
             modified = used - wt
             line = [r['name'], r['status'],
                     info.get('Target_1', ''), info.get('Target_2', ''),
-                    str(c.get('all_reads', '')), str(used),
+                    str(count_of(c, 'all_reads', '')), str(used),  #20261111_compat
                     '%.2f' % pct(modified, used)]
             line += [str(c.get(cat, 0)) for cat in CATEGORIES]
             line += ['%.2f' % pct(c.get(cat, 0), used) for cat in CATEGORIES]
             line += [str(c.get('Precise', 0)), str(c.get('Partial', 0))]
+            if any_pa:  #20261111_pa
+                pa = r.get('pa')
+                if not pa:   # this sample was not run with --pa_donor
+                    line += [''] * (1 + 2 * len(PA_CATEGORIES))
+                else:
+                    pa_used = pa.get('Analysed', 0)
+                    line += [str(pa_used)]
+                    line += [str(pa.get(cat, 0)) for cat in PA_CATEGORIES]
+                    line += ['%.2f' % pct(pa.get(cat, 0), pa_used) for cat in PA_CATEGORIES]
             fw.write('\t'.join(line) + '\n')
     return path
 
@@ -216,10 +269,17 @@ def write_summary_html(out_dir, results, batch_name='CRISPRlungo Batch'):
     show_precise = any((r.get('counts') or {}).get('Precise', 0) or
                        (r.get('counts') or {}).get('Partial', 0) for r in results)
 
+    any_pa = any(r.get('pa') for r in results)  #20261111_pa
+    # Only the PA outcomes that actually occur, so a batch of PA samples does not
+    # carry ten mostly-empty columns.
+    pa_cols = [cat for cat in PA_CATEGORIES
+               if any((r.get('pa') or {}).get(cat, 0) for r in results)] if any_pa else []  #20261111_pa
+
     head_cols = ['Sample', 'Total reads', 'Reads used', 'Modified %'] + \
                 [c + ' %' for c in CATEGORIES]
     if show_precise:
         head_cols += ['Precise %', 'Partial %']
+    head_cols += ['PA ' + c.replace('_', ' ') + ' %' for c in pa_cols]  #20261111_pa
     head_cols += ['Report']
 
     def th(cols):
@@ -229,10 +289,7 @@ def write_summary_html(out_dir, results, batch_name='CRISPRlungo Batch'):
     for r in results:
         name = r['name']
         c = r.get('counts') or {}
-        if 'used' not in c:
-            used = c.get('Treated_used', 0)
-        else:
-            used = c.get('used', 0)
+        used = count_of(c, 'used')  #20261111_compat
         ok = r['status'] == 'OK' and c
         if not ok:
             body_rows.append(
@@ -244,7 +301,7 @@ def write_summary_html(out_dir, results, batch_name='CRISPRlungo Batch'):
         wt = c.get('WT', 0)
         modified = used - wt
         cells = ['<td class="name">%s</td>' % _html.escape(name),
-                 '<td>%s</td>' % format(c.get('all_reads', 0), ','),
+                 '<td>%s</td>' % format(count_of(c, 'all_reads', 0), ','),  #20261111_compat
                  '<td>%s</td>' % format(used, ','),
                  '<td class="mod">%.1f</td>' % pct(modified, used)]
         for cat in CATEGORIES:
@@ -252,6 +309,12 @@ def write_summary_html(out_dir, results, batch_name='CRISPRlungo Batch'):
         if show_precise:
             cells.append('<td>%.1f</td>' % pct(c.get('Precise', 0), used))
             cells.append('<td>%.1f</td>' % pct(c.get('Partial', 0), used))
+        if pa_cols:  #20261111_pa
+            pa = r.get('pa') or {}
+            pa_used = pa.get('Analysed', 0)
+            for cat in pa_cols:
+                cells.append('<td>%s</td>' % ('%.1f' % pct(pa.get(cat, 0), pa_used)
+                                              if pa else '-'))
         rel = '%s/combined_graphs.html' % name
         cells.append('<td><a class="btn" href="%s" target="_blank">View &#8599;</a></td>'
                      % _html.escape(rel))
@@ -407,6 +470,7 @@ def main():
         else:
             rec['counts'] = counts
             rec['info'] = read_input_summary(sample_out)
+            rec['pa'] = read_pa_summary(sample_out)  #20261111_pa
         results.append(rec)
 
     txt = write_summary_txt(args.output_dir, results)

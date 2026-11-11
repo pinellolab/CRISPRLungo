@@ -572,7 +572,12 @@ def indel_per_position(tsv_file, reference, output_dir):
 	
 	# Define Y-axis ticks
 	y_ticks = [i * max_value / 5 for i in range(6)]
-	y_tick_labels = [f"{(tick / total_reads) * 100:.2f}% ({int(tick)})" for tick in y_ticks]
+	# A category that matched no read gives total_reads == 0; show counts only
+	# rather than dividing by zero.  #20261111_compat
+	if total_reads:  #20261111_compat
+		y_tick_labels = [f"{(tick / total_reads) * 100:.2f}% ({int(tick)})" for tick in y_ticks]
+	else:  #20261111_compat
+		y_tick_labels = [f"({int(tick)})" for tick in y_ticks]  #20261111_compat
 	
 	# Create the plot
 	fig = go.Figure()
@@ -1029,7 +1034,8 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2,
 				show_line, induced_mutation_str, 
 				show_all_between_allele, 
 				remove_large_mutations_in_plot=-1,  #20261010_issue #3
-				group_separate=False):
+				group_separate=False,
+				pa_labels=None):  #20261111_pa_report
 
 	mut_dict = []
 	all_cnt = 0
@@ -1182,7 +1188,10 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2,
 				x_pos += 0.021 # Adjust spacing between nucleotides
 			status_list[0].append(f'{info[1]}% ({info[2]} Reads)')
 			status_list[1].append('WT')
-			status_list[2].append(info[5])
+			# 20261111_pa_report: in PA mode the row is labelled with the PA
+			# category instead of the wild-type pattern, not as well as it
+			status_list[2].append(pa_labels.get(info[0], '') if pa_labels is not None
+								  else info[5])
 			continue
 		
 		mut_str = ''
@@ -1434,12 +1443,14 @@ def allele_plot(ref_seq, cv_pos, cv_pos_2, strand, strand_2,
 			status_list[0].append(f'')
 			status_list[1].append('')
 			#status_list[2].append('')
-			status_list[2].append(info[5])
+			status_list[2].append(pa_labels.get(info[0], '') if pa_labels is not None
+								  else info[5])  #20261111_pa_report
 		else:
 			status_list[0].append(f'{info[1]}% ({info[2]} Reads)')
 			status_list[1].append(info[4])
 			#status_list[2].append(mut_str[:-1])
-			status_list[2].append(info[5])
+			status_list[2].append(pa_labels.get(info[0], '') if pa_labels is not None
+								  else info[5])  #20261111_pa_report
 			
 		if cv_pos_2 and bar_st_between < bar_ed_between and not show_all_between_allele:
 			rect = patches.Rectangle((0.0075+ plot_window*2*0.021 + bar_st_between,y_pos -0.035), (bar_ed_between - bar_st_between)*0.021, 0.08, linewidth=0, edgecolor='none', facecolor='whitesmoke', zorder=13)
@@ -1769,9 +1780,15 @@ def LD_tornado(tsv_file, cv_pos, ref_len, strand, output_dir):
 	plt.savefig(output_dir + '/Largedeletion_tornado.png')
 	plt.savefig(output_dir + '/Largedeletion_tornado.pdf')
 
-def write_html(plots, control_check, target_check, output_dir, mut_cnt, precise_cnt, edited_reads_cnt):
+def write_html(plots, control_check, target_check, output_dir, mut_cnt, precise_cnt,
+			   edited_reads_cnt, pa=None):  #20261111_pa_report
 
 	full_html = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CRISPRlungo</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/><style>:root{--border:#e5e7eb;--mut-muted:#f8f9fa;--mut-bg:#ffffff;--mut-page:#fbfbfb;--mut-text:#111827;}html,body{height:100%;}.page{display:none;}.active{display:block;}body{background:var(--mut-page);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";color:var(--mut-text);} .navbar-brand span{font-weight:700;letter-spacing:.2px;}.hero{padding:2rem 0 0.5rem;text-align:center;}.hero img{max-width:640px;width:100%;height:auto;}.app-card{border:1px solid var(--border);background:var(--mut-bg);border-radius:16px;box-shadow:0 6px 16px rgba(0,0,0,.04);}.seq{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;letter-spacing:.2px;resize:vertical;min-height:72px;white-space:pre-wrap;}.form-help{color:#6b7280;font-size:.9rem;}.range-value{font-variant-numeric:tabular-nums;}.file-box{border:1px dashed var(--border);background:var(--mut-muted);border-radius:12px;transition:border-color .2s ease,background .2s ease;}.file-box:focus-within{border-color:#0d6efd;background:#f5f9ff;}.section-title{font-weight:600;}@media (min-width:992px){.container-narrow{max-width:980px;}}</style></head><body><nav class="navbar bg-white border-bottom sticky-top"><div class="container container-narrow"><a class="navbar-brand d-flex align-items-center gap-2" href="#"><span>CRISPRlungo</span></a><div class="d-flex align-items-center gap-3 small"><a href="https://doi.org/10.1038/s41551-026-01776-7" style="text-decoration:none;">Paper</a><a href="https://pinellolab.github.io/CRISPRLungo" style="text-decoration:none;">Web</a><a href="https://github.com/pinellolab/CRISPRLungo" style="text-decoration:none;">GitHub</a><span class="text-secondary">v1</span></div></div></nav><section class="hero"><div class="container container-narrow"><img src="css/title_icon.png" alt="App banner" class="img-fluid"/></div></section></body></html>"""
+	# 20261111_version: the navbar badge is the real version, not a hardcoded "v1"
+	import CRISPRlungo_log
+	full_html = full_html.replace('<span class="text-secondary">v1</span>',
+								  f'<span class="text-secondary">v{CRISPRlungo_log.VERSION}</span>')
+
 	full_html += """<div class="py-3 py-md-4"><div class="container container-narrow">"""
 
 	# "Precisely induced editing" is the clean edit only: every intended change and
@@ -1783,16 +1800,27 @@ def write_html(plots, control_check, target_check, output_dir, mut_cnt, precise_
 					 + precise_cnt.get('Partial', 0)
 					 + precise_cnt.get('Partial_with_mutations', 0))
 
-	full_html += f"""<div id="cnt-table-container" class="mb-3"><table class="table table-bordered table-striped w-100 result-table"><colgroup><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"></colgroup><thead class="thead-light"><tr><th>Total reads</th><th>Reads used in analysis</th><th>WT</th><th>Ins</th><th>Del</th><th>Sub</th><th>LargeDel</th><th>LargeIns</th><th>Inversion</th><th>Complex</th><th>Precisely induced editing</th><th>Partially induced editing</th></tr></thead><tbody><tr><td>{edited_reads_cnt["all_reads"]}</td><td>{edited_reads_cnt["used"]}</td><td>{mut_cnt["WT"]} ({round(mut_cnt["WT"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Ins"]} ({round(mut_cnt["Ins"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Del"]} ({round(mut_cnt["Del"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Sub"]} ({round(mut_cnt["Sub"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["LargeDel"]} ({round(mut_cnt["LargeDel"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["LargeIns"]} ({round(mut_cnt["LargeIns"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Inv"]} ({round(mut_cnt["Inv"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Complex"]+mut_cnt["ComplexWithLargeMut"]} ({round((mut_cnt["Complex"]+mut_cnt["ComplexWithLargeMut"])*100/edited_reads_cnt["used"],2)} %)</td><td>{precise_cnt["Precise"]} ({round(precise_cnt["Precise"]*100/edited_reads_cnt["used"],2)} %)</td><td>{partial_total} ({round(partial_total*100/edited_reads_cnt["used"],2)} %)</td></tr></tbody></table></div>"""
+	# 20261111_pa_report: in PA mode the headline table is the PA classification,
+	# with its heading and explanation above it, rather than a second table beside
+	# the wild-type one. Without pa this is the line it always was.
+	if pa is not None:
+		import CRISPRlungo_pa
+		full_html += CRISPRlungo_pa.pa_table_html(pa, edited_reads_cnt)
+	else:
+		full_html += f"""<div id="cnt-table-container" class="mb-3"><table class="table table-bordered table-striped w-100 result-table"><colgroup><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"><col style="width: 8.33333%;"></colgroup><thead class="thead-light"><tr><th>Total reads</th><th>Reads used in analysis</th><th>WT</th><th>Ins</th><th>Del</th><th>Sub</th><th>LargeDel</th><th>LargeIns</th><th>Inversion</th><th>Complex</th><th>Precisely induced editing</th><th>Partially induced editing</th></tr></thead><tbody><tr><td>{edited_reads_cnt["all_reads"]}</td><td>{edited_reads_cnt["used"]}</td><td>{mut_cnt["WT"]} ({round(mut_cnt["WT"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Ins"]} ({round(mut_cnt["Ins"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Del"]} ({round(mut_cnt["Del"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Sub"]} ({round(mut_cnt["Sub"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["LargeDel"]} ({round(mut_cnt["LargeDel"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["LargeIns"]} ({round(mut_cnt["LargeIns"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Inv"]} ({round(mut_cnt["Inv"]*100/edited_reads_cnt["used"],2)} %)</td><td>{mut_cnt["Complex"]+mut_cnt["ComplexWithLargeMut"]} ({round((mut_cnt["Complex"]+mut_cnt["ComplexWithLargeMut"])*100/edited_reads_cnt["used"],2)} %)</td><td>{precise_cnt["Precise"]} ({round(precise_cnt["Precise"]*100/edited_reads_cnt["used"],2)} %)</td><td>{partial_total} ({round(partial_total*100/edited_reads_cnt["used"],2)} %)</td></tr></tbody></table></div>"""
 	full_html += f"""<div class="chart-container"><div class="d-flex align-items-center justify-content-between flex-wrap gap-2" style="width:70%; min-width:420px;"><h2 class="h5 m-0">Allele assignments</h2></div><div id="alignSumPlot" class="mx-auto" style="width:500px;height:450px;">{plots["treated_align"]}</div>"""
 
 	#if control_check:
 	#	full_html += f'<h1>Accuracy graphs</h1><img src="results/Regular_accuracy.png" alt="Matplotlib Graph"/><br />'
 
+	if pa is not None:  #20261111_pa_report
+		import CRISPRlungo_pa
+		plots["pattern_pie"], plots["mutation_pie"] = CRISPRlungo_pa.pa_pie_html(pa)
+
 	plots["pattern_pie"]  = ''.join(plots["pattern_pie"])
 	plots["mutation_pie"] = ''.join(plots["mutation_pie"])
 
-	full_html += f"""<ul class="nav nav-tabs mx-auto" id="optionTab" role="tablist"><li class="nav-item" role="presentation"><button class="nav-link active" id="allPiePlotBtn" data-bs-toggle="tab" data-bs-target="#allPiePlotPanel" type="button" role="tab" aria-controls="allPiePlotPanel" aria-selected="true">All pattern</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="mutPiePlotBtn" data-bs-toggle="tab" data-bs-target="#mutPiePlotPanel" type="button" role="tab" aria-controls="mutPiePlotPanel" aria-selected="false">WT vs other</button></li></ul><div class="tab-content" id="optionTabContent"><div class="tab-pane fade show active" id="allPiePlotPanel" role="tabpanel" aria-labelledby="allPiePlotBtn"><div id="allPiePlot" class="mx-auto" style="width:600px;height:400px;">{plots["pattern_pie"]}</div></div><div class="tab-pane fade" id="mutPiePlotPanel" role="tabpanel" aria-labelledby="mutPiePlotBtn"><div id="mutPiePlot" class="mx-auto" style="width:600px;height:400px;">{plots["mutation_pie"]}</div></div></div>"""
+	full_html += f"""<ul class="nav nav-tabs mx-auto" id="optionTab" role="tablist"><li class="nav-item" role="presentation"><button class="nav-link active" id="allPiePlotBtn" data-bs-toggle="tab" data-bs-target="#allPiePlotPanel" type="button" role="tab" aria-controls="allPiePlotPanel" aria-selected="true">All pattern</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="mutPiePlotBtn" data-bs-toggle="tab" data-bs-target="#mutPiePlotPanel" type="button" role="tab" aria-controls="mutPiePlotPanel" aria-selected="false">{'Unedited vs edited' if pa is not None else 'WT vs other'}</button></li></ul><div class="tab-content" id="optionTabContent"><div class="tab-pane fade show active" id="allPiePlotPanel" role="tabpanel" aria-labelledby="allPiePlotBtn"><div id="allPiePlot" class="mx-auto" style="width:600px;height:400px;">{plots["pattern_pie"]}</div></div><div class="tab-pane fade" id="mutPiePlotPanel" role="tabpanel" aria-labelledby="mutPiePlotBtn"><div id="mutPiePlot" class="mx-auto" style="width:600px;height:400px;">{plots["mutation_pie"]}</div></div></div>"""
 	full_html += f"""<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3" style="width:70%; min-width:420px;"><h2 class="h5 m-0">Indel characterization</h2></div><ul class="nav nav-tabs mx-auto" id="mutationTab" role="tablist"><li class="nav-item" role="presentation"><button class="nav-link active" id="combinedPlotBtn" data-bs-toggle="tab" data-bs-target="#combinedPlotPanel" type="button" role="tab" aria-controls="combinedPlotPanel" aria-selected="true">Combined</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="insertionsPlotBtn" data-bs-toggle="tab" data-bs-target="#insertionsPlotPanel" type="button" role="tab" aria-controls="insertionsPlotPanel" aria-selected="false">Insertions</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="deletionsPlotBtn" data-bs-toggle="tab" data-bs-target="#deletionsPlotPanel" type="button" role="tab" aria-controls="deletionsPlotPanel" aria-selected="false">Deletions</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="largeDeletionsPlotBtn" data-bs-toggle="tab" data-bs-target="#largeDeletionsPlotPanel" type="button" role="tab" aria-controls="largeDeletionsPlotPanel" aria-selected="false">Large Deletions</button></li><li class="nav-item" role="presentation"><button class="nav-link" id="substitutionsPlotBtn" data-bs-toggle="tab" data-bs-target="#substitutionsPlotPanel" type="button" role="tab" aria-controls="substitutionsPlotPanel" aria-selected="false">Substitutions</button></li></ul><div class="tab-content" id="mutationTabContent"><div class="tab-pane fade show active" id="combinedPlotPanel" role="tabpanel" aria-labelledby="combinedPlotBtn"><div id="combinedPlot" class="mx-auto" style="width:600px;height:400px;">{plots["indel_per_pos"]}</div></div><div class="tab-pane fade" id="insertionsPlotPanel" role="tabpanel" aria-labelledby="insertionsPlotBtn"><div id="insertionsPlot" class="mx-auto" style="width:600px;height:400px;">{plots["insertion_len"]}</div></div><div class="tab-pane fade" id="deletionsPlotPanel" role="tabpanel" aria-labelledby="deletionsPlotBtn"><div id="deletionsPlot" class="mx-auto" style="width:600px;height:400px;">{plots["deletion_len"]}</div></div><div class="tab-pane fade" id="largeDeletionsPlotPanel" role="tabpanel" aria-labelledby="largeDeletionsPlotBtn"><div id="largeDeletionPlot" class="mx-auto" style="width:600px;height:400px;"><img src="results/Largedeletion_tornado.png" alt="Matplotlib Graph" /></div></div><div class="tab-pane fade" id="substitutionsPlotPanel" role="tabpanel" aria-labelledby="substitutionsPlotBtn"><div id="substitutionsPlot" class="mx-auto" style="width:600px;height:400px;">{plots["base_proportion"]}</div></div></div></div></div>"""
 	full_html += f"""<div class="container container-narrow"><h2 class="h5">Allele plot</h2><div class="allelechart-container"><div id="allelePlot"><img src="results/allel_plot.png" alt="Matplotlib Graph" style="max-width:100%; height:auto; display:block; margin:auto;"/></div></div></div></div>"""
 

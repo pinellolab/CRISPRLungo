@@ -1,0 +1,27 @@
+Category	Count	Percent_of_analysed
+Precise_PA	79	1.72
+Flap_install_wo_indels	160	3.48
+Flap_integration_wDel	59	1.28
+Flap_integration_wIns	49	1.07
+Flap_install_with_Large_deletion	4	0.09
+Large_deletion	2	0.04
+Unedited	4238	92.21
+Indel_at_nick_site	3	0.07
+Others	2	0.04
+Not_analysed	0	0.00
+#analysed_reads	4596	
+#reads_with_a_breakpoint_within_2bp_of_a_window_edge	120	
+
+Flap_pattern	Count	Percent_of_analysed
+full_donor	83	1.81
+dual_flap	225	4.90
+5p_flap	25	0.54
+3p_flap	20	0.44
+none	4243	92.32
+
+Best_reference	Count
+WT	4243
+PA	83
+DUAL	225
+F5	25
+F3	20

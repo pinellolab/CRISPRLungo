@@ -194,11 +194,11 @@ function softClipped(alignOutput, n) {
     var cigarLastLen = parseInt(cigar[cigar.length - 1].slice(0, -1));
 
     var check = false;
-    if (cigar[0].slice(-1) == 'S' && cigarFirstLen > 100) {
+    if (cigar[0].slice(-1) == 'S' && cigarFirstLen > SA_LEN_THRESHOLD) {  // 20261111_options
       writeLines.push('>' + queryName + '\n' + line[9].slice(0, cigarFirstLen) + '\n');
       check = true;
     }
-    if (cigar[cigar.length - 1].slice(-1) == 'S' && cigarLastLen > 100) {
+    if (cigar[cigar.length - 1].slice(-1) == 'S' && cigarLastLen > SA_LEN_THRESHOLD) {  // 20261111_options
       writeLines.push('>' + queryName + '\n' + line[9].slice(-cigarLastLen,) + '\n');
       check = true;
     }
@@ -226,9 +226,12 @@ function getQueryAlignmentSequence(querySequence, cigar) {
   return querySequence.slice(st, ed);
 }
 
+var SA_LEN_THRESHOLD = 100;  // 20261111_options
+
 self.onmessage = async function (event) {
 
-  const { fastqFile, reference, longjoinBandWidth, chainingBandWidth, fileType } = event.data;
+  const { fastqFile, reference, longjoinBandWidth, chainingBandWidth, fileType, extraOpt, saLenThreshold } = event.data;  // 20261111_options
+  if (saLenThreshold) SA_LEN_THRESHOLD = Number(saLenThreshold);  // 20261111_options
 
 
   if (fileType == "file") {
@@ -288,7 +291,7 @@ self.onmessage = async function (event) {
         }]);
       }
 
-      const command = `minimap2 -ax map-ont -z 100 -p 0.5 reference.fa input.fa -r ` + chainingBandWidth + ',' + longjoinBandWidth;
+      const command = `minimap2 -ax map-ont -z 100 -p 0.5 reference.fa input.fa -r ` + chainingBandWidth + ',' + longjoinBandWidth + (extraOpt ? ' ' + extraOpt : '');  // 20261111_options
       var output = await CLI.exec(command);
 
       [checkSA, readOut, writeLines, unmappedInPass] = softClipped(output, n);

@@ -70,9 +70,12 @@ def main():
         additional_analysis_cateogry = {}
 
         if input_file[input_file.rfind('.')+1:].upper() in ['FASTA', 'FNA', 'FA']:
-            create_dir(analysis_res_dir + '/custom_results/align')
-            run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', args.induced_sequence_path,  f'{analysis_res_dir}/custom_results/align/induced_mutation_reference.sam', longjoin_bandwidth, chaining_bandwidth, 1, len_cutoff=args.align_sa_len_threshold)
-            induced_mutations, induced_mutation_str = mutation_analysis.get_induced_mutation(output_dir + '/induced_mutation_reference.sam', ref_file, cv_pos, cv_pos_2, args.window, window_between, range_align_end)
+            # Never finished: this branch reads names that do not exist in this
+            # module (output_dir, ref_file, window_between, range_align_end,
+            # cv_pos_2) and would raise NameError. An allele FASTA belongs on -r,
+            # which is implemented, so say that instead of crashing.  #20261111_compat
+            log.error('-i takes a category file. For an allele reference FASTA use -r.')
+            sys.exit()
         else:
             with open(input_file) as f:
                 mut_type = False
@@ -170,8 +173,8 @@ def main():
                 chain = longjoin
             else:
                 chain = 500
-            run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', f'{analysis_res_dir}/custom_results/align/{read_id}.fasta',  f'{analysis_res_dir}/custom_results/align/{read_id}.sam', longjoin, chain, 1, len_cutoff=100)
-            mutations, mutation_str = mutation_analysis.get_induced_mutation(f'{analysis_res_dir}/custom_results/align/{read_id}.sam', f'{analysis_res_dir}/ref_seq/ref_wo_umi.fasta', cv_pos, False, window, False, 100, largedel_cutlen, largeins_cutlen, full_window=True)
+            run_triple_minimap2(f'{analysis_res_dir}/ref_seq/ref_wo_umi.mmi', f'{analysis_res_dir}/custom_results/align/{read_id}.fasta',  f'{analysis_res_dir}/custom_results/align/{read_id}.sam', longjoin, chain, 1, args.minimap2_opt, len_cutoff=100, fasta_check=True)  #20261111_compat
+            mutations, mutation_str, _anchor = mutation_analysis.get_induced_mutation(f'{analysis_res_dir}/custom_results/align/{read_id}.sam', f'{analysis_res_dir}/ref_seq/ref_wo_umi.fasta', cv_pos, False, window, False, 100, largedel_cutlen, largeins_cutlen, full_window=True)  #20261111_compat
 
             mutation_side = [[],[]]
 
@@ -319,6 +322,7 @@ def main():
 
     parser.add_argument('--min_read_cnt', type=int, default=0, help='After counting based on mutation pattern, reads with counts less than the value are removed')
     parser.add_argument('--min_read_freq', type=float, default=0, help='After counting based on mutation pattern, reads with frequency less than the value are removed')
+    parser.add_argument('--minimap2_opt', type=str, default='', help='Additional options passed to minimap2')  #20261111_compat
     parser.add_argument('--allele_plot_window', type=int, default=20, help='Window for allele plot, [default: window + 10]')
     parser.add_argument('--show_all_between_allele', action='store_true', help='Draw all sequences between two targets in an allele plot')
     parser.add_argument('--remove_large_mutations_in_plot', type=int, default=-1, help="Remove reads with large deletions in allele plot. Set to a number (>= 100) to remove deletions >= that length; default -1 disables filtering.")  #20261010_issue #3

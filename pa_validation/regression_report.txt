@@ -1,0 +1,36 @@
+Backward-compatibility check for the PA patch (20261110_git)
+============================================================
+Baseline : 20261110_git HEAD e31ea36, unmodified
+Patched  : the same tree plus src/CRISPRlungo_pa.py and the tagged #20261111_pa lines
+Both run with the same command, same -t, PA options absent.
+
+SV_size simulation benchmark
+  command: CRISPRlungo ref/<s>.fasta simulation/fix_<s>.fastq out/<s> <spacer> \
+           -t 4 --integration_file insert.fasta --window 10
+  (as in Revision/SV_size/run_lungo.py; that harness used -t 10, which does not
+   change the result but was reduced here)
+
+  sample          read_classification  mutation_patter_count  mutation_summary_count  preprocess_count  Allele_table
+  BCL11A_3kb      identical            identical              identical               identical         identical
+  TRAC1_3kb       identical            identical              identical               identical         identical
+  BCL11A_10kb     identical            identical              identical               identical         identical
+
+  compare.py (the SV_size detection-rate summary) run on the patched output:
+  BCL11A_3kb, TRAC1_3kb, BCL11A_10kb  ->  byte-identical to the stored summary_v2/*.txt,
+  which were produced by the v0.2 tree. So the patched 20261110 tree reproduces the
+  published SV_size numbers exactly.
+
+Yanhua amplicon data (two targets, control, induced sequence, integration file)
+  read_classification.txt      identical
+  mutation_patter_count.txt    identical
+  mutation_summary_count.txt   identical
+  preprocess_count.txt         identical
+  mutation_pattern_p_values.txt identical
+  Allele_table.txt             identical
+  align/*.sam                  identical apart from the @PG line, which records the output path
+  input_summary.txt            the "# Options" block is identical, including its column
+                               padding: the pa_* options are left out of that block when
+                               --pa_donor is absent, which is what keeps it byte-stable
+
+Not covered: PD1_3kb / PD1_10kb / TRAC1_10kb / BCL11A_7kb were not re-run (same code paths
+as the three above), and the UMI path was not exercised.

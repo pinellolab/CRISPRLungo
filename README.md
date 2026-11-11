@@ -103,6 +103,39 @@ CRISPRlungo --umi PD1_umi.fasta --control Nanopore_umi_Run_test_control_wo_chi.f
 
 ---
 
+## Prime assembly (PA)
+
+For out-out amplicons from prime assembly, add `--pa_donor`. CRISPRLungo then builds the
+four edited alleles itself from the reference, the two cleavage sites and the donor -
+precise PA, dual flap without donor, 5' flap only, 3' flap only - aligns every read against
+all five, picks the allele that explains the read best, and classifies the read from the
+mutations around that allele's cleavage, flap and fragment-junction positions.
+
+```bash
+CRISPRlungo reference.fasta reads.fastq output_dir TARGET1 \
+    --additional_target TARGET2 --control control.fastq \
+    --pa_donor donor.fasta
+```
+
+* --pa_donor : donor FASTA. Several records are read as the fragments of one assembly, in order, and the joins between them become extra classification sites.
+* --pa_flap_len : pegRNA 3' extension length, default 32. Give two values separated by a comma when the two targets write flaps of different length, in the order `target,additional_target` (e.g. `--pa_flap_len 32,25`).
+* --pa_window : window used by the internal PA analyses, default 2.
+* --pa_site_window : half-width of the windows used to classify a read, default 1.
+* --pa_reference : supply the precise-PA allele instead of letting it be derived.
+
+Outcome categories follow Levesque et al., Nature 2026: Precise_PA, Flap_install_wo_indels,
+Flap_integration_wDel, Flap_integration_wIns, Flap_install_with_Large_deletion,
+Large_deletion, Unedited, Indel_at_nick_site, Others.
+
+Results are written to `output_dir/pa_results/` (pa_outcome_count.txt,
+pa_read_classification.txt, pa_coordinates.txt, the five allele FASTAs) and alignments to
+`output_dir/pa_align/`. Nothing in the normal output changes, and without --pa_donor
+nothing in this section runs.
+
+`CRISPRlungoPA <run_dir> --pa_donor donor.fasta` runs the same step on a finished run.
+
+---
+
 ## Paramters
 * --umi : Enable UMI mode
 * --control : Control FASTQ for background error filtering

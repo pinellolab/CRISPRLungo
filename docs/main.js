@@ -56,6 +56,9 @@ function main() {
     largeDelLen = Number(document.getElementById("largeDeletionLen").value);
     wholeWindow = document.querySelector('input[name="wholeWindow"]:checked').value === 'true' ? 1 : 0;
 
+    // 20261111_options: everything in the Detailed options panel and the PA card.
+    if (typeof applyAdvancedOptions === 'function' && applyAdvancedOptions() === false) return;
+
     if (document.getElementById("controlFile").files.length == 0) {
         controlFile = false;
     } else {

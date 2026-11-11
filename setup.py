@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='CRISPRlungo',
-    version='0.3',
+    version='1.1.0',
     package_dir={'': 'src'},      
     packages=find_packages(where='src'),
     include_package_data=True,
@@ -15,6 +15,7 @@ setup(
 		'CRISPRlungo_minimap', 
 		'CRISPRlungo_single_map',
         'CRISPRlungo_mutation_analysis',
+        'CRISPRlungo_pa',  #20261111_pa
         'CRISPRlungoAllele',
         'CRISPRlungoBatch'],   
     package_data={
@@ -31,7 +32,8 @@ setup(
         'console_scripts': [
             'CRISPRlungo = CRISPRlungo:main',
             'CRISPRlungoAllele = CRISPRlungoAllele:main',
-            'CRISPRlungoBatch = CRISPRlungoBatch:main'
+            'CRISPRlungoBatch = CRISPRlungoBatch:main',  #20261111_pa
+            'CRISPRlungoPA = CRISPRlungo_pa:cli'  #20261111_pa
         ],
     },
     

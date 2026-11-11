@@ -31,6 +31,19 @@ async function runAlignDesired() {
   document.getElementById("progressPage").classList.add("active");
   document.body.style.backgroundColor = "#fdfdfd";
 
+  // 20261111_progress
+  if (window.lungoProgress) {
+    var steps = [{ id: 'align', label: 'Aligning reads to the reference' },
+                 { id: 'analyse', label: 'Analysing mutations' }];
+    if (window.paEnabled) {
+      steps.push({ id: 'pa', label: 'Prime assembly: classifying against five alleles' });
+    }
+    steps.push({ id: 'draw', label: 'Building the report' });
+    window.lungoProgress.init(steps);
+    window.lungoProgress.start('align');
+    window.lungoProgress.say('Reading the FASTQ file ...');
+  }
+
 
   if (desiredSeq !== "") {
 
@@ -40,7 +53,9 @@ async function runAlignDesired() {
       reference: reference,
       longjoinBandWidth: longjoinBandWidth,
       chainingBandWidth: chainingBandWidth,
-      fileType: "String"
+      fileType: "String",
+      extraOpt: window.minimap2Opt,  // 20261111_options
+      saLenThreshold: window.alignSaLenThreshold  // 20261111_options
     });
 
     const desiredPromise = new Promise((resolve, reject) => {
@@ -85,7 +100,9 @@ async function runAlignFiles() {
     reference: reference,
     longjoinBandWidth: longjoinBandWidth,
     chainingBandWidth: chainingBandWidth,
-    fileType: "file"
+    fileType: "file",
+    extraOpt: window.minimap2Opt,  // 20261111_options
+    saLenThreshold: window.alignSaLenThreshold  // 20261111_options
   });
 
   var progress_max = 1;
@@ -97,7 +114,9 @@ async function runAlignFiles() {
       reference: reference,
       longjoinBandWidth: longjoinBandWidth,
       chainingBandWidth: chainingBandWidth,
-      fileType: "file"
+      fileType: "file",
+      extraOpt: window.minimap2Opt,  // 20261111_options
+      saLenThreshold: window.alignSaLenThreshold  // 20261111_options
     });
     progress_max = 0.5;
   }
@@ -113,10 +132,12 @@ async function runAlignFiles() {
       } else {
         if (event.data.type === 0) {
           statusElem.innerHTML = "Treated file has " + event.data.fileLen + " lines";
+          if (window.lungoProgress) window.lungoProgress.detail('align',  // 20261111_progress
+            'treated ' + Math.round(event.data.fileLen / 4).toLocaleString() + ' reads');
         } else if (event.data.type === 1) {
           alignProgressTreat = event.data.progress;
-          progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
-          progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
+          if (window.lungoProgress) window.lungoProgress.bar(  // 20261111_progress
+            (alignProgressControl + alignProgressTreat) * progress_max);
           console.log("Mapping result:", event.data.stdout);
         } else if (event.data.type === 2) {
           treatedInputReadCount = event.data.inputReadCount;
@@ -136,10 +157,12 @@ async function runAlignFiles() {
         } else {
           if (event.data.type === 0) {
             statusElem.innerHTML = "Control file has " + event.data.fileLen + " lines";
+            if (window.lungoProgress) window.lungoProgress.detail('align',  // 20261111_progress
+              'control ' + Math.round(event.data.fileLen / 4).toLocaleString() + ' reads');
           } else if (event.data.type === 1) {
             alignProgressControl = event.data.progress;
-            progressBarUpdate.style.width = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
-            progressBarUpdate.textContent = ((alignProgressControl + alignProgressTreat) * progress_max).toFixed(1) + '%';
+            if (window.lungoProgress) window.lungoProgress.bar(  // 20261111_progress
+              (alignProgressControl + alignProgressTreat) * progress_max);
           } else if (event.data.type === 2) {
             controlInputReadCount = event.data.inputReadCount;
             controlUnmappedCount = event.data.unmappedCount;
@@ -185,8 +208,11 @@ function downloadText(variable, filename = "data.txt") {
 async function runMainAlgorithm() {
 
   const mainWorker = new Worker('lungo_worker.js', { type: 'module' });
-  document.getElementById("progress_1").innerHTML =
-    '<i class="bi bi-caret-right-fill"></i> Analyzing mutations ... <i class="bi bi-caret-left-fill"></i>';
+  if (window.lungoProgress) {  // 20261111_progress
+    window.lungoProgress.done('align');
+    window.lungoProgress.start('analyse');
+    window.lungoProgress.say('Comparing every read with the reference ...');
+  }
 
   mainWorker.postMessage({
     controlSamString: controlAlignSam.join('\n'),
@@ -199,8 +225,8 @@ async function runMainAlgorithm() {
     wholeWindow: wholeWindow,
     filter1: true,
     windowFilter: true,
-    alpha: 0.05,
-    length_min: 10
+    alpha: (typeof window.mutAllowance === 'number' ? window.mutAllowance : 0.05),  // 20261111_options
+    length_min: (typeof window.lengthMin === 'number' ? window.lengthMin : 10)  // 20261111_options
   });
 
   mainWorker.onmessage = (event) => {
@@ -236,8 +262,7 @@ async function confirmInsertion() {
       console.error("Stack:", event.data.stack);
     } else if (event.data.type == 1) {
       alignProgressControl = event.data.progress;
-      progressBarUpdate.style.width = (alignProgressControl).toFixed(1) + '%';
-      progressBarUpdate.textContent = (alignProgressControl).toFixed(1) + '%';
+      if (window.lungoProgress) window.lungoProgress.bar(alignProgressControl);  // 20261111_progress
     } else if (event.data.type == 2) {
       mainResult.treated_read_to_mut = event.data.result
       filterMutations();
@@ -315,6 +340,8 @@ function filterMutations() {
   }
 
   filteredTreatedReads = {};
+  window.lungoReadMutations = {};  // 20261111_alignview
+  window.lungoReadAlleleKey = {};  // 20261111_pa
   var liens_res = [];
   var filteredMutStr = '';
   var inducedInWindow = mainResult.induced_mutations.filter(function (m) {
@@ -328,7 +355,7 @@ function filterMutations() {
     cnt = 1
 
     for (i of val[1][0]) {
-      if (filteredSigMut.includes(i)) {
+      if (window.useAllMutations || filteredSigMut.includes(i)) {  // 20261111_options
         if (i.includes('Del')) {
           if (Number(i.split('_')[2]) > largeDelLen) {
             i = i.replace('Del', 'LargeDel');
@@ -360,6 +387,9 @@ function filterMutations() {
 
 
     liens_res.push(val[0] + ': ' + filteredMutStr);
+    // 20261111_alignview: the alignment view draws only the mutations that
+    // survived filtering, so it needs them per read.
+    window.lungoReadMutations[val[0]] = filteredMutStr;
 
     if (filteredMutStr == "") {
       filteredMutStr = "WT";
@@ -414,6 +444,7 @@ function filterMutations() {
     }
 
     filteredTreatedReads[filteredMutStr] = (filteredTreatedReads[filteredMutStr] || 0) + cnt;
+    window.lungoReadAlleleKey[val[0]] = filteredMutStr;  // 20261111_pa
 
   }
 
@@ -457,12 +488,63 @@ function filterMutations() {
     delPosList[i] = (delPosList[i] * 100 / all_cnt).toFixed(2);
   }
 
+  // 20261111_pa: with PA on, the results page is shown once, finished. Showing it
+  // after the run and then swapping the table, the pies and the allele labels
+  // under the reader a minute later is what made it look like a second load, so
+  // PA is computed while the progress page is still up and the whole report is
+  // drawn from its result in one go.
+  if (window.paEnabled && typeof runPaAnalysis === 'function') {
+    if (window.lungoProgress) {
+      window.lungoProgress.done('analyse');
+      window.lungoProgress.start('pa');
+    }
+    runPaAnalysis({ defer: true }).then(function () {
+      showResultsPage();
+    }).catch(function (e) {
+      console.error('PA analysis:', e);
+      if (window.lungoProgress) window.lungoProgress.fail('pa', 'failed, showing the standard report');
+      showResultsPage();
+    });
+    return;
+  }
+
+  if (window.lungoProgress) window.lungoProgress.done('analyse');
+  showResultsPage();
+}
+
+// 20261111_progress / 20261111_pa
+function showResultsPage() {
+  if (window.lungoProgress) {
+    window.lungoProgress.start('draw');
+    window.lungoProgress.say('Drawing the report ...');
+  }
+
   document.getElementById("progressPage").classList.remove("active");
   document.getElementById("resultsPage").classList.add("active");
   document.body.style.backgroundColor = "#ffffff";
 
+  // the allele-plot row labels have to exist before the plot is drawn, or the
+  // plot would have to be thrown away and drawn again
+  if (window.paResult && typeof applyPaAlleleLabels === 'function') {
+    try { applyPaAlleleLabels(); } catch (e) { console.error('PA allele labels:', e); }
+  }
+
   runVisualization()
 
+  // 20261111_pa: replaces the outcome table and the pie charts with the PA ones
+  if (window.paResult && typeof renderPaResult === 'function') {
+    try { renderPaResult(); } catch (e) { console.error('PA result:', e); }
+  }
+  // 20261111_alignview
+  if (typeof renderAlignmentView === 'function') {
+    try { renderAlignmentView(); } catch (e) { console.error('alignment view:', e); }
+  }
+  // 20261111_cli
+  if (typeof renderCliCommand === 'function') {
+    try { renderCliCommand(); } catch (e) { console.error('cli command:', e); }
+  }
+
+  if (window.lungoProgress) { window.lungoProgress.done('draw'); window.lungoProgress.finish(); }
 }
 
 
@@ -643,7 +725,7 @@ function drawAllelePlot() {
   }
 
 
-  function drawLine(mutList, read, per) {
+  function drawLine(mutList, read, per, paLabel) {  // 20261111_pa
     var aligned = reference.split('');
     var checkMiddleLD = false;
     var checkMiddleInv = false;
@@ -894,7 +976,15 @@ function drawAllelePlot() {
           .attr("class", "cell-text")
           .attr("text-anchor", "left")
           .attr("dominant-baseline", "left")
-          .text(per + ' % (' + read + ' reads)');
+          .call(function (t) {  // 20261111_pa
+            t.append('tspan').text(per + ' % (' + read + ' reads)');
+            // the PA category gets its own tspan so it reads as a label on the
+            // allele rather than as part of the count
+            if (paLabel) {
+              t.append('tspan').attr('dx', 10).attr('fill', '#2a5db0')
+                .attr('font-weight', '600').text(paLabel);
+            }
+          });
       }
     } else {
       xPos = drawD3(drawInfo_1, 0, 1);
@@ -907,7 +997,15 @@ function drawAllelePlot() {
           .attr("class", "cell-text")
           .attr("text-anchor", "left")
           .attr("dominant-baseline", "left")
-          .text(per + ' % (' + read + ' reads)');
+          .call(function (t) {  // 20261111_pa
+            t.append('tspan').text(per + ' % (' + read + ' reads)');
+            // the PA category gets its own tspan so it reads as a label on the
+            // allele rather than as part of the count
+            if (paLabel) {
+              t.append('tspan').attr('dx', 10).attr('fill', '#2a5db0')
+                .attr('font-weight', '600').text(paLabel);
+            }
+          });
       }
     }
   }
@@ -1179,7 +1277,8 @@ function drawAllelePlot() {
     per = read / totalRead * 100;
     per = per.toFixed(2);
     rowG = mainG.append("g").attr("transform", `translate(${margin.left}, ${margin.top + yPos * cellSizeHeight})`);
-    drawLine(mutStr.split(','), read, per);
+    drawLine(mutStr.split(','), read, per,
+      (window.paAlleleCategory && window.paAlleleCategory[mutStr]) || '');  // 20261111_pa
     yPos += 1;
   }
 
@@ -1222,36 +1321,11 @@ function runVisualization() {
 
   //Draw Table
 
-  var table = document.createElement("table");
-  table.className = "table table-bordered table-striped w-100 result-table";
+  // 20261111_options: two stacked tables - read counts first, outcomes second -
+  // so ten outcome columns no longer have to share a grid with the read counts.
+  var usedReads = mainResult.treated_align_cnt.Used;
+  var pct = function (v) { return v + ' (' + (v * 100 / usedReads).toFixed(1) + ' %)'; };
 
-  var headers = ["Total reads", "Unmapped", "Reads used in analysis", "WT", "Ins", "Del", "Sub", "LargeDel", "LargeIns", "Inversion", "Complex", "Precisely induced editing", "Partially induced editing"];
-
-  var colgroup = document.createElement("colgroup");
-  for (let i = 0; i < headers.length; i++) {
-    var col = document.createElement("col");
-    col.style.width = (100 / headers.length) + "%"; // 각 열 너비를 균등하게 분배
-    colgroup.appendChild(col);
-  }
-  table.appendChild(colgroup);
-
-  var thead = document.createElement("thead");
-  thead.className = "thead-light";
-  var headerRow = document.createElement("tr");
-
-  headers.forEach(headerText => {
-    var th = document.createElement("th");
-    th.textContent = headerText;
-    headerRow.appendChild(th);
-  });
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
-
-  var tbody = document.createElement("tbody");
-  var dataRow = document.createElement("tr");
-
-  // treated_align_cnt.All_reads only counts reads present in the alignment
-  // result, i.e. reads that aligned. The worker reports the real input count.
   var totalReads = (treatedInputReadCount === null || treatedInputReadCount === undefined)
     ? mainResult.treated_align_cnt.All_reads
     : treatedInputReadCount;
@@ -1259,31 +1333,21 @@ function runVisualization() {
     ? '-'
     : treatedUnmappedCount + ' (' + (treatedUnmappedCount * 100 / totalReads).toFixed(1) + ' %)';
 
-  var data = [
-    totalReads,
-    unmappedReads,
-    mainResult.treated_align_cnt.Used,
-    mutTypeCnt.WT + ' (' + (mutTypeCnt.WT * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Ins + ' (' + (mutTypeCnt.Ins * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Del + ' (' + (mutTypeCnt.Del * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Sub + ' (' + (mutTypeCnt.Sub * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.LargeDel + ' (' + (mutTypeCnt.LargeDel * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.LargeIns + ' (' + (mutTypeCnt.LargeIns * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Inv + ' (' + (mutTypeCnt.Inv * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Complex + ' (' + (mutTypeCnt.Complex * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Precise + ' (' + (mutTypeCnt.Precise * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)',
-    mutTypeCnt.Partial + ' (' + (mutTypeCnt.Partial * 100 / mainResult.treated_align_cnt.Used).toFixed(1) + ' %)'
-  ];
+  window.lungoReadCounts = {
+    headers: ["Total reads", "Unmapped", "Reads used in analysis"],
+    values: [totalReads, unmappedReads, usedReads]
+  };
 
-  data.forEach(value => {
-    const td = document.createElement("td");
-    td.textContent = value;
-    dataRow.appendChild(td);
-  });
-  tbody.appendChild(dataRow);
-  table.appendChild(tbody);
-
-  document.getElementById("cnt-table-container").appendChild(table);
+  renderCountTable("cnt-table-container", [
+    window.lungoReadCounts,
+    {
+      headers: ["WT", "Ins", "Del", "Sub", "LargeDel", "LargeIns", "Inversion", "Complex",
+                "Precisely induced editing", "Partially induced editing"],
+      values: [pct(mutTypeCnt.WT), pct(mutTypeCnt.Ins), pct(mutTypeCnt.Del), pct(mutTypeCnt.Sub),
+               pct(mutTypeCnt.LargeDel), pct(mutTypeCnt.LargeIns), pct(mutTypeCnt.Inv),
+               pct(mutTypeCnt.Complex), pct(mutTypeCnt.Precise), pct(mutTypeCnt.Partial)]
+    }
+  ]);
 
   // pvalue distribution
   var threshold = Math.log10(0.002);
