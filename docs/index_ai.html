@@ -441,6 +441,7 @@
             <p id="status" class="status-text mt-2 mb-3">Preparing ...</p>
             <div id="progressSteps" class="border-top pt-2"></div>
             <p id="progress_1" class="d-none"></p>
+            <button type="button" class="btn btn-outline-secondary btn-sm mt-3" id="progressBackBtn" style="display:none;" onclick="backToInput()"><i class="bi bi-arrow-left me-1"></i>Back to input</button> <!-- 20261111_worker -->
             <p class="small text-secondary mt-3 mb-0">The whole analysis runs in this browser &mdash; nothing is uploaded. Leaving the page stops it.</p>
           </div>
         </div>
@@ -452,6 +453,7 @@
       <div class="py-3 py-md-4">
         <div class="container container-narrow">
           <div class="d-flex align-items-center gap-2 mb-3 flex-wrap"> <!-- 20261110_export -->
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="backToInputBtn" onclick="backToInput()"><i class="bi bi-arrow-left me-1"></i>Back to input</button> <!-- 20261111_rerun -->
             <button type="button" class="btn btn-outline-primary btn-sm" id="exportResultsBtn" onclick="downloadResultFiles()"><i class="bi bi-file-earmark-zip me-1"></i>Download result files (CLI format)</button> <!-- 20261110_export -->
             <label for="exportRefName" class="form-help m-0">Reference name</label> <!-- 20261110_export -->
             <input type="text" class="form-control form-control-sm" id="exportRefName" value="Ref" style="width:140px;" spellcheck="false" title="Reference name written to the exported files (the FASTA header name the CLI would use)"> <!-- 20261110_export -->

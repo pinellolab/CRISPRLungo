@@ -31,6 +31,10 @@ async function runAlignDesired() {
   document.getElementById("progressPage").classList.add("active");
   document.body.style.backgroundColor = "#fdfdfd";
 
+  // 20261111_rerun: the results page is filled by appending, so a second run has to
+  // start from an empty one or the tables and the allele plot stack up.
+  resetResultsPage();
+
   // 20261111_progress
   if (window.lungoProgress) {
     var steps = [{ id: 'align', label: 'Aligning reads to the reference' },
@@ -230,18 +234,20 @@ async function runMainAlgorithm() {
   });
 
   mainWorker.onmessage = (event) => {
-    if (event.data && event.data.type === 'error') {
-      console.error("Worker에서 에러 발생:", event.data.message);
-      console.error("Stack:", event.data.stack);
-    } else {
-      mainResult = event.data.result
-      console.log("Worker 결과:", event.data);
-      confirmInsertion();
+    // 20261111_worker: a wasm panic used to land in the else branch, so mainResult
+    // stayed undefined and the run carried on until something far away threw. Stop
+    // here and say so instead.
+    if (!event.data || event.data.type === 'error' || !event.data.result) {
+      analysisFailed((event.data && event.data.message) || 'the analysis step returned nothing',
+                     event.data && event.data.stack);
+      return;
     }
+    mainResult = event.data.result;
+    confirmInsertion();
   };
 
   mainWorker.onerror = (event) => {
-    console.error("Worker 에러 발생 (onerror):", event);
+    analysisFailed((event && event.message) || 'the analysis worker stopped');
   };
 }
 
@@ -510,6 +516,49 @@ function filterMutations() {
 
   if (window.lungoProgress) window.lungoProgress.done('analyse');
   showResultsPage();
+}
+
+// 20261111_worker: one place to end a run that cannot finish, so the reader is
+// told rather than left watching a progress bar that will never move.
+function analysisFailed(message, stack) {
+  console.error('CRISPRlungo analysis failed:', message);
+  if (stack) console.error(stack);
+  if (window.lungoProgress) {
+    window.lungoProgress.fail('analyse', 'failed');
+    window.lungoProgress.say('<span class="text-danger">The analysis stopped: '
+      + String(message).replace(/[<>]/g, '') + '</span>'
+      + '<br><span class="small text-secondary">Details are in the browser console. '
+      + 'Use &ldquo;Back to input&rdquo; to change the options and try again.</span>');
+  }
+  var back = document.getElementById('progressBackBtn');
+  if (back) back.style.display = '';
+}
+
+// 20261111_rerun
+function resetResultsPage() {
+  var back = document.getElementById('progressBackBtn');
+  if (back) back.style.display = 'none';
+  ['cnt-table-container', 'allelePlot'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+  ['paHeading', 'alignViewSection', 'cliCommandSection'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  var tab = document.getElementById('mutPiePlotBtn');
+  if (tab) tab.textContent = 'WT vs other';
+}
+
+// 20261111_rerun: back to the form to try other options. Nothing is reloaded, so
+// every field, including the chosen FASTQ files, is still filled in; main() clears
+// the accumulators, so the next run starts from zero rather than adding to this one.
+function backToInput() {
+  document.getElementById("resultsPage").classList.remove("active");
+  document.getElementById("progressPage").classList.remove("active");
+  document.getElementById("inputPage").classList.add("active");
+  document.body.style.backgroundColor = "";
+  window.scrollTo(0, 0);
 }
 
 // 20261111_progress / 20261111_pa

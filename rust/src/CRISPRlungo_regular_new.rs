@@ -368,12 +368,22 @@ fn analyze_sa_reads(
                     ins_end_pos = info[0].1 + 1;
                 }
                 let mut ins_seq = "".to_string();
+                // 20261111_bounds: these indices are derived from two supplementary
+                // alignments of the same read, and nothing guarantees they land
+                // inside it. A read whose segments overlap oddly used to panic with
+                // "byte index N is out of bounds", killing the whole analysis. Clamp
+                // to the read and carry on: the insertion is reported short rather
+                // than the run being lost.
+                let qlen = query_seq.len();
                 if query_seq.contains(&info[0].7) {
-                    let start_idx = (info[0].3 as usize) + 1;
+                    let start_idx = ((info[0].3 as usize) + 1).min(qlen);
                     let diff = (info[0].3 as i32 - info[1].2 as i32).abs() as usize;
                     let overlap = overlap_len as usize;
 
-                    let end_idx = start_idx + diff - 1 + overlap;
+                    let end_idx = (start_idx + diff + overlap)
+                        .saturating_sub(1)
+                        .min(qlen)
+                        .max(start_idx);
 
                     ins_seq = query_seq[start_idx..end_idx].to_string();
                 } else {
@@ -381,9 +391,12 @@ fn analyze_sa_reads(
                     let pos1 = info[1].2 as i32;
                     let overlap = overlap_len as usize;
 
-                    let start_idx = (info[0].3 as usize + 1).saturating_sub(overlap);
+                    let start_idx = (info[0].3 as usize + 1).saturating_sub(overlap).min(qlen);
                     let diff = (pos0 - pos1).abs() as usize;
-                    let end_idx = (info[0].3 as usize) + 1 + diff - 1;
+                    let end_idx = ((info[0].3 as usize) + 1 + diff)
+                        .saturating_sub(1)
+                        .min(qlen)
+                        .max(start_idx);
 
                     ins_seq = reverse_complementary(&query_seq[start_idx..end_idx]);
                 }

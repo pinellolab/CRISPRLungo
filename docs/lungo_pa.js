@@ -71,7 +71,7 @@
     };
     alleles.F5 = { seq: left + f5seq + right, cleavage: [lo, lo + f5], flap: [], junction: [] };
     alleles.F3 = { seq: left + f3seq + right, cleavage: [lo, lo + f3], flap: [], junction: [] };
-    return { alleles: alleles, donor: donor };
+    return { alleles: alleles, donor: donor, flapSeqs: [f5seq, f3seq] };
   }
 
   // The web mutation strings are START_END:TYPE_DETAIL, with Del_N, Ins_SEQ,
@@ -88,9 +88,12 @@
     var rest = detail.slice(kind.length + 1);
     var len;
     if (kind === 'Del' || kind === 'LargeDel') len = Number(rest) || (end - start + 1);
-    else if (kind === 'Ins' || kind === 'LargeIns') len = (rest || '').replace(/_inv$/, '').length;
-    else len = 1;
-    return { start: start, end: end, kind: kind, len: len };
+    var seq = '';
+    if (kind === 'Ins' || kind === 'LargeIns') {
+      seq = (rest || '').replace(/_inv$/, '').toUpperCase();
+      len = seq.length;
+    } else if (kind !== 'Del' && kind !== 'LargeDel') len = 1;
+    return { start: start, end: end, kind: kind, len: len, seq: seq };
   }
 
   function baseReadId(id) {
@@ -178,8 +181,11 @@
       var worker = new Worker('lungo_worker.js', { type: 'module' });
       worker.onmessage = function (e) {
         worker.terminate();
-        if (e.data && e.data.type === 'error') reject(new Error(e.data.message));
-        else resolve(e.data.result);
+        // 20261111_worker: a wasm panic comes back as an error message, and used to
+        // resolve with undefined, which only showed up far downstream
+        if (!e.data || e.data.type === 'error' || !e.data.result) {
+          reject(new Error((e.data && e.data.message) || 'the analysis returned nothing'));
+        } else resolve(e.data.result);
       };
       worker.onerror = function (e) { worker.terminate(); reject(e); };
       worker.postMessage({
@@ -222,7 +228,65 @@
     return table;
   }
 
-  function classify(perRef, alleles, half, largeCut, covered) {
+  // Fraction of other's k-mers present in seq: robust to the indels an ONT read
+  // puts inside an inserted stretch, which a base-by-base comparison is not.
+  function kmerShare(seq, other, k) {
+    k = k || 6;
+    if (!seq || !other || other.length < k) return 0;
+    var pool = {}, i;
+    for (i = 0; i + k <= seq.length; i++) pool[seq.substr(i, k)] = 1;
+    var hits = 0, total = other.length - k + 1;
+    for (i = 0; i < total; i++) if (pool[other.substr(i, k)]) hits++;
+    return hits / total;
+  }
+
+  // "Flap integration without indels" is the flap written at a nick with the rest
+  // of the amplicon intact - not a flap with the sequence between the nicks
+  // removed, which is an integration with a deletion. Against the wild-type allele
+  // that is an insertion at a nick carrying the flap's own sequence, or, when the
+  // flap replaces an equal length, a run of substitutions about as long as a flap.
+  function flapWrittenIn(muts, inWindow, flapSeqs, sites) {
+    var found = false;
+    inWindow.forEach(function (m) {
+      if (found || !(m.kind === 'Ins' || m.kind === 'LargeIns') || !m.seq) return;
+      flapSeqs.forEach(function (f) {
+        // the share is of the FLAP's k-mers, so a short insertion cannot reach the
+        // threshold however lucky it is; the length guard only makes that explicit
+        if (!found && f && m.seq.length >= 0.5 * f.length
+            && kmerShare(m.seq, f) >= 0.35) found = true;
+      });
+    });
+    if (found) return true;
+
+    // the flap replacing an equal length shows up as a dense run of substitutions
+    // over the flap's footprint, which is far wider than the nick window
+    if (sites.length < 2 || flapSeqs.length < 2) return false;
+    var lo = Math.min(sites[0], sites[1]), hi = Math.max(sites[0], sites[1]);
+    var spans = [];
+    if (flapSeqs[0]) spans.push([lo + 1, lo + flapSeqs[0].length]);
+    if (flapSeqs[1]) spans.push([hi - flapSeqs[1].length + 1, hi]);
+    return spans.some(function (sp) {
+      var len = sp[1] - sp[0] + 1;
+      if (len < 8) return false;
+      var subs = 0;
+      muts.forEach(function (m) {
+        if (m.kind === 'Sub' && m.end >= sp[0] && m.start <= sp[1]) subs += m.len;
+      });
+      return subs >= 0.4 * len;
+    });
+  }
+
+  // How much of the donor an allele is missing, so a read assigned to it reports
+  // the deletion its allele already implies rather than 0.
+  function donorMissing(name, donorLen, f5, f3) {
+    if (name === 'DUAL') return Math.max(0, donorLen - f5 - f3);
+    if (name === 'F5') return Math.max(0, donorLen - f5);
+    if (name === 'F3') return Math.max(0, donorLen - f3);
+    return 0;
+  }
+
+  function classify(perRef, alleles, half, largeCut, covered, ctx) {
+    ctx = ctx || { flapSeqs: [], donorLen: 0, f5: 0, f3: 0 };
     var names = Object.keys(perRef);
     if (!names.length) {
       return { category: 'Not_analysed', best: '.', pattern: '.', del: 0, ins: 0, identity: {} };
@@ -257,17 +321,35 @@
       else if (m.kind === 'Ins' || m.kind === 'LargeIns') ins += m.len;
     });
 
+    // 20261111_pa_cat: the dual-flap, 5'- and 3'-flap alleles are the donor with its
+    // body missing, so a read assigned to one of them has lost material even when it
+    // matches that allele perfectly. Both flaps with everything between them gone is
+    // an integration WITH a deletion, not an integration without indels.
+    var missing = donorMissing(best, ctx.donorLen, ctx.f5, ctx.f3);
     var category;
-    if (!inWindow.length) {
-      category = best === 'WT' ? 'Unedited' : (best === 'PA' ? 'Precise_PA' : 'Flap_install_wo_indels');
-    } else if (best === 'WT') {
-      category = largeDel ? 'Large_deletion' : ((del || ins) ? 'Indel_at_nick_site' : 'Others');
+    if (best === 'WT') {
+      if (largeDel) category = 'Large_deletion';
+      else if (flapWrittenIn(perRef[best], inWindow, ctx.flapSeqs, alleles.WT.cleavage)) {
+        if (inWindow.some(function (m) { return m.kind === 'Del' || m.kind === 'LargeDel'; })) {
+          category = 'Flap_integration_wDel';
+        } else if (inWindow.filter(function (m) {
+          return m.kind === 'Ins' || m.kind === 'LargeIns';
+        }).length > 1) {
+          category = 'Flap_integration_wIns';
+        } else category = 'Flap_install_wo_indels';
+      } else if (del || ins) category = 'Indel_at_nick_site';
+      else if (!inWindow.length) category = 'Unedited';
+      else category = 'Others';
     } else if (largeDel) category = 'Flap_install_with_Large_deletion';
-    else if (del > ins) category = 'Flap_integration_wDel';
-    else if (ins > del) category = 'Flap_integration_wIns';
+    // material missing wins over material added: the paper's "integration +
+    // insertion" rows are the complete product plus extra, never a gapped one
+    else if (missing > 0 || del > ins) category = 'Flap_integration_wDel';
+    else if (ins) category = 'Flap_integration_wIns';
+    else if (best === 'PA') category = 'Precise_PA';
     else category = 'Others';
 
-    return { category: category, best: best, pattern: PATTERN_OF_REF[best], del: del, ins: ins, identity: identity };
+    return { category: category, best: best, pattern: PATTERN_OF_REF[best],
+             del: del + missing, ins: ins, identity: identity };
   }
 
   function status(text) {
@@ -315,6 +397,9 @@
       var name = REF_ORDER[i];
       status('PA ' + (i + 1) + '/5: ' + REF_LABEL[name] + ' — aligning ...');
       if (name === 'WT') {
+        if (!window.mainResult) {
+          throw new Error('the main analysis did not finish, so PA has nothing to build on');
+        }
         // The run already analysed this allele. Reusing its result instead of
         // repeating it with the PA window is what keeps "Unedited" here equal to
         // "WT" in the outcome table above.
@@ -349,6 +434,8 @@
       });
     });
 
+    var paCtx = { flapSeqs: built.flapSeqs, donorLen: built.donor.length,
+                  f5: f5, f3: f3 };  // 20261111_pa_cat
     var counts = {}, patterns = {}, chosen = {};
     var readCategory = {};  // 20261111_pa: read id -> category, for the allele plot
     CATEGORIES.forEach(function (c) { counts[c] = 0; });
@@ -360,7 +447,7 @@
       REF_ORDER.forEach(function (n) {
         if (id in tables[n]) { perRef[n] = tables[n][id]; covered[n] = coverage[n][id] || 0; }
       });
-      var r = classify(perRef, alleles, half, largeCut, covered);
+      var r = classify(perRef, alleles, half, largeCut, covered, paCtx);  // 20261111_pa_cat
       readCategory[id] = r.category;  // 20261111_pa
       counts[r.category] = (counts[r.category] || 0) + 1;
       patterns[r.pattern] = (patterns[r.pattern] || 0) + 1;

@@ -158,7 +158,10 @@ def validate(ref_seq, donor, flap_5, flap_3):
 # reading a run back
 
 def parse_mutation_info(text):
-	"""results/read_classification.txt column 3 -> [(start, end, kind, length)]."""
+	"""results/read_classification.txt column 3 -> [(start, end, kind, length, seq)].
+
+	The inserted bases are kept, because what distinguishes a flap written into an
+	otherwise wild-type locus from any other insertion at the nick is its sequence."""
 	out = []
 	if not text or text == 'None':
 		return out
@@ -180,7 +183,8 @@ def parse_mutation_info(text):
 			length = int(pieces[1])
 		except (IndexError, ValueError):
 			length = end - start + 1
-		out.append((start, end, kind, length))
+		seq = pieces[2].upper() if len(pieces) > 2 and kind in ('Ins', 'LargeIns') else ''
+		out.append((start, end, kind, length, seq))
 	return out
 
 
@@ -244,7 +248,7 @@ def window_identity(muts, cleavage):
 	lo, hi = min(cleavage), max(cleavage) + 1
 	span = max(1, hi - lo + 1)
 	sub = ins = dele = 0
-	for start, end, kind, length in muts:
+	for start, end, kind, length in ((m[0], m[1], m[2], m[3]) for m in muts):
 		if end < lo or start > hi:
 			continue
 		if kind == 'Sub':
@@ -258,7 +262,77 @@ def window_identity(muts, cleavage):
 	return (matches / denom) if denom else 0.0
 
 
-def classify_read(per_ref, alleles, half, large_cut, covered=None):
+def kmer_share(seq, other, k=6):
+	"""Fraction of other's k-mers that appear in seq.
+
+	Robust to the indels an ONT read puts inside an inserted stretch, which a
+	position-by-position comparison is not.
+	"""
+	if not seq or not other or len(other) < k:
+		return 0.0
+	pool = {seq[i:i + k] for i in range(len(seq) - k + 1)}
+	hits = sum(1 for i in range(len(other) - k + 1) if other[i:i + k] in pool)
+	return hits / float(len(other) - k + 1)
+
+
+def flap_written_in(muts, in_window, flap_seqs, sites, min_share=0.35):
+	"""Is one of the flaps sitting in this otherwise wild-type locus?
+
+	"Flap integration without indels" in Levesque et al. is the flap written at a
+	nick with the rest of the amplicon intact - not a flap with the sequence
+	between the nicks removed, which is an integration with a deletion.
+
+	Against the wild-type allele it shows up one of two ways. The flap inserts, and
+	the insertion at the nick carries the flap's own sequence; or the flap replaces
+	an equal length, and the bases it replaced come back as a dense run of
+	substitutions over the flap's footprint. The second one is looked for over the
+	whole mutation list rather than the nick window, because the footprint is a flap
+	long and the nick window is a base or two wide.
+	"""
+	for mut in in_window:
+		if mut[2] in ('Ins', 'LargeIns') and mut[4]:
+			for flap in flap_seqs:
+				# the share is of the FLAP's k-mers, so a short insertion cannot
+				# reach the threshold however lucky it is; the length guard only
+				# makes that explicit
+				if len(mut[4]) >= 0.5 * len(flap) and kmer_share(mut[4], flap) >= min_share:
+					return True
+
+	# 5' flap is written 3' of the first nick, 3' flap 5' of the second
+	if len(sites) >= 2 and len(flap_seqs) >= 2:
+		lo, hi = min(sites[0], sites[1]), max(sites[0], sites[1])
+		spans = []
+		if flap_seqs[0]:
+			spans.append((lo + 1, lo + len(flap_seqs[0])))
+		if flap_seqs[1]:
+			spans.append((hi - len(flap_seqs[1]) + 1, hi))
+		for start, end in spans:
+			span_len = end - start + 1
+			if span_len < 8:
+				continue
+			subs = sum(m[3] for m in muts
+					   if m[2] == 'Sub' and m[1] >= start and m[0] <= end)
+			if subs >= 0.4 * span_len:
+				return True
+	return False
+
+
+# How much of the donor an allele is missing, so that a read assigned to it is
+# reported with the deletion its allele already implies rather than with 0.
+def donor_missing(name, donor_len, flap_5, flap_3):
+	if name == 'PA':
+		return 0
+	if name == 'DUAL':
+		return max(0, donor_len - flap_5 - flap_3)
+	if name == 'F5':
+		return max(0, donor_len - flap_5)
+	if name == 'F3':
+		return max(0, donor_len - flap_3)
+	return 0
+
+
+def classify_read(per_ref, alleles, half, large_cut, covered=None,
+				  flap_seqs=(), donor_len=0, flap_5=0, flap_3=0):
 	"""per_ref = {allele name: mutation list}, for the alleles that kept this read."""
 	if not per_ref:
 		return dict(category='Not_analysed', used_ref='.', flap_pattern='.',
@@ -293,20 +367,44 @@ def classify_read(per_ref, alleles, half, large_cut, covered=None):
 	ins_len = sum(m[3] for m in in_window if m[2] in ('Ins', 'LargeIns'))
 	large_del = any(m[2] == 'LargeDel' and m[3] > large_cut for m in in_window)
 
-	if not in_window:
-		category = 'Unedited' if best == 'WT' else (
-			'Precise_PA' if best == 'PA' else 'Flap_install_wo_indels')
-	elif best == 'WT':
-		category = 'Large_deletion' if large_del else (
-			'Indel_at_nick_site' if (del_len or ins_len) else 'Others')
+	# 20261111_pa_cat: the dual-flap, 5'-flap and 3'-flap alleles are the donor with
+	# its body missing, so a read assigned to one of them has lost material even when
+	# it matches that allele perfectly. Both flaps with everything between them gone
+	# is an integration WITH a deletion, not an integration without indels.
+	missing = donor_missing(best, donor_len, flap_5, flap_3)
+	structural_del = missing > 0
+
+	if best == 'WT':
+		if large_del:
+			category = 'Large_deletion'
+		elif flap_written_in(muts, in_window, flap_seqs, alleles['WT'][1]['cleavage']):
+			# the flap is in, and the sequence between the nicks is still there
+			if any(m[2] in ('Del', 'LargeDel') for m in in_window):
+				category = 'Flap_integration_wDel'
+			elif len([m for m in in_window if m[2] in ('Ins', 'LargeIns')]) > 1:
+				category = 'Flap_integration_wIns'
+			else:
+				category = 'Flap_install_wo_indels'
+		elif del_len or ins_len:
+			category = 'Indel_at_nick_site'
+		elif not in_window:
+			category = 'Unedited'
+		else:
+			category = 'Others'
 	elif large_del:
 		category = 'Flap_install_with_Large_deletion'
-	elif del_len > ins_len:
+	elif structural_del or del_len > ins_len:
+		# material missing wins over material added: the figure's "integration +
+		# insertion" rows are the complete product plus extra, never a gapped one
 		category = 'Flap_integration_wDel'
-	elif ins_len > del_len:
+	elif ins_len:
 		category = 'Flap_integration_wIns'
+	elif best == 'PA':
+		category = 'Precise_PA'
 	else:
 		category = 'Others'
+
+	del_len += missing
 
 	return dict(category=category, used_ref=best, flap_pattern=PATTERN_OF_REF[best],
 				identity=identity, del_len=del_len, ins_len=ins_len)
@@ -463,7 +561,7 @@ def run(args, output_dir, ref_seq, ref_name, cv_pos, cv_pos_2, original_target,
 			log.error('--pa_reference must contain exactly one sequence.')
 		pa_override = records[0][1]
 
-	alleles, donor, _flap_seqs = build_alleles(ref_seq, cv_pos, cv_pos_2, donor_records,
+	alleles, donor, flap_seqs = build_alleles(ref_seq, cv_pos, cv_pos_2, donor_records,
 											   flap_5, flap_3, pa_override)
 	validate(ref_seq, donor, flap_5, flap_3)
 
@@ -540,7 +638,9 @@ def run(args, output_dir, ref_seq, ref_name, cv_pos, cv_pos_2, original_target,
 		for rid in order:
 			per_ref = {n: tables[n][rid] for n in REF_ORDER if rid in tables[n]}
 			covered = {n: coverage[n][rid] for n in per_ref if rid in coverage.get(n, {})}
-			result = classify_read(per_ref, alleles, half, large_cut, covered)
+			result = classify_read(per_ref, alleles, half, large_cut, covered,
+								   flap_seqs=flap_seqs, donor_len=len(donor),
+								   flap_5=flap_5, flap_3=flap_3)  #20261111_pa_cat
 			counts[result['category']] += 1
 			patterns[result['flap_pattern']] += 1
 			chosen[result['used_ref']] += 1

@@ -121,6 +121,27 @@ function main() {
         chainingBandWidth = longjoinBandWidth;
     }
 
+    // 20261111_rerun: a run can now be started again from the results page without
+    // reloading, so every accumulator has to start empty rather than carry the
+    // previous run's counts.
+    mutTypeCnt = { "WT": 0, "Ins": 0, "Del": 0, "Sub": 0, "LargeIns": 0, "LargeDel": 0,
+                   "Inv": 0, "Complex": 0, "Precise": 0, "Partial": 0 };
+    subPlotList = [];
+    insPlotList = [[], [], []];
+    delPlotList = [[], [], []];
+    subPosList = [];
+    insPosList = [];
+    delPosList = [];
+    subProportionList = [[], [], [], []];
+    desiredAlignSam = "";
+    treatedAlignSam = undefined;
+    controlAlignSam = undefined;
+    if (typeof drawInsAllelePlot !== 'undefined') drawInsAllelePlot = [];
+    window.paResult = null;
+    window.paReadCategory = null;
+    window.paAlignRefs = null;
+    window.paAlleleCategory = null;
+
     for (i = 0; i < reference.length; i++) {
         subPosList.push(0);
         insPosList.push(0);
