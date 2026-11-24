@@ -348,6 +348,7 @@ function filterMutations() {
   filteredTreatedReads = {};
   window.lungoReadMutations = {};  // 20261111_alignview
   window.lungoReadAlleleKey = {};  // 20261111_pa
+  window.lungoReadMutType = {};  // 20261124_category_plot
   var liens_res = [];
   var filteredMutStr = '';
   var inducedInWindow = mainResult.induced_mutations.filter(function (m) {
@@ -400,6 +401,7 @@ function filterMutations() {
     if (filteredMutStr == "") {
       filteredMutStr = "WT";
       mutTypeCnt["WT"] += cnt;
+      window.lungoReadMutType[val[0]] = "WT";  // 20261124_category_plot
     } else {
       var mutType = "";
       if (val[1][2][0] === true && val[1][2][1].includes('inversion')) {
@@ -426,6 +428,7 @@ function filterMutations() {
         }
       }
       mutTypeCnt[mutType] += cnt;
+      window.lungoReadMutType[val[0]] = mutType;  // 20261124_category_plot
       mainResult.treated_read_to_mut[val[0]].push(filteredMutStr);
       mainResult.treated_read_to_mut[val[0]].push(mutType);
       filteredMutStr = filteredMutStr.slice(0, -1); //+ "_" + mutType;
@@ -538,16 +541,18 @@ function analysisFailed(message, stack) {
 function resetResultsPage() {
   var back = document.getElementById('progressBackBtn');
   if (back) back.style.display = 'none';
-  ['cnt-table-container', 'allelePlot'].forEach(function (id) {
+  ['cnt-table-container', 'allelePlot', 'categoryAllelePlot'].forEach(function (id) {  // 20261124_category_plot
     var el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
-  ['paHeading', 'alignViewSection', 'cliCommandSection'].forEach(function (id) {
+  ['paHeading', 'alignViewSection', 'cliCommandSection', 'categoryPlotSection'].forEach(function (id) {  // 20261124_category_plot
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
   var tab = document.getElementById('mutPiePlotBtn');
   if (tab) tab.textContent = 'WT vs other';
+  var alleleEl = document.getElementById('allelePlot');  // 20261124_category_plot
+  if (alleleEl) alleleEl.style.display = '';  // 20261124_category_plot
 }
 
 // 20261111_rerun: back to the form to try other options. Nothing is reloaded, so
@@ -584,6 +589,10 @@ function showResultsPage() {
   if (window.paResult && typeof renderPaResult === 'function') {
     try { renderPaResult(); } catch (e) { console.error('PA result:', e); }
   }
+  // 20261124_category_plot
+  if (typeof renderCategoryAllelePlots === 'function') {
+    try { renderCategoryAllelePlots(); } catch (e) { console.error('category allele plots:', e); }  // 20261124_category_plot
+  }  // 20261124_category_plot
   // 20261111_alignview
   if (typeof renderAlignmentView === 'function') {
     try { renderAlignmentView(); } catch (e) { console.error('alignment view:', e); }
@@ -597,14 +606,14 @@ function showResultsPage() {
 }
 
 
-function drawAllelePlot(dataOverride, containerId) {
-
+function drawAllelePlot(dataOverride, containerId, opts) {  // 20261124_category_plot
   // dataOverride: optional {alleleString: count} subset (used by the AI custom
   // classification feature); containerId: optional CSS selector for the target.
   // When omitted, behaves exactly as before (full results into #allelePlot).
   var _alleleData = dataOverride || filteredTreatedReads;
   var _alleleContainer = containerId || "#allelePlot";
-  numRows = 10;              // reset so repeated calls (per category) recompute cleanly
+  var _opts = opts || {};  // 20261124_category_plot
+  var plotRows = _opts.rows || numRows;  // 20261124_category_plot
   drawInsAllelePlot = [];    // clear insertion boxes accumulated from a previous draw
 
   var countSum = Object.values(_alleleData).reduce((acc, cur) => acc + cur, 0);
@@ -1069,8 +1078,8 @@ function drawAllelePlot(dataOverride, containerId) {
 
 
   windowStart = cleavagePos - plotWindow;
-  if (numRows > Object.values(_alleleData).length) {
-    numRows = Object.values(_alleleData).length;
+  if (plotRows > Object.values(_alleleData).length) {  // 20261124_category_plot
+    plotRows = Object.values(_alleleData).length;  // 20261124_category_plot
   }
   if (showAllBetweenAllele) {
     windowEnd = cleavagePos2 + plotWindow;
@@ -1106,7 +1115,8 @@ function drawAllelePlot(dataOverride, containerId) {
 
 
   var width = parseInt(d3.select(_alleleContainer).style("width"));
-  height = cellSizeHeight * (numRows + 5) + margin.top + margin.bottom;
+  if (!(width > 0)) width = 960;  // 20261124_category_plot
+  height = cellSizeHeight * (plotRows + 5) + margin.top + margin.bottom;  // 20261124_category_plot
 
   var initialScale = width / plotWidth * 0.6;
   var translateX = (width - width * initialScale) - 100;
@@ -1326,7 +1336,7 @@ function drawAllelePlot(dataOverride, containerId) {
   const totalRead = Object.values(_alleleData).reduce((acc, cur) => acc + cur, 0);
   var n = 0;
   for (mutStr in _alleleData) {
-    if (n == numRows) {
+    if (n == plotRows) {  // 20261124_category_plot
       break
     }
     n++;
@@ -1335,7 +1345,7 @@ function drawAllelePlot(dataOverride, containerId) {
     per = per.toFixed(2);
     rowG = mainG.append("g").attr("transform", `translate(${margin.left}, ${margin.top + yPos * cellSizeHeight})`);
     drawLine(mutStr.split(','), read, per,
-      (window.paAlleleCategory && window.paAlleleCategory[mutStr]) || '');  // 20261111_pa
+      ((_opts.labels || window.paAlleleCategory || {})[mutStr]) || '');  // 20261124_category_plot
     yPos += 1;
   }
 
@@ -1343,7 +1353,7 @@ function drawAllelePlot(dataOverride, containerId) {
     .attr("x1", cellSizeWidth * (+plotWindow + 10) + margin.left)
     .attr("y1", 0 + margin.top)
     .attr("x2", cellSizeWidth * (plotWindow + 10) + margin.left)
-    .attr("y2", cellSizeHeight * (numRows + 6) + margin.top)
+    .attr("y2", cellSizeHeight * (plotRows + 6) + margin.top)  // 20261124_category_plot
     .attr("stroke", "black")
     .attr("stroke-width", 2)
     .attr("stroke-dasharray", "5,5");
@@ -1353,7 +1363,7 @@ function drawAllelePlot(dataOverride, containerId) {
       .attr("x1", cellSizeWidth * (3 * plotWindow + 10 + 10 + 1) + margin.left)
       .attr("y1", 0 + margin.top)
       .attr("x2", cellSizeWidth * (3 * plotWindow + 10 + 10 + 1) + margin.left)
-      .attr("y2", cellSizeHeight * (numRows + 6) + margin.top)
+      .attr("y2", cellSizeHeight * (plotRows + 6) + margin.top)  // 20261124_category_plot
       .attr("stroke", "red")
       .attr("stroke-width", 2)
       .attr("stroke-dasharray", "5,5");

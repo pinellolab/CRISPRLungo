@@ -732,6 +732,11 @@ async function lxPlotFiles(zip) {
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     zip.file('plots/' + s[1], '<?xml version="1.0" encoding="UTF-8"?>\n' + clone.outerHTML);
   });
+  if (typeof window.lungoCategoryPlotExport === 'function') {  // 20261124_category_plot
+    try {  // 20261124_category_plot
+      window.lungoCategoryPlotExport().forEach(function (f) { zip.file('plots/allele_plot_by_category/' + f[0], f[1]); });  // 20261124_category_plot
+    } catch (err) { console.warn('category allele plot export failed', err); }  // 20261124_category_plot
+  }  // 20261124_category_plot
 }
 
 var LX_README = [

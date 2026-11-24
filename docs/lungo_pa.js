@@ -370,7 +370,8 @@
     parseFlapLen: parseFlapLen, buildAlleles: buildAlleles, parseMut: parseMut,
     windowIdentity: windowIdentity, coverageFromSam: coverageFromSam,
     classify: classify, baseReadId: baseReadId, REF_ORDER: REF_ORDER,
-    render: function () { return render.apply(null, arguments); }, CATEGORIES: CATEGORIES
+    render: function () { return render.apply(null, arguments); }, CATEGORIES: CATEGORIES,
+    DISPLAY_ORDER: DISPLAY_ORDER, DISPLAY_NAME: DISPLAY_NAME  // 20261124_category_plot
   };
 
   window.runPaAnalysis = async function runPaAnalysis(opts) {
