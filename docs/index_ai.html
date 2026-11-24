@@ -554,9 +554,23 @@
         </div>
 
         <div class="container container-narrow">
-          <h2 class="h5">Allele plot</h2>
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2"> <!-- 20261124_category_plot -->
+            <h2 class="h5 m-0">Allele plot</h2> <!-- 20261124_category_plot -->
+            <div class="d-flex align-items-center gap-2 flex-wrap" id="categoryPlotSection" style="display:none;"> <!-- 20261124_category_plot -->
+              <select id="categoryPlotPick" class="form-select form-select-sm" style="width:auto;" title="Show the top alleles of one outcome category"> <!-- 20261124_category_plot -->
+                <option value="">All reads</option> <!-- 20261124_category_plot -->
+              </select> <!-- 20261124_category_plot -->
+              <select id="categoryPlotRows" class="form-select form-select-sm" style="width:auto;display:none;" title="How many alleles of the category to show"> <!-- 20261124_category_plot -->
+                <option value="5" selected>Top 5</option> <!-- 20261124_category_plot -->
+                <option value="10">Top 10</option> <!-- 20261124_category_plot -->
+                <option value="20">Top 20</option> <!-- 20261124_category_plot -->
+              </select> <!-- 20261124_category_plot -->
+            </div> <!-- 20261124_category_plot -->
+          </div> <!-- 20261124_category_plot -->
+          <p class="small text-secondary mt-0 mb-2" id="categoryPlotNote" style="display:none;"></p> <!-- 20261124_category_plot -->
           <div class="allelechart-container">
             <div id="allelePlot"></div>
+            <div id="categoryAllelePlot" style="display:none;"></div> <!-- 20261124_category_plot -->
           </div>
         </div>
 
@@ -734,11 +748,12 @@
     <script src="lungo_progress.js"></script> <!-- 20261111_progress -->
     <script src="lungo_options.js"></script> <!-- 20261111_options -->
     <script src="main.js"></script>
-    <script src="CRISPRlungo_ai.js"></script>
+    <script src="CRISPRlungo_ai.js?v=20261124b"></script> <!-- 20261124_category_plot -->
     <script src="lungo_alignview.js"></script> <!-- 20261111_alignview -->
-    <script src="lungo_pa.js"></script> <!-- 20261111_pa -->
+    <script src="lungo_pa.js?v=20261124b"></script> <!-- 20261111_pa, 20261124_category_plot -->
+    <script src="lungo_category_plot.js?v=20261124b"></script> <!-- 20261124_category_plot -->
     <script src="custom_classify.js"></script>
-    <script src="lungo_export.js"></script> <!-- 20261110_export -->
+    <script src="lungo_export.js?v=20261124b"></script> <!-- 20261110_export, 20261124_category_plot -->
     <script src="lungo_agent.js"></script> <!-- 20261110_agent -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script> <!-- 20261110_export -->
     <!--script src="https://cdn.jsdelivr.net/npm/cstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script-->
