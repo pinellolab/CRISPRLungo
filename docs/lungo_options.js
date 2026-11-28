@@ -146,6 +146,11 @@
     var treated = (document.getElementById('treatedFile').files[0] || {}).name || 'treated.fastq';
     var controlEl = document.getElementById('controlFile');
     var control = controlEl.files.length ? controlEl.files[0].name : null;
+    var paired = !!(window.lungoPairedEnabled && window.lungoPeMerged);  // 20261128_paired_end
+    if (paired) {  // 20261128_paired_end
+      treated = window.lungoPeMerged.treated.name;  // 20261128_paired_end
+      if (control && window.lungoPeMerged.control) control = window.lungoPeMerged.control.name;  // 20261128_paired_end
+    }  // 20261128_paired_end
     var target = (document.getElementById('targetSequence').value || '').trim().toUpperCase();
     var target2 = (document.getElementById('targetSequence2').value || '').trim().toUpperCase();
     var desired = ((document.getElementById('desiredSequence') || {}).value || '')
@@ -184,6 +189,14 @@
     }
 
     var notes = [];
+    if (paired) {  // 20261128_paired_end
+      notes.push('# Paired-end: the CLI takes one FASTQ per sample. Use the merged FASTQ the web tool made '  // 20261128_paired_end
+        + '(download links above the outcome table), or make it with the same fastp merge CRISPResso2 runs:');  // 20261128_paired_end
+      notes.push('#   fastp -i R1.fastq.gz -I R2.fastq.gz --merge --merged_out merged.fastq '  // 20261128_paired_end
+        + '--overlap_len_require ' + window.peMinOverlap + ' --overlap_diff_limit ' + window.peDiffLimit  // 20261128_paired_end
+        + ' --overlap_diff_percent_limit ' + window.peDiffPercent + ' --disable_adapter_trimming '  // 20261128_paired_end
+        + '--disable_trim_poly_g --disable_quality_filtering --disable_length_filtering');  // 20261128_paired_end
+    }  // 20261128_paired_end
     if (typeof window.mutAllowance === 'number' && window.mutAllowance !== 0.05) {
       notes.push('# BH significance alpha ' + window.mutAllowance
         + ' has no command-line option; the CLI always uses 0.05.');

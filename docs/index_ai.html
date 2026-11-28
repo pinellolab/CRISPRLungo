@@ -187,7 +187,14 @@
           <div class="app-card p-3 p-md-4">
             <form id="analysisForm" novalidate>
               <div class="row g-3 g-md-4">
-                <div class="col-12 section-title">Inputs</div>
+                <div class="col-12 section-title d-flex align-items-center flex-wrap gap-3"> <!-- 20261128_paired_end -->
+                  <span>Inputs</span> <!-- 20261128_paired_end -->
+                  <div class="form-check form-switch m-0 small fw-normal d-flex align-items-center gap-1"> <!-- 20261128_paired_end -->
+                    <input class="form-check-input" type="checkbox" role="switch" id="peEnable"> <!-- 20261128_paired_end -->
+                    <label class="form-check-label ms-1" for="peEnable">Paired-end (R1 / R2)</label> <!-- 20261128_paired_end -->
+                    <i class="bi bi-question-circle help-icon ms-1" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Each sample takes an R1 and an R2 file. Before alignment they are merged into one read per pair exactly as CRISPResso2 does it (fastp --merge with its default settings; see Detailed options). Pairs that do not overlap are left out, so the amplicon has to be shorter than R1 + R2 minus the overlap. Use the amplicon itself, primer to primer, as the reference."></i> <!-- 20261128_paired_end -->
+                  </div> <!-- 20261128_paired_end -->
+                </div> <!-- 20261128_paired_end -->
 
                 <!-- Files -->
                 <div class="col-12 col-md-6">
@@ -195,6 +202,10 @@
                   <div class="p-3 file-box">
                     <input class="form-control form-control-sm" id="treatedFile" type="file"
                       accept=".fastq,.fq,.fastq.gz,.fq.gz" />
+                    <div class="input-group input-group-sm mt-2 pe-r2" style="display:none;"> <!-- 20261128_paired_end -->
+                      <span class="input-group-text justify-content-center" style="width:2.6em;">R2</span> <!-- 20261128_paired_end -->
+                      <input class="form-control form-control-sm" id="treatedFile2" type="file" accept=".fastq,.fq,.fastq.gz,.fq.gz" title="Treated R2: same reads, in the same order, as R1" /> <!-- 20261128_paired_end -->
+                    </div> <!-- 20261128_paired_end -->
                     <div class="form-text">.fastq / .fq / .gz </div>
                     <div class="form-text">(.fastq /.fq <500Mb, .gz <200Mb)</div>
                     </div>
@@ -204,6 +215,10 @@
                     <div class="p-3 file-box">
                       <input class="form-control form-control-sm" id="controlFile" type="file"
                         accept=".fastq,.fq,.fastq.gz,.fq.gz" />
+                      <div class="input-group input-group-sm mt-2 pe-r2" style="display:none;"> <!-- 20261128_paired_end -->
+                        <span class="input-group-text justify-content-center" style="width:2.6em;">R2</span> <!-- 20261128_paired_end -->
+                        <input class="form-control form-control-sm" id="controlFile2" type="file" accept=".fastq,.fq,.fastq.gz,.fq.gz" title="Control R2: same reads, in the same order, as R1" /> <!-- 20261128_paired_end -->
+                      </div> <!-- 20261128_paired_end -->
                       <div class="form-text">Optional for backgorund error filtering</div>
                       <div class="form-text">(.fastq /.fq <500Mb, .gz <200Mb)</div>
                       </div>
@@ -331,6 +346,19 @@
                                 <label for="minimap2Opt" class="form-label">Extra minimap2 options <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Appended to the minimap2 command, e.g. -k 11 -w 5. CLI: --minimap2_opt."></i></label>
                                 <input type="text" class="form-control validate-number" id="minimap2Opt" name="minimap2Opt" value="" placeholder="(none)" spellcheck="false">
                               </div>
+                              <div class="col-12"><div class="text-uppercase small fw-semibold text-secondary border-bottom pb-1 mt-2">Paired-end merge (fastp, as CRISPResso2)</div></div> <!-- 20261128_paired_end -->
+                              <div class="col-12 col-md-4"> <!-- 20261128_paired_end -->
+                                <label for="peMinOverlap" class="form-label">Minimum overlap (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Used only with Paired-end on. R1 and R2 must overlap by more than this. CRISPResso2: --min_paired_end_reads_overlap (default 10), passed to fastp as --overlap_len_require."></i></label> <!-- 20261128_paired_end -->
+                                <input type="number" class="form-control validate-number" id="peMinOverlap" value="10" min="1" step="1"> <!-- 20261128_paired_end -->
+                              </div> <!-- 20261128_paired_end -->
+                              <div class="col-12 col-md-4"> <!-- 20261128_paired_end -->
+                                <label for="peDiffLimit" class="form-label">Max mismatches <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Used only with Paired-end on. Most mismatching bases allowed in the first 50 nt of the overlap. fastp --overlap_diff_limit (default 5)."></i></label> <!-- 20261128_paired_end -->
+                                <input type="number" class="form-control validate-number" id="peDiffLimit" value="5" min="0" step="1"> <!-- 20261128_paired_end -->
+                              </div> <!-- 20261128_paired_end -->
+                              <div class="col-12 col-md-4"> <!-- 20261128_paired_end -->
+                                <label for="peDiffPercent" class="form-label">Max mismatch % <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="Used only with Paired-end on. Most mismatching bases allowed, as a percentage of the overlap; the smaller of the two limits applies. fastp --overlap_diff_percent_limit (default 20)."></i></label> <!-- 20261128_paired_end -->
+                                <input type="number" class="form-control validate-number" id="peDiffPercent" value="20" min="0" max="100" step="1"> <!-- 20261128_paired_end -->
+                              </div> <!-- 20261128_paired_end -->
                               <div class="col-12"><div class="text-uppercase small fw-semibold text-secondary border-bottom pb-1 mt-2">Allele plot</div></div>
                               <div class="col-12 col-md-6">
                                 <label for="allelePlotWindow" class="form-label">Allele plot window (nt) <i class="bi bi-question-circle help-icon" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="How many nucleotides either side of the cleavage site the allele plot shows. CLI: --allele_plot_window."></i></label>
@@ -401,12 +429,12 @@
 
                         <button type="button" class="btn btn-primary border-start border-light"
                           onclick="downloadAction()" data-bs-toggle="tooltip" data-bs-placement="top"
-                          title="Download dataset">
+                          title="Download dataset (paired-end example when Paired-end is on)">
                           <i class="bi bi-download text-white"></i>
                         </button>
 
                         <button type="button" class="btn btn-primary border-start border-light" onclick="runAction()"
-                          data-bs-toggle="tooltip" data-bs-placement="top" title="Load dataset into form">
+                          data-bs-toggle="tooltip" data-bs-placement="top" title="Load dataset into form (paired-end example when Paired-end is on)">
                           <i class="bi bi-play-fill text-white"></i>
                         </button>
                       </div>
@@ -460,6 +488,7 @@
             <span id="exportStatus" class="form-help"></span> <!-- 20261110_export -->
           </div> <!-- 20261110_export -->
           <!-- 20261111_pa: the PA heading belongs with the table it describes -->
+          <div id="peSummary" class="small mb-2" style="display:none;"></div> <!-- 20261128_paired_end -->
           <div id="paHeading" class="mb-2" style="display:none;">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
               <h2 class="h5 m-0">Prime assembly analysis</h2>
@@ -746,9 +775,10 @@
 
 
     <script src="lungo_progress.js"></script> <!-- 20261111_progress -->
-    <script src="lungo_options.js"></script> <!-- 20261111_options -->
-    <script src="main.js"></script>
-    <script src="CRISPRlungo_ai.js?v=20261124b"></script> <!-- 20261124_category_plot -->
+    <script src="lungo_options.js?v=20261128b"></script> <!-- 20261111_options, 20261128_paired_end -->
+    <script src="lungo_pe.js?v=20261128e"></script> <!-- 20261128_paired_end -->
+    <script src="main.js?v=20261128b"></script> <!-- 20261128_paired_end -->
+    <script src="CRISPRlungo_ai.js?v=20261128a"></script> <!-- 20261124_category_plot -->
     <script src="lungo_alignview.js"></script> <!-- 20261111_alignview -->
     <script src="lungo_pa.js?v=20261124b"></script> <!-- 20261111_pa, 20261124_category_plot -->
     <script src="lungo_category_plot.js?v=20261124b"></script> <!-- 20261124_category_plot -->

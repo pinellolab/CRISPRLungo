@@ -39,14 +39,20 @@ async function runAlignDesired() {
   if (window.lungoProgress) {
     var steps = [{ id: 'align', label: 'Aligning reads to the reference' },
                  { id: 'analyse', label: 'Analysing mutations' }];
+    if (window.lungoPairedEnabled) steps.unshift({ id: 'merge', label: 'Merging paired-end reads (R1 + R2)' });  // 20261128_paired_end
     if (window.paEnabled) {
       steps.push({ id: 'pa', label: 'Prime assembly: classifying against five alleles' });
     }
     steps.push({ id: 'draw', label: 'Building the report' });
     window.lungoProgress.init(steps);
-    window.lungoProgress.start('align');
+    window.lungoProgress.start(window.lungoPairedEnabled ? 'merge' : 'align');  // 20261128_paired_end
     window.lungoProgress.say('Reading the FASTQ file ...');
   }
+
+  if (window.lungoPairedEnabled && typeof lungoMergePairs === 'function') {  // 20261128_paired_end
+    if (!(await lungoMergePairs())) return;  // 20261128_paired_end
+    if (window.lungoProgress) window.lungoProgress.start('align');  // 20261128_paired_end
+  }  // 20261128_paired_end
 
 
   if (desiredSeq !== "") {
@@ -545,7 +551,7 @@ function resetResultsPage() {
     var el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
-  ['paHeading', 'alignViewSection', 'cliCommandSection', 'categoryPlotSection'].forEach(function (id) {  // 20261124_category_plot
+  ['paHeading', 'alignViewSection', 'cliCommandSection', 'categoryPlotSection', 'peSummary'].forEach(function (id) {  // 20261124_category_plot, 20261128_paired_end
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -584,6 +590,9 @@ function showResultsPage() {
   }
 
   runVisualization()
+  if (typeof renderPairedSummary === 'function') {  // 20261128_paired_end
+    try { renderPairedSummary(); } catch (e) { console.error('paired-end summary:', e); }  // 20261128_paired_end
+  }  // 20261128_paired_end
 
   // 20261111_pa: replaces the outcome table and the pie charts with the PA ones
   if (window.paResult && typeof renderPaResult === 'function') {

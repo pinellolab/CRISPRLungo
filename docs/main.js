@@ -58,6 +58,7 @@ function main() {
 
     // 20261111_options: everything in the Detailed options panel and the PA card.
     if (typeof applyAdvancedOptions === 'function' && applyAdvancedOptions() === false) return;
+    if (typeof applyPairedOptions === 'function' && applyPairedOptions() === false) return;  // 20261128_paired_end
 
     if (document.getElementById("controlFile").files.length == 0) {
         controlFile = false;
@@ -157,6 +158,8 @@ function main() {
 
 
 async function runAction() {
+    if (typeof lungoLoadPairedExample === 'function' && document.getElementById('peEnable') && document.getElementById('peEnable').checked) return lungoLoadPairedExample();  // 20261128_paired_end
+    if (window.lungoPeExampleLoaded) { document.getElementById('desiredSequence').value = ''; window.lungoPeExampleLoaded = false; }  // 20261128_paired_end
 
     const targetInput = document.getElementById('targetSequence');
     targetInput.value = 'GGCGCCCTGGCCAGTCGTCT';
@@ -198,6 +201,7 @@ async function runAction() {
 }
 
 async function downloadAction() {
+    if (typeof lungoDownloadPairedExample === 'function' && document.getElementById('peEnable') && document.getElementById('peEnable').checked) return lungoDownloadPairedExample();  // 20261128_paired_end
     const files = [
         { path: 'data/Example_Treated.fastq', name: 'Example_Treated.fastq' },
         { path: 'data/Example_Control.fastq', name: 'Example_Control.fastq' }
